@@ -2,16 +2,16 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChangeEvent, DragEvent, useRef, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { ArrowLeft, Eye, EyeOff, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Plus, X } from "lucide-react";
+import { ImageUploadField } from "@/src/components/shared/image-upload-field";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import { NotAuthorized } from "@/src/components/shared/not-authorized";
 import { appToast } from "@/src/lib/toast";
-import { api } from "@/src/services/api";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
 import { createCafeThunk, fetchManagedCafesThunk } from "@/src/store/slices/cafe.slice";
 
@@ -30,11 +30,8 @@ export default function CreateCafeAdminPage() {
   const router = useRouter();
   const user = useAppSelector((state) => state.auth.user);
   const loading = useAppSelector((state) => state.cafe.loading);
-  const [logoUploading, setLogoUploading] = useState(false);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
-  const [isDragActive, setIsDragActive] = useState(false);
+  const [logoPreview, setLogoPreview] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const {
     register,
     handleSubmit,
@@ -58,63 +55,6 @@ export default function CreateCafeAdminPage() {
       void dispatch(fetchManagedCafesThunk());
       router.push("/cafe-admins");
     }
-  };
-
-  const uploadLogoFile = async (file: File) => {
-    if (!file) {
-      return;
-    }
-
-    if (!file.type.startsWith("image/")) {
-      appToast.error("Please select a valid image file");
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      appToast.error("Image size must be less than 5MB");
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("assetType", "logo");
-
-    setLogoUploading(true);
-    try {
-      const response = await api.post("/uploads/image", formData);
-      const uploadedUrl = response.data.data.fileUrl as string;
-      setValue("logo", uploadedUrl, { shouldDirty: true });
-      setLogoPreview(uploadedUrl);
-      appToast.success("Logo uploaded");
-    } catch {
-      appToast.error("Failed to upload logo");
-    } finally {
-      setLogoUploading(false);
-    }
-  };
-
-  const handleLogoUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-    await uploadLogoFile(file);
-    event.target.value = "";
-  };
-
-  const handleDrop = async (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    setIsDragActive(false);
-    const file = event.dataTransfer.files?.[0];
-    if (!file) {
-      return;
-    }
-    await uploadLogoFile(file);
-  };
-
-  const clearLogo = () => {
-    setValue("logo", "", { shouldDirty: true });
-    setLogoPreview(null);
   };
 
   return (
@@ -165,79 +105,23 @@ export default function CreateCafeAdminPage() {
             <Field id="address" label="Address" error={errors.address?.message}>
               <Input {...register("address")} placeholder="Street, city" />
             </Field>
-            <Field
+            <ImageUploadField
               id="logoUpload"
               label="Cafe logo"
               error={errors.logo?.message}
-              hint="Upload PNG/JPG up to 5MB"
+              hint="Upload PNG, JPG, or JPEG up to 5MB"
               className="md:col-span-2"
-            >
-              <div className="space-y-3">
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => fileInputRef.current?.click()}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                    setIsDragActive(true);
-                  }}
-                  onDragLeave={() => setIsDragActive(false)}
-                  onDrop={(event) => void handleDrop(event)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      fileInputRef.current?.click();
-                    }
-                  }}
-                  className={`cursor-pointer rounded-xl border border-dashed p-4 text-center transition ${
-                    isDragActive
-                      ? "border-primary bg-primary-soft"
-                      : "border-(--color-border) bg-surface-muted hover:border-primary/60"
-                  }`}
-                >
-                  <p className="text-sm font-medium text-foreground">Drag & drop logo here</p>
-                  <p className="mt-1 text-xs text-muted">or click to browse files</p>
-                  <p className="mt-2 text-[11px] text-subtle">Recommended size: 512x512px (square)</p>
-                </div>
-                <Input
-                  ref={fileInputRef}
-                  id="logoUpload"
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) => void handleLogoUpload(event)}
-                  className="hidden"
-                />
-                <input type="hidden" {...register("logo")} />
-                {logoPreview ? (
-                  <div className="flex items-center justify-between gap-3 rounded-xl border border-(--color-border) bg-(--color-surface) px-3 py-2">
-                    <div className="inline-flex items-center gap-3">
-                      <img src={logoPreview} alt="Cafe logo preview" className="h-10 w-10 rounded-md object-cover" />
-                      <p className="text-xs text-muted">Logo uploaded</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        <span className="inline-flex items-center gap-1.5">
-                          <RefreshCw size={14} aria-hidden="true" />
-                          Replace
-                        </span>
-                      </Button>
-                      <Button type="button" size="sm" variant="ghost" onClick={clearLogo}>
-                        <span className="inline-flex items-center gap-1.5">
-                          <Trash2 size={14} aria-hidden="true" />
-                          Remove
-                        </span>
-                      </Button>
-                    </div>
-                  </div>
-                ) : null}
-                {logoUploading ? <p className="text-xs text-muted">Uploading logo...</p> : null}
-              </div>
-            </Field>
+              value={logoPreview}
+              onChange={(url) => {
+                setValue("logo", url, { shouldDirty: true });
+                setLogoPreview(url);
+              }}
+              assetType="logo"
+              dropTitle="Drag & drop logo here"
+              previewAlt="Cafe logo preview"
+              uploadedLabel="Logo uploaded"
+            />
+            <input type="hidden" {...register("logo")} />
           </div>
 
           <div className="space-y-1 border-t border-(--color-border) pt-5">

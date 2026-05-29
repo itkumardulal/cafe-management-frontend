@@ -1,140 +1,123 @@
 "use client";
 
-import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
-import { api } from "../../services/api";
-
-export interface ManagedCafeAdmin {
-  id: string;
-  staffId?: string | null;
-  fullName: string;
-  email: string;
-  isActive: boolean;
-  createdAt: string;
-}
-
-export interface ManagedCafe {
-  id: string;
-  cafeName: string;
-  slug: string;
-  email: string;
-  contactNumber?: string | null;
-  isActive: boolean;
-  createdAt: string;
-  users: ManagedCafeAdmin[];
-}
-
-export interface CafeOverview {
-  cafe: {
-    id: string;
-    cafeName: string;
-    slug: string;
-    email: string;
-    contactNumber?: string | null;
-    isActive: boolean;
-    createdAt: string;
-    users: Array<{
-      id: string;
-      fullName: string;
-      email: string;
-      isActive: boolean;
-    }>;
-  };
-  metrics: {
-    totalStaff: number;
-    activeStaff: number;
-    totalUsers: number;
-  };
-}
-
-export interface CreateCafePayload {
-  cafeName: string;
-  email: string;
-  password: string;
-  slug?: string;
-  address?: string;
-  contactNumber?: string;
-  logo?: string;
-}
-
-type CafeState = {
-  selectedCafeId: string | null;
-  managedCafes: ManagedCafe[];
-  selectedCafeOverview: CafeOverview | null;
-  loading: boolean;
-};
+import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/toolkit";
+import { api } from "@/src/services/api";
+import type {
+  CafeOverview,
+  CafeState,
+  CreateCafePayload,
+  CreateCafeResult,
+  ManagedCafe,
+} from "@/src/store/types/cafe.types";
 
 const initialState: CafeState = {
   selectedCafeId: null,
   managedCafes: [],
   selectedCafeOverview: null,
   loading: false,
+  error: null,
 };
 
-export const fetchManagedCafesThunk = createAsyncThunk("cafe/fetchManaged", async () => {
-  const response = await api.get("/cafes/mine");
-  return response.data.data as ManagedCafe[];
+export const fetchManagedCafesThunk = createAsyncThunk<
+  ManagedCafe[],
+  void,
+  { rejectValue: string }
+>("cafe/fetchManaged", async (_, { rejectWithValue }) => {
+  try {
+    const response = await api.get("/cafes/mine");
+    return response.data.data as ManagedCafe[];
+  } catch {
+    return rejectWithValue("Failed to load cafes");
+  }
 });
 
-export const fetchCafeOverviewThunk = createAsyncThunk(
-  "cafe/fetchOverview",
-  async (cafeId: string) => {
+export const fetchCafeOverviewThunk = createAsyncThunk<
+  CafeOverview,
+  string,
+  { rejectValue: string }
+>("cafe/fetchOverview", async (cafeId, { rejectWithValue }) => {
+  try {
     const response = await api.get(`/cafes/${cafeId}/overview`);
     return response.data.data as CafeOverview;
-  },
-);
+  } catch {
+    return rejectWithValue("Failed to load cafe overview");
+  }
+});
 
-export const createCafeThunk = createAsyncThunk(
-  "cafe/createCafe",
-  async (payload: CreateCafePayload) => {
+export const createCafeThunk = createAsyncThunk<
+  CreateCafeResult,
+  CreateCafePayload,
+  { rejectValue: string }
+>("cafe/createCafe", async (payload, { rejectWithValue }) => {
+  try {
     const response = await api.post("/cafes", payload);
-    return response.data.data as {
-      cafe: ManagedCafe;
-      cafeAdmin: ManagedCafeAdmin;
-    };
-  },
-);
+    return response.data.data as CreateCafeResult;
+  } catch {
+    return rejectWithValue("Failed to create cafe");
+  }
+});
 
 const cafeSlice = createSlice({
   name: "cafe",
   initialState,
   reducers: {
-    setCafe(state, action: { payload: string | null }) {
+    setCafe(state, action: PayloadAction<string | null>) {
       state.selectedCafeId = action.payload;
+      if (!action.payload) {
+        state.selectedCafeOverview = null;
+      }
+    },
+    clearCafeError(state) {
+      state.error = null;
     },
   },
   extraReducers: (builder) => {
     builder
       .addCase(fetchManagedCafesThunk.pending, (state) => {
         state.loading = true;
+        state.error = null;
       })
       .addCase(fetchManagedCafesThunk.fulfilled, (state, action) => {
         state.loading = false;
         state.managedCafes = action.payload;
       })
-      .addCase(fetchManagedCafesThunk.rejected, (state) => {
+      .addCase(fetchManagedCafesThunk.rejected, (state, action) => {
         state.loading = false;
+        state.error = action.payload ?? "Failed to load cafes";
       })
       .addCase(fetchCafeOverviewThunk.pending, (state) => {
         state.loading = true;
+        state.error = null;
       })
       .addCase(fetchCafeOverviewThunk.fulfilled, (state, action) => {
         state.loading = false;
         state.selectedCafeOverview = action.payload;
+        state.selectedCafeId = action.payload.cafe.id;
       })
-      .addCase(fetchCafeOverviewThunk.rejected, (state) => {
+      .addCase(fetchCafeOverviewThunk.rejected, (state, action) => {
         state.loading = false;
+        state.error = action.payload ?? "Failed to load overview";
       })
       .addCase(createCafeThunk.pending, (state) => {
         state.loading = true;
+        state.error = null;
       })
-      .addCase(createCafeThunk.fulfilled, (state) => {
+      .addCase(createCafeThunk.fulfilled, (state, action) => {
         state.loading = false;
+        const { cafe, cafeAdmin } = action.payload;
+        const existing = state.managedCafes.find((c) => c.id === cafe.id);
+        if (existing) {
+          existing.users = [cafeAdmin, ...existing.users];
+        } else {
+          state.managedCafes = [{ ...cafe, users: [cafeAdmin] }, ...state.managedCafes];
+        }
       })
-      .addCase(createCafeThunk.rejected, (state) => {
+      .addCase(createCafeThunk.rejected, (state, action) => {
         state.loading = false;
+        state.error = action.payload ?? "Failed to create cafe";
       });
   },
 });
 
-export const { setCafe } = cafeSlice.actions;
+export const { setCafe, clearCafeError } = cafeSlice.actions;
 export default cafeSlice.reducer;

@@ -38,7 +38,7 @@ export function Drawer({
             exit={{ x: "-100%" }}
             transition={{ duration: 0.24 }}
             className={cn(
-              "fixed left-0 top-0 z-50 h-full w-[86vw] max-w-80 overflow-y-auto border-r border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-lg)]",
+              "fixed left-0 top-0 z-50 flex h-full w-[86vw] max-w-80 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-lg)]",
               className,
             )}
           >

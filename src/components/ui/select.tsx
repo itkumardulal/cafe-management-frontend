@@ -1,29 +1,338 @@
-import { type SelectHTMLAttributes, forwardRef } from "react";
+"use client";
+
+import { Check, ChevronDown } from "lucide-react";
+import {
+  Children,
+  isValidElement,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+  type SelectHTMLAttributes,
+} from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/src/lib/cn";
 
-type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
+type ParsedOption = {
+  value: string;
+  label: string;
+  disabled?: boolean;
+};
+
+type SelectProps = Omit<SelectHTMLAttributes<HTMLButtonElement>, "onChange" | "value" | "size"> & {
+  value: string;
+  onChange: (event: { target: { value: string } }) => void;
+  children: ReactNode;
   hasError?: boolean;
   size?: "sm" | "md" | "lg";
   fullWidth?: boolean;
 };
 
-export const Select = forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, hasError, size = "md", fullWidth = true, ...props }, ref) => (
-    <select
-      ref={ref}
-      className={cn(
-        "touch-target rounded-xl border bg-white px-3 text-sm outline-none transition-colors",
-        fullWidth && "w-full",
-        size === "sm" && "text-xs",
-        size === "lg" && "text-base",
-        hasError
-          ? "border-[var(--color-danger)]"
-          : "border-[var(--color-input)] focus:border-[var(--color-primary)]",
-        className,
-      )}
-      {...props}
-    />
-  ),
-);
+function optionLabel(children: ReactNode): string {
+  if (typeof children === "string" || typeof children === "number") {
+    return String(children);
+  }
+  return Children.toArray(children)
+    .map((child) => {
+      if (typeof child === "string" || typeof child === "number") {
+        return String(child);
+      }
+      return "";
+    })
+    .join("")
+    .trim();
+}
+
+function parseOptions(children: ReactNode): ParsedOption[] {
+  const options: ParsedOption[] = [];
+
+  Children.forEach(children, (child) => {
+    if (!isValidElement(child)) {
+      return;
+    }
+
+    const element = child as ReactElement<{
+      value?: string;
+      disabled?: boolean;
+      children?: ReactNode;
+    }>;
+
+    if (element.type !== "option") {
+      return;
+    }
+
+    options.push({
+      value: element.props.value ?? "",
+      label: optionLabel(element.props.children) || element.props.value || "",
+      disabled: element.props.disabled,
+    });
+  });
+
+  return options;
+}
+
+export function Select({
+  className,
+  hasError,
+  size = "md",
+  fullWidth = true,
+  value,
+  onChange,
+  children,
+  disabled,
+  id: idProp,
+  ...props
+}: SelectProps) {
+  const generatedId = useId();
+  const id = idProp ?? generatedId;
+  const listboxId = `${id}-listbox`;
+
+  const parsed = useMemo(() => parseOptions(children), [children]);
+  const placeholderOption = parsed.find((option) => option.value === "");
+  const selectableOptions = parsed.filter((option) => option.value !== "" && !option.disabled);
+  const selectedOption = parsed.find((option) => option.value === value);
+
+  const [open, setOpen] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(-1);
+  const [mounted, setMounted] = useState(false);
+  const [menuStyle, setMenuStyle] = useState({ top: 0, left: 0, width: 0 });
+
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+
+  const displayLabel =
+    selectedOption?.label ??
+    placeholderOption?.label ??
+    (value ? value : "Select an option");
+  const isPlaceholder = !selectedOption && Boolean(placeholderOption);
+
+  const updateMenuPosition = useCallback(() => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) {
+      return;
+    }
+    setMenuStyle({
+      top: rect.bottom + 6,
+      left: rect.left,
+      width: rect.width,
+    });
+  }, []);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    updateMenuPosition();
+    const handleReposition = () => updateMenuPosition();
+    window.addEventListener("resize", handleReposition);
+    window.addEventListener("scroll", handleReposition, true);
+
+    return () => {
+      window.removeEventListener("resize", handleReposition);
+      window.removeEventListener("scroll", handleReposition, true);
+    };
+  }, [open, updateMenuPosition]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (triggerRef.current?.contains(target) || listRef.current?.contains(target)) {
+        return;
+      }
+      setOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      setHighlightIndex(-1);
+      return;
+    }
+
+    const selectedIndex = selectableOptions.findIndex((option) => option.value === value);
+    setHighlightIndex(selectedIndex >= 0 ? selectedIndex : 0);
+  }, [open, selectableOptions, value]);
+
+  const selectValue = (nextValue: string) => {
+    onChange({ target: { value: nextValue } });
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
+
+  const handleTriggerKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (disabled) {
+      return;
+    }
+
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      setOpen((previous) => !previous);
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setOpen(true);
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setOpen(true);
+    }
+  };
+
+  const handleListKeyDown = (event: React.KeyboardEvent<HTMLUListElement>) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setHighlightIndex((index) => Math.min(index + 1, selectableOptions.length - 1));
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setHighlightIndex((index) => Math.max(index - 1, 0));
+      return;
+    }
+
+    if (event.key === "Enter" && highlightIndex >= 0) {
+      event.preventDefault();
+      const option = selectableOptions[highlightIndex];
+      if (option) {
+        selectValue(option.value);
+      }
+    }
+  };
+
+  const menu =
+    open && mounted && selectableOptions.length > 0
+      ? createPortal(
+          <ul
+            ref={listRef}
+            id={listboxId}
+            role="listbox"
+            aria-labelledby={id}
+            style={{
+              position: "fixed",
+              top: menuStyle.top,
+              left: menuStyle.left,
+              width: menuStyle.width,
+              zIndex: 9999,
+            }}
+            onKeyDown={handleListKeyDown}
+            className="max-h-56 overflow-y-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-1 shadow-[var(--shadow-md)]"
+          >
+            {selectableOptions.map((option, index) => {
+              const isSelected = option.value === value;
+              const isHighlighted = index === highlightIndex;
+
+              return (
+                <li key={option.value} role="presentation">
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    disabled={option.disabled}
+                    className={cn(
+                      "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition-colors",
+                      isSelected
+                        ? "bg-[var(--color-primary-soft)] font-medium text-[var(--color-foreground)]"
+                        : isHighlighted
+                          ? "bg-[var(--color-cream-100)] text-[var(--color-foreground)]"
+                          : "text-[var(--color-muted)] hover:bg-[var(--color-cream-100)] hover:text-[var(--color-foreground)]",
+                    )}
+                    onMouseEnter={() => setHighlightIndex(index)}
+                    onClick={() => selectValue(option.value)}
+                  >
+                    <span className="truncate">{option.label}</span>
+                    {isSelected ? (
+                      <Check size={16} className="shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
+                    ) : (
+                      <span className="w-4 shrink-0" aria-hidden="true" />
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>,
+          document.body,
+        )
+      : null;
+
+  return (
+    <>
+      <button
+        {...props}
+        ref={triggerRef}
+        id={id}
+        type="button"
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listboxId : undefined}
+        onClick={() => {
+          if (!disabled) {
+            setOpen((previous) => !previous);
+          }
+        }}
+        onKeyDown={handleTriggerKeyDown}
+        className={cn(
+          "touch-target inline-flex items-center justify-between gap-2 rounded-xl border px-3 text-left text-sm outline-none transition-colors",
+          "focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-background)]",
+          fullWidth && "w-full",
+          size === "sm" && "text-xs",
+          size === "lg" && "text-base",
+          disabled && "cursor-not-allowed opacity-60",
+          hasError
+            ? "border-[var(--color-danger)]"
+            : open
+              ? "border-[var(--color-primary)]"
+              : "border-[var(--color-input)] hover:border-[var(--color-primary)]/60",
+          "bg-[var(--color-surface)]",
+          className,
+        )}
+      >
+        <span className={cn("truncate", isPlaceholder && "text-[var(--color-subtle)]")}>{displayLabel}</span>
+        <ChevronDown
+          size={16}
+          aria-hidden="true"
+          className={cn(
+            "shrink-0 text-[var(--color-muted)] transition-transform",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+      {menu}
+    </>
+  );
+}
 
 Select.displayName = "Select";

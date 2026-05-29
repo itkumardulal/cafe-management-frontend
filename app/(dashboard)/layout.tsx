@@ -21,16 +21,16 @@ export default function DashboardLayout({
 
   return (
     <AuthGuard>
-      <div className="h-screen overflow-hidden bg-[var(--color-background)]">
+      <div className="flex h-dvh flex-col overflow-hidden bg-[var(--color-background)]">
         <Header onOpenMobileNav={() => setMobileNavOpen(true)} />
-        <div className="flex h-[calc(100dvh-73px)] overflow-hidden">
+        <div className="flex min-h-0 flex-1 overflow-hidden">
           <Sidebar
             collapsed={collapsed}
             onToggle={() => setCollapsed((prev) => !prev)}
-            className="hidden lg:block"
+            className="hidden lg:flex"
           />
           <MobileNav open={mobileNavOpen} onClose={closeMobileNav} />
-          <main className="min-w-0 flex-1 overflow-x-auto overflow-y-auto p-4 pb-24 sm:p-6">
+          <main className="min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto p-4 pb-24 sm:p-6">
             {children}
           </main>
         </div>

@@ -1,6 +1,18 @@
 import { type ReactNode } from "react";
 import { cn } from "@/src/lib/cn";
 
+export type TableHeaderConfig = {
+  label: string;
+  thClassName?: string;
+  labelWrapperClassName?: string;
+};
+
+export type TableHeader = string | TableHeaderConfig;
+
+function normalizeHeader(header: TableHeader): TableHeaderConfig {
+  return typeof header === "string" ? { label: header } : header;
+}
+
 export function ResponsiveTable({
   headers,
   children,
@@ -8,12 +20,14 @@ export function ResponsiveTable({
   ariaLabel,
   density = "comfortable",
 }: {
-  headers: string[];
+  headers: TableHeader[];
   children: ReactNode;
   className?: string;
   ariaLabel?: string;
   density?: "compact" | "comfortable";
 }) {
+  const cellPad = density === "comfortable" ? "px-4 py-3" : "px-3 py-2.5";
+
   return (
     <div className={cn("surface-card overflow-hidden p-0", className)}>
       <div className="max-w-full overflow-x-auto">
@@ -23,17 +37,21 @@ export function ResponsiveTable({
         >
           <thead className="sticky top-0 bg-[var(--color-cream-100)] text-[var(--color-muted)]">
             <tr>
-              {headers.map((header) => (
-                <th
-                  key={header}
-                  className={cn(
-                    "font-medium",
-                    density === "comfortable" ? "px-4 py-3" : "px-3 py-2.5",
-                  )}
-                >
-                  {header}
-                </th>
-              ))}
+              {headers.map((header) => {
+                const column = normalizeHeader(header);
+                return (
+                  <th
+                    key={column.label}
+                    className={cn("font-medium", cellPad, column.thClassName)}
+                  >
+                    {column.labelWrapperClassName ? (
+                      <div className={column.labelWrapperClassName}>{column.label}</div>
+                    ) : (
+                      column.label
+                    )}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>{children}</tbody>
@@ -42,3 +60,8 @@ export function ResponsiveTable({
     </div>
   );
 }
+
+/** Aligns action buttons to the column end with the header centered above them. */
+export const tableActionsColumnClass =
+  "ml-auto flex w-[9.75rem] flex-col items-center";
+export const tableActionsCellClass = "ml-auto flex w-[9.75rem] justify-center";

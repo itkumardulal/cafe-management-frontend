@@ -13,8 +13,8 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
   }, [pathname, onClose]);
 
   return (
-    <Drawer open={open} onClose={onClose}>
-      <Sidebar className="w-full border-r-0 p-0" />
+    <Drawer open={open} onClose={onClose} className="flex flex-col overflow-hidden p-0">
+      <Sidebar className="h-full w-full border-r-0" />
     </Drawer>
   );
 }

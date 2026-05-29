@@ -15,3 +15,19 @@ export const store = configureStore({
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
+
+export type {
+  StaffRecord,
+  AssignableMenu,
+  CreatedUserRecord,
+  CreateStaffPayload,
+  UpdateStaffPayload,
+  UserState,
+  ManagedCafe,
+  ManagedCafeAdmin,
+  CafeOverview,
+  CreateCafePayload,
+  CafeState,
+  AuthState,
+  MenuState,
+} from "./types";
