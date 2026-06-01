@@ -1,6 +1,7 @@
 "use client";
 
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import { getApiErrorMessage } from "@/src/lib/api-error";
 import { api } from "@/src/services/api";
 import type {
   AssignableMenu,
@@ -39,8 +40,8 @@ export const createStaffThunk = createAsyncThunk<
   try {
     const response = await api.post("/users/staff", payload);
     return response.data.data as StaffRecord;
-  } catch {
-    return rejectWithValue("Failed to create staff");
+  } catch (error) {
+    return rejectWithValue(getApiErrorMessage(error, "Failed to create staff"));
   }
 });
 
@@ -84,8 +85,8 @@ export const updateStaffThunk = createAsyncThunk<
       await api.post(`/users/staff/${id}/menu-access`, { menuCodes: accessMenuCodes });
     }
     return id;
-  } catch {
-    return rejectWithValue("Failed to update staff");
+  } catch (error) {
+    return rejectWithValue(getApiErrorMessage(error, "Failed to update staff"));
   }
 });
 

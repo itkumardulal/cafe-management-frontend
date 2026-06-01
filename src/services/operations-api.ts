@@ -5,6 +5,19 @@ export type Paginated<T> = {
   meta: { page: number; limit: number; total: number; totalPages: number };
 };
 
+export type ListQueryParams = {
+  search?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+};
+
+export type DateRangeQueryParams = ListQueryParams & {
+  fromDate?: string;
+  toDate?: string;
+};
+
 async function getData<T>(path: string, params?: Record<string, string | number | undefined>) {
   const response = await api.get(path, { params });
   return response.data.data as T;
@@ -22,17 +35,17 @@ async function mutate<T>(method: "post" | "patch" | "delete", path: string, body
 
 export const operationsApi = {
   menuCategories: {
-    list: (params?: { search?: string; page?: number; limit?: number }) =>
+    list: (params?: ListQueryParams) =>
       getData<Paginated<{ id: string; name: string; catalogItemCount: number; menuItemCount: number }>>(
         "/menu-categories",
-        { ...params, limit: params?.limit ?? 100 },
+        params,
       ),
     create: (name: string) => mutate("post", "/menu-categories", { name }),
     update: (id: string, name: string) => mutate("patch", `/menu-categories/${id}`, { name }),
     remove: (id: string) => mutate("delete", `/menu-categories/${id}`),
   },
   menuItems: {
-    list: (params?: { search?: string; page?: number; limit?: number }) =>
+    list: (params?: ListQueryParams) =>
       getData<
         Paginated<{
           id: string;
@@ -47,7 +60,7 @@ export const operationsApi = {
           quantityOnHand: string;
           notes?: string | null;
         }>
-      >("/menu-items", { ...params, limit: params?.limit ?? 100 }),
+      >("/menu-items", params),
     sellableStock: () =>
       getData<{ id: string; name: string; quantityOnHand: string }[]>("/menu-items/sellable-stock"),
     create: (data: {
@@ -65,7 +78,7 @@ export const operationsApi = {
     remove: (id: string) => mutate("delete", `/menu-items/${id}`),
   },
   rawMaterials: {
-    list: (params?: { search?: string; page?: number; limit?: number }) =>
+    list: (params?: ListQueryParams) =>
       getData<
         Paginated<{
           id: string;
@@ -74,7 +87,7 @@ export const operationsApi = {
           description?: string | null;
           createdAt: string;
         }>
-      >("/raw-material-items", { ...params, limit: params?.limit ?? 100 }),
+      >("/raw-material-items", params),
     create: (data: { name: string; unit: string; description?: string }) =>
       mutate("post", "/raw-material-items", data),
     update: (id: string, data: Record<string, unknown>) =>
@@ -82,7 +95,7 @@ export const operationsApi = {
     remove: (id: string) => mutate("delete", `/raw-material-items/${id}`),
   },
   suppliers: {
-    list: (params?: { search?: string; page?: number; limit?: number }) =>
+    list: (params?: ListQueryParams) =>
       getData<
         Paginated<{
           id: string;
@@ -93,13 +106,27 @@ export const operationsApi = {
           address?: string | null;
           notes?: string | null;
         }>
-      >("/suppliers", { ...params, limit: params?.limit ?? 100 }),
+      >("/suppliers", params),
     create: (data: Record<string, unknown>) => mutate("post", "/suppliers", data),
     update: (id: string, data: Record<string, unknown>) => mutate("patch", `/suppliers/${id}`, data),
     remove: (id: string) => mutate("delete", `/suppliers/${id}`),
   },
+  diningTables: {
+    list: (params?: ListQueryParams) =>
+      getData<
+        Paginated<{
+          id: string;
+          name: string;
+          createdAt: string;
+        }>
+      >("/dining-tables", params),
+    create: (data: { name: string }) => mutate("post", "/dining-tables", data),
+    update: (id: string, data: { name: string }) => mutate("patch", `/dining-tables/${id}`, data),
+    remove: (id: string) => mutate("delete", `/dining-tables/${id}`),
+    options: () => getData<Array<{ id: string; name: string }>>("/dining-tables/options"),
+  },
   rmPurchases: {
-    list: (params?: { fromDate?: string; toDate?: string; page?: number; limit?: number }) =>
+    list: (params?: DateRangeQueryParams) =>
       getData<
         Paginated<{
           id: string;
@@ -108,9 +135,14 @@ export const operationsApi = {
           createdAt: string;
           notes?: string | null;
           lineCount: number;
+          billingType: "PAID" | "CREDIT";
           grandTotal: string;
+          cashPaidAmount: string;
+          bankPaidAmount: string;
+          creditAmount: string;
+          bankPaymentScreenshotUrl?: string | null;
         }>
-      >("/raw-material-purchases", { ...params, limit: params?.limit ?? 100 }),
+      >("/raw-material-purchases", params),
     getOne: (id: string) =>
       getData<{
         id: string;
@@ -120,7 +152,12 @@ export const operationsApi = {
         notes?: string | null;
         createdByName?: string | null;
         lineCount: number;
+        billingType: "PAID" | "CREDIT";
         grandTotal: string;
+        cashPaidAmount: string;
+        bankPaidAmount: string;
+        creditAmount: string;
+        bankPaymentScreenshotUrl?: string | null;
         cafe?: {
           cafeName: string;
           address?: string | null;
@@ -139,11 +176,15 @@ export const operationsApi = {
     create: (data: {
       purchaseDate: string;
       notes?: string;
+      billingType: "PAID" | "CREDIT";
+      cashPaidAmount: number;
+      bankPaidAmount: number;
+      bankPaymentScreenshotUrl?: string;
       lines: { rawMaterialItemId: string; supplierId: string; quantity: number; ratePerUnit: number }[];
     }) => mutate("post", "/raw-material-purchases", data),
   },
   expenseItems: {
-    list: (params?: { search?: string; page?: number; limit?: number }) =>
+    list: (params?: ListQueryParams) =>
       getData<
         Paginated<{
           id: string;
@@ -173,7 +214,7 @@ export const operationsApi = {
     remove: (id: string) => mutate("delete", `/expense-items/${id}`),
   },
   expenseEntries: {
-    list: (params?: { fromDate?: string; toDate?: string; page?: number; limit?: number }) =>
+    list: (params?: DateRangeQueryParams) =>
       getData<
         Paginated<{
           id: string;
@@ -191,7 +232,7 @@ export const operationsApi = {
     remove: (id: string) => mutate("delete", `/expense-entries/${id}`),
   },
   stockRemovals: {
-    list: (params?: { fromDate?: string; toDate?: string; page?: number; limit?: number }) =>
+    list: (params?: DateRangeQueryParams) =>
       getData<
         Paginated<{
           id: string;
@@ -204,7 +245,7 @@ export const operationsApi = {
           createdByName: string | null;
           lineCount: number;
         }>
-      >("/stock-removals", { ...params, limit: params?.limit ?? 100 }),
+      >("/stock-removals", params),
     getOne: (id: string) =>
       getData<{
         id: string;
@@ -238,6 +279,24 @@ export const operationsApi = {
   },
   assignableMenus: () =>
     getData<{ code: string; name: string }[]>("/menus/assignable"),
+  users: {
+    staff: {
+      list: (params?: ListQueryParams) =>
+        getData<
+          Paginated<{
+            id: string;
+            fullName: string;
+            email: string;
+            staffId: string | null;
+            role: string;
+            isActive: boolean;
+            status?: "INVITED" | "ACTIVE" | "INACTIVE" | "LOCKED";
+            contactNumber?: string | null;
+            menuAccess?: Array<{ menu: { code: string; name: string } }>;
+          }>
+        >("/users/staff", params),
+    },
+  },
   sales: {
     sellableCatalog: () =>
       getData<
@@ -250,12 +309,9 @@ export const operationsApi = {
           sellPricePerUnit: string;
         }>
       >("/sales/sellable-catalog"),
-    list: (params?: {
-      fromDate?: string;
-      toDate?: string;
+    list: (params?: DateRangeQueryParams & {
       serviceType?: "DINE_IN" | "DELIVERY";
-      page?: number;
-      limit?: number;
+      billingType?: "PAID" | "CREDIT";
     }) =>
       getData<
         Paginated<{
@@ -267,6 +323,8 @@ export const operationsApi = {
           billingType: "PAID" | "CREDIT";
           customerName?: string | null;
           customerPhone?: string | null;
+          tableId?: string | null;
+          tableName?: string | null;
           subtotal: string;
           otherChargeAmount: string;
           discountAmount: string;
@@ -278,7 +336,7 @@ export const operationsApi = {
           createdByName?: string | null;
           lineCount: number;
         }>
-      >("/sales", { ...params, limit: params?.limit ?? 100 }),
+      >("/sales", params),
     getOne: (id: string) =>
       getData<{
         id: string;
@@ -291,6 +349,8 @@ export const operationsApi = {
         customerPhone?: string | null;
         customerEmail?: string | null;
         customerAddress?: string | null;
+        tableId?: string | null;
+        tableName?: string | null;
         subtotal: string;
         otherChargeAmount: string;
         discountAmount: string;
@@ -325,10 +385,12 @@ export const operationsApi = {
       customerPhone?: string;
       customerEmail?: string;
       customerAddress?: string;
+      tableId?: string;
       otherChargeAmount: number;
       discountAmount?: number;
       discountPercent?: number;
       cashPaidAmount: number;
+      bankPaidAmount?: number;
       notes?: string;
       lines: { menuItemId: string; quantity: number; unitPrice: number }[];
     }) =>

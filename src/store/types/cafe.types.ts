@@ -1,9 +1,12 @@
+import type { UserStatus } from "@/src/lib/user-status";
+
 export interface ManagedCafeAdmin {
   id: string;
   staffId?: string | null;
   fullName: string;
   email: string;
   isActive: boolean;
+  status?: UserStatus;
   createdAt: string;
 }
 
@@ -44,11 +47,11 @@ export interface CafeOverview {
 export interface CreateCafePayload {
   cafeName: string;
   email: string;
-  password: string;
   slug?: string;
   address?: string;
   contactNumber?: string;
   logo?: string;
+  password?: string;
 }
 
 export interface CreateCafeResult {

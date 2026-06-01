@@ -1,48 +1,75 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
+import { Tags } from "lucide-react";
+import { FormFooter } from "@/src/components/shared/form-footer";
+import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
+import { MobileSortSelect } from "@/src/components/shared/mobile-sort-select";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { PaginatedListSection } from "@/src/components/shared/paginated-list-section";
+import { RowActions } from "@/src/components/shared/row-actions";
+import { CardListSkeleton } from "@/src/components/skeletons/card-list-skeleton";
+import { PaginationSkeleton } from "@/src/components/skeletons/pagination-skeleton";
+import { TableSkeleton } from "@/src/components/skeletons/table-skeleton";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
-import { EmptyState } from "@/src/components/ui/empty-state";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import { Modal } from "@/src/components/ui/modal";
+import { SortableTableHeader } from "@/src/components/ui/sortable-table-header";
 import {
   ResponsiveTable,
   tableActionsCellClass,
   tableActionsColumnClass,
+  tableCenterCellClass,
+  tableCenterColumnClass,
 } from "@/src/components/ui/table";
-import { RowActions } from "@/src/components/shared/row-actions";
-import { appToast } from "@/src/lib/toast";
+import { usePaginatedList } from "@/src/hooks/use-paginated-list";
+import { cn } from "@/src/lib/cn";
 import { getApiErrorMessage } from "@/src/lib/api-error";
+import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
 
 type Category = { id: string; name: string; menuItemCount: number };
 
-export default function MenuCategoriesPage() {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
+function MenuCategoriesContent() {
+  const {
+    items: categories,
+    meta,
+    loading,
+    isFetching,
+    hasActiveFilters,
+    searchInput,
+    setSearch,
+    clearSearch,
+    isSearching,
+    searchPlaceholder,
+    searchResultSummary,
+    setPage,
+    setPageSize,
+    toggleSort,
+    setSort,
+    params,
+    clearFilters,
+    refetch,
+  } = usePaginatedList<Category>({
+    queryKey: "menu-categories",
+    fetchFn: (p) => operationsApi.menuCategories.list(p),
+    defaultSort: { sortBy: "name", sortOrder: "asc" },
+    errorMessage: "Failed to load categories",
+  });
+
   const [catModal, setCatModal] = useState<"create" | "edit" | null>(null);
   const [editCat, setEditCat] = useState<Category | null>(null);
   const [catName, setCatName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const loadCategories = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await operationsApi.menuCategories.list({ limit: 100 });
-      setCategories(data.items);
-    } catch {
-      appToast.error("Failed to load categories");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadCategories();
-  }, [loadCategories]);
+  const openCreate = () => {
+    setCatModal("create");
+    setEditCat(null);
+    setCatName("");
+  };
 
   const openEdit = (cat: Category) => {
     setEditCat(cat);
@@ -69,7 +96,7 @@ export default function MenuCategoriesPage() {
       await operationsApi.menuCategories.remove(deleteTarget.id);
       appToast.success("Category deleted");
       setDeleteTarget(null);
-      void loadCategories();
+      await refetch();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to delete category"));
     } finally {
@@ -88,91 +115,128 @@ export default function MenuCategoriesPage() {
       }
       setCatModal(null);
       setCatName("");
-      void loadCategories();
+      await refetch();
     } catch {
       appToast.error("Failed to save category");
     }
   };
 
   return (
-    <section className="page-shell page-content space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="heading-display text-foreground">Menu categories</h1>
-          <p className="text-muted">Organize your menu by category. Add items from the Menu items page.</p>
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          onClick={() => {
-            setCatModal("create");
-            setEditCat(null);
-            setCatName("");
-          }}
-        >
-          Add category
-        </Button>
-      </div>
+    <>
+      <PageHeader
+        title="Menu categories"
+        description="Organize your menu by category. Add items from the Menu items page."
+        action={
+          <Button type="button" size="sm" onClick={openCreate}>
+            Add category
+          </Button>
+        }
+      />
 
-      {!loading && categories.length === 0 ? (
-        <EmptyState title="No categories" description="Create your first menu category." />
-      ) : (
-        <>
-          <div className="space-y-2 md:hidden">
+      <PaginatedListSection
+        loading={loading}
+        isFetching={isFetching}
+        itemsCount={categories.length}
+        hasActiveFilters={hasActiveFilters}
+        searchValue={searchInput}
+        onSearchChange={setSearch}
+        onSearchClear={clearSearch}
+        searchPlaceholder={searchPlaceholder}
+        isSearching={isSearching}
+        searchResultSummary={searchResultSummary}
+        tableColumns={3}
+        emptyTitle="No Menu Categories Found"
+        emptyDescription="Create your first menu category to organize menu items."
+        emptyIcon={Tags}
+        emptyAction={{ label: "Add category", onClick: openCreate }}
+        onClearFilters={() => {
+          clearSearch();
+          clearFilters();
+        }}
+        currentPage={meta.page}
+        totalPages={meta.totalPages}
+        totalRecords={meta.total}
+        pageSize={meta.limit}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        mobileSort={
+          <MobileSortSelect
+            options={[
+              { label: "Name (A–Z)", sortBy: "name", sortOrder: "asc" },
+              { label: "Name (Z–A)", sortBy: "name", sortOrder: "desc" },
+            ]}
+            currentSortBy={params.sortBy}
+            currentSortOrder={params.sortOrder}
+            onSort={setSort}
+          />
+        }
+        mobileCards={
+          <ListCardStack>
             {categories.map((cat) => (
-              <div
+              <ListCard
                 key={cat.id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-(--color-border) bg-(--color-surface) px-4 py-3"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">{cat.name}</p>
-                  <p className="text-xs text-muted">
-                    {cat.menuItemCount} menu item{cat.menuItemCount === 1 ? "" : "s"}
-                  </p>
-                </div>
-                <RowActions
-                  showLabels
-                  onEdit={() => openEdit(cat)}
-                  onDelete={() => requestDelete(cat)}
-                />
-              </div>
+                title={cat.name}
+                fields={[
+                  {
+                    label: "Menu items",
+                    value: `${cat.menuItemCount} item${cat.menuItemCount === 1 ? "" : "s"}`,
+                  },
+                ]}
+                actions={
+                  <RowActions
+                    showLabels
+                    onEdit={() => openEdit(cat)}
+                    onDelete={() => requestDelete(cat)}
+                  />
+                }
+              />
             ))}
-          </div>
-
-          <Card density="compact" className="hidden overflow-hidden p-0 md:block">
-            <ResponsiveTable
-              headers={[
-                "Name",
-                "Menu items",
-                {
-                  label: "Actions",
-                  thClassName: "text-right",
-                  labelWrapperClassName: tableActionsColumnClass,
-                },
-              ]}
-              ariaLabel="Menu categories"
-              density="comfortable"
-              className="min-w-0 border-0 shadow-none [&_table]:min-w-full"
-            >
-              {categories.map((cat) => (
-                <tr key={cat.id} className="border-t border-(--color-border) last:border-b-0">
-                  <td className="px-4 py-3.5 text-sm font-medium text-foreground">{cat.name}</td>
-                  <td className="px-4 py-3.5 text-sm text-muted">{cat.menuItemCount}</td>
-                  <td className="px-4 py-3.5 text-right">
-                    <div className={tableActionsCellClass}>
-                      <RowActions
-                        showLabels
-                        onEdit={() => openEdit(cat)}
-                        onDelete={() => requestDelete(cat)}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </ResponsiveTable>
-          </Card>
-        </>
-      )}
+          </ListCardStack>
+        }
+      >
+        <Card density="compact" className="overflow-hidden p-0">
+          <ResponsiveTable
+            headers={[
+              {
+                label: "Name",
+                headerContent: (
+                  <SortableTableHeader
+                    label="Name"
+                    sortKey="name"
+                    currentSortBy={params.sortBy}
+                    currentSortOrder={params.sortOrder}
+                    onSort={toggleSort}
+                  />
+                ),
+              },
+              { label: "Menu items", thClassName: tableCenterColumnClass },
+              {
+                label: "Actions",
+                thClassName: tableActionsColumnClass,
+              },
+            ]}
+            ariaLabel="Menu categories"
+            density="comfortable"
+            className="min-w-0 border-0 shadow-none [&_table]:min-w-full"
+          >
+            {categories.map((cat) => (
+              <tr key={cat.id} className="border-t border-[var(--color-border)] last:border-b-0">
+                <td className="px-4 py-3.5 text-sm font-medium text-foreground">{cat.name}</td>
+                <td className={cn("px-4 py-3.5 text-sm text-muted", tableCenterCellClass)}>{cat.menuItemCount}</td>
+                <td className="px-4 py-3.5">
+                  <div className={tableActionsCellClass}>
+                    <RowActions
+                      showLabels
+                      onEdit={() => openEdit(cat)}
+                      onDelete={() => requestDelete(cat)}
+                    />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </ResponsiveTable>
+        </Card>
+      </PaginatedListSection>
 
       <Modal
         open={deleteTarget !== null}
@@ -189,7 +253,7 @@ export default function MenuCategoriesPage() {
             Are you sure you want to delete{" "}
             <span className="font-semibold text-foreground">{deleteTarget?.name}</span>?
           </p>
-          <div className="flex flex-wrap justify-end gap-2">
+          <FormFooter>
             <Button
               type="button"
               variant="secondary"
@@ -201,7 +265,7 @@ export default function MenuCategoriesPage() {
             <Button type="button" variant="danger" onClick={() => void confirmDelete()} loading={deleting}>
               Yes, delete
             </Button>
-          </div>
+          </FormFooter>
         </div>
       </Modal>
 
@@ -214,16 +278,36 @@ export default function MenuCategoriesPage() {
           <Field id="catName" label="Name" required>
             <Input value={catName} onChange={(e) => setCatName(e.target.value)} placeholder="e.g. Momos" />
           </Field>
-          <div className="flex justify-end gap-2">
+          <FormFooter>
             <Button type="button" variant="secondary" onClick={() => setCatModal(null)}>
               Cancel
             </Button>
             <Button type="button" onClick={() => void saveCategory()}>
               Save
             </Button>
-          </div>
+          </FormFooter>
         </div>
       </Modal>
+    </>
+  );
+}
+
+function MenuCategoriesFallback() {
+  return (
+    <div className="space-y-4">
+      <CardListSkeleton />
+      <TableSkeleton columns={3} className="hidden md:block" />
+      <PaginationSkeleton />
+    </div>
+  );
+}
+
+export default function MenuCategoriesPage() {
+  return (
+    <section className="page-shell page-content space-y-4">
+      <Suspense fallback={<MenuCategoriesFallback />}>
+        <MenuCategoriesContent />
+      </Suspense>
     </section>
   );
 }

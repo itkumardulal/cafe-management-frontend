@@ -1,7 +1,7 @@
 "use client";
 
 import { Provider } from "react-redux";
-import { Toaster } from "sonner";
+import { ResponsiveToaster } from "./responsive-toaster";
 import { store } from "../../store";
 import { ThemeProvider } from "./theme-provider";
 
@@ -10,7 +10,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     <ThemeProvider>
       <Provider store={store}>
         {children}
-        <Toaster richColors position="top-center" closeButton />
+        <ResponsiveToaster />
       </Provider>
     </ThemeProvider>
   );

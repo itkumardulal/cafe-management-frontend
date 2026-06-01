@@ -19,6 +19,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { PosSaleDetail } from "@/src/components/sales/pos-sale-detail";
+import { ViewModalSkeleton } from "@/src/components/skeletons/view-modal-skeleton";
 import {
   PosSaleReceipt,
   type PosSaleReceiptData,
@@ -28,6 +29,7 @@ import { Badge } from "@/src/components/ui/badge";
 import { EmptyState } from "@/src/components/ui/empty-state";
 import { Input } from "@/src/components/ui/input";
 import { Modal } from "@/src/components/ui/modal";
+import { Select } from "@/src/components/ui/select";
 import {
   ResponsiveTable,
   tableActionsCellClass,
@@ -35,6 +37,7 @@ import {
 } from "@/src/components/ui/table";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { cn } from "@/src/lib/cn";
+import { PosRecentSales } from "@/src/components/pos/pos-recent-sales";
 import { formatDateTime, formatMoney } from "@/src/lib/format-display";
 import { normalizePhone } from "@/src/lib/phone-normalize";
 import { appToast } from "@/src/lib/toast";
@@ -92,25 +95,35 @@ const actionIconClass = cn(
 const panelShell =
   "flex min-h-0 flex-col overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-sm)]";
 
+const menuPanelShell = cn(
+  panelShell,
+  "max-lg:rounded-b-none max-lg:border-b-0 lg:rounded-r-none lg:border-r-0",
+);
+
+const checkoutPanelShell = cn(
+  panelShell,
+  "max-lg:rounded-t-none lg:rounded-l-none lg:border-l-0",
+);
+
 const segmentClass = (active: boolean) =>
   cn(
     "flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2.5 text-sm font-medium transition-all",
     focusRing,
     active
       ? "bg-[var(--color-primary)] text-white shadow-sm"
-      : "text-muted hover:bg-[var(--color-cream-100)] hover:text-foreground",
+      : "menu-segment-idle",
   );
 
 const checkoutSectionTitle = "text-sm font-semibold text-foreground";
-const checkoutSectionGap = "space-y-3";
+const checkoutSectionGap = "space-y-2";
 
 const chipClass = (active: boolean) =>
   cn(
-    "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
+    "shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
     focusRing,
     active
-      ? "bg-[var(--color-primary)] text-white shadow-sm"
-      : "bg-[var(--color-cream-100)] text-muted hover:bg-[var(--color-cream-200)] hover:text-foreground",
+      ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-nav-active-text)] shadow-sm"
+      : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-nav-idle)] hover:border-[var(--color-input)] hover:bg-[var(--color-cream-100)] hover:text-[var(--color-nav-idle-hover)]",
   );
 
 const paymentPresetClass = (active: boolean) =>
@@ -118,8 +131,8 @@ const paymentPresetClass = (active: boolean) =>
     "flex flex-col items-center gap-1 rounded-lg border px-2 py-3 text-center transition-colors",
     focusRing,
     active
-      ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
-      : "border-[var(--color-border)] bg-[var(--color-surface)] text-muted hover:border-[var(--color-primary)]/30",
+      ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-nav-active-text)]"
+      : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-nav-idle)] hover:border-[var(--color-primary)]/30 hover:text-[var(--color-nav-idle-hover)]",
   );
 
 function MenuItemCard({
@@ -215,7 +228,7 @@ function CollapsibleBlock({
           {hint ? (
             <span
               className={cn(
-                "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                "rounded-md px-1.5 py-0.5 text-[10px] font-medium",
                 hint === "Required"
                   ? "bg-[var(--color-primary)]/15 text-[var(--color-primary)]"
                   : "bg-[var(--color-cream-100)] text-muted",
@@ -237,14 +250,17 @@ function CollapsibleBlock({
 export default function PosPage() {
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
-  const [sales, setSales] = useState<SaleRow[]>([]);
-  const [serviceFilter, setServiceFilter] = useState<"" | "DINE_IN" | "DELIVERY">("");
+  const [salesRefresh, setSalesRefresh] = useState(0);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [search, setSearch] = useState("");
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [serviceType, setServiceType] = useState<"DINE_IN" | "DELIVERY">("DINE_IN");
   const [billingType, setBillingType] = useState<"PAID" | "CREDIT">("PAID");
+  const [tableId, setTableId] = useState("");
+  const [tableOptions, setTableOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [tablesLoading, setTablesLoading] = useState(true);
+  const [tablesError, setTablesError] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
@@ -392,35 +408,24 @@ export default function PosPage() {
     }
   }, []);
 
-  const loadSales = useCallback(async () => {
+  const loadTableOptions = useCallback(async () => {
+    setTablesLoading(true);
+    setTablesError(false);
     try {
-      const data = await operationsApi.sales.list({
-        limit: 50,
-        serviceType: serviceFilter || undefined,
-      });
-      setSales(
-        data.items.map((s) => ({
-          id: s.id,
-          receiptNo: s.receiptNo,
-          saleAt: s.saleAt,
-          serviceType: s.serviceType,
-          billingType: s.billingType,
-          customerPhone: s.customerPhone,
-          grandTotal: s.grandTotal,
-          cashPaidAmount: s.cashPaidAmount,
-          bankPaidAmount: s.bankPaidAmount,
-          creditAmount: s.creditAmount,
-        })),
-      );
-    } catch (error) {
-      appToast.error(getApiErrorMessage(error, "Failed to load sales"));
+      const data = await operationsApi.diningTables.options();
+      setTableOptions(data);
+    } catch {
+      setTableOptions([]);
+      setTablesError(true);
+    } finally {
+      setTablesLoading(false);
     }
-  }, [serviceFilter]);
+  }, []);
 
   useEffect(() => {
     void loadCatalog();
-    void loadSales();
-  }, [loadCatalog, loadSales]);
+    void loadTableOptions();
+  }, [loadCatalog, loadTableOptions]);
 
   const addToCart = (item: CatalogItem) => {
     const maxQty = Number(item.quantityOnHand);
@@ -480,6 +485,15 @@ export default function PosPage() {
 
     if (phone && !name) return "Customer name is required when phone is provided";
 
+    if (serviceType === "DINE_IN") {
+      if (tablesLoading) return "Loading tables…";
+      if (tablesError) return "Could not load tables — try again";
+      if (tableOptions.length === 0) {
+        return "No tables configured — add tables in the Tables menu";
+      }
+      if (!tableId) return "Select a table for dine-in orders";
+    }
+
     if (serviceType === "DELIVERY") {
       if (!name || !phone || !address) {
         return "Delivery requires customer name, phone, and delivery address";
@@ -527,6 +541,7 @@ export default function PosPage() {
     setNotes("");
     setCashPaidStr("0");
     setBankPaidStr("0");
+    setTableId("");
   };
 
   const onCheckout = async () => {
@@ -540,6 +555,7 @@ export default function PosPage() {
       const result = await operationsApi.sales.create({
         serviceType,
         billingType,
+        ...(serviceType === "DINE_IN" && tableId ? { tableId } : {}),
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         customerEmail: customerEmail.trim() || undefined,
@@ -564,7 +580,7 @@ export default function PosPage() {
       setSuccessSale({ id: result.id, receiptNo: result.receiptNo });
       resetCheckout();
       void loadCatalog();
-      void loadSales();
+      setSalesRefresh((n) => n + 1);
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to complete sale"));
     } finally {
@@ -683,13 +699,22 @@ export default function PosPage() {
     setCashPaidStr(roundMoneyStr(grandTotalPreview - b.amount));
   };
 
+  const scrollToCheckout = () => {
+    document.getElementById("pos-checkout")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
-    <section className="page-shell flex flex-col">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] pb-2">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight text-foreground">POS</h1>
-          <p className="text-[11px] text-muted">
-            Menu and checkout stay on screen · scroll the page for recent sales
+    <section
+      className={cn(
+        "page-shell safe-bottom flex flex-col pb-24 lg:pb-0",
+        cart.length > 0 && "max-lg:pb-36",
+      )}
+    >
+      <div className="mb-2 flex shrink-0 flex-wrap items-start justify-between gap-2 sm:items-center">
+        <div className="min-w-0">
+          <h1 className="text-base font-semibold tracking-tight text-foreground sm:text-lg">POS</h1>
+          <p className="mt-0.5 text-xs text-muted">
+            Menu and checkout on one screen · scroll for recent sales
           </p>
         </div>
         {successSale ? (
@@ -699,10 +724,16 @@ export default function PosPage() {
               <span className="font-mono font-semibold">{successSale.receiptNo}</span> saved
             </span>
             <Button type="button" size="sm" variant="ghost" onClick={() => void openView(successSale.id)}>
-              View
+              <span className="inline-flex items-center gap-1.5">
+                <Eye size={15} strokeWidth={1.75} aria-hidden />
+                View
+              </span>
             </Button>
             <Button type="button" size="sm" variant="ghost" onClick={() => void handlePrint(successSale.id)}>
-              Print
+              <span className="inline-flex items-center gap-1.5">
+                <Printer size={15} strokeWidth={1.75} aria-hidden />
+                Print
+              </span>
             </Button>
             <button
               type="button"
@@ -715,12 +746,12 @@ export default function PosPage() {
         ) : null}
       </div>
 
-      <div className="flex h-[calc(100dvh-6.5rem)] shrink-0 flex-col overflow-hidden">
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,26rem)] xl:grid-cols-[minmax(0,1fr)_minmax(24rem,28rem)]">
-          {/* Menu — scrolls inside pane */}
-          <div className={cn(panelShell, "min-h-0")}>
-          <div className="shrink-0 space-y-2 border-b border-[var(--color-border)] px-3 py-2.5">
-            <div className="relative">
+      <div className="flex h-[calc(100dvh-7.25rem)] min-h-0 shrink-0 flex-col overflow-hidden lg:h-[calc(100dvh-7.5rem)]">
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,26rem)] xl:grid-cols-[minmax(0,1fr)_minmax(24rem,28rem)]">
+          {/* Menu — toolbar fixed, catalog scrolls */}
+          <div className={cn(menuPanelShell, "flex min-h-0 flex-col")}>
+            <div className="shrink-0 space-y-2 border-b border-[var(--color-border)] bg-[var(--color-surface-muted)]/40 px-3 py-1.5">
+              <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
               <Input
                 placeholder="Search menu…"
@@ -730,7 +761,7 @@ export default function PosPage() {
               />
             </div>
             {categories.length > 0 ? (
-              <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none]">
+              <div className="flex flex-wrap gap-1">
                 <button type="button" onClick={() => setCategoryFilter("")} className={chipClass(!categoryFilter)}>
                   All
                 </button>
@@ -746,8 +777,8 @@ export default function PosPage() {
                 ))}
               </div>
             ) : null}
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-3 [scrollbar-gutter:stable]">
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-2 pt-1 [scrollbar-gutter:stable]">
             {catalogLoading ? (
               <div className="flex flex-col items-center justify-center gap-2 py-12 text-muted">
                 <div className="h-6 w-6 animate-pulse rounded-full bg-[var(--color-cream-200)]" />
@@ -779,24 +810,27 @@ export default function PosPage() {
           </div>
           </div>
 
-          {/* Checkout — middle scrolls; total + Bill always visible */}
-          <div className={cn(panelShell, "min-h-0")}>
-          <div className="shrink-0 border-b border-[var(--color-border)] px-3 py-2">
-            <h2 className="text-sm font-semibold text-foreground">Checkout</h2>
-          </div>
+          {/* Checkout — body scrolls vertically; total + Bill stay pinned */}
+          <div id="pos-checkout" className={cn(checkoutPanelShell, "flex min-h-0 flex-col scroll-mt-4")}>
+            <div className="flex shrink-0 items-center border-b border-[var(--color-border)] bg-[var(--color-surface-muted)]/40 px-3 py-1.5">
+              <h2 className="text-sm font-semibold text-foreground">Checkout</h2>
+            </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 [scrollbar-gutter:stable]">
-            <div className="space-y-6">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2 [scrollbar-gutter:stable]">
+              <div className="space-y-3">
               <section className={checkoutSectionGap}>
                 <h3 className={checkoutSectionTitle}>How is this order?</h3>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <div>
-                    <p className="mb-1.5 text-xs text-muted">Service</p>
+                    <p className="mb-1 text-xs text-muted">Service</p>
                     <div className="flex gap-1 rounded-lg bg-[var(--color-cream-100)] p-1">
                       <button
                         type="button"
                         className={segmentClass(serviceType === "DINE_IN")}
-                        onClick={() => setServiceType("DINE_IN")}
+                        onClick={() => {
+                          setServiceType("DINE_IN");
+                          void loadTableOptions();
+                        }}
                       >
                         <UtensilsCrossed className="h-4 w-4" />
                         Dine in
@@ -804,15 +838,53 @@ export default function PosPage() {
                       <button
                         type="button"
                         className={segmentClass(serviceType === "DELIVERY")}
-                        onClick={() => setServiceType("DELIVERY")}
+                        onClick={() => {
+                          setServiceType("DELIVERY");
+                          setTableId("");
+                        }}
                       >
                         <Truck className="h-4 w-4" />
                         Delivery
                       </button>
                     </div>
                   </div>
+                  {serviceType === "DINE_IN" ? (
+                    <div>
+                      <p className="mb-1 text-xs text-muted">Table</p>
+                      {tablesLoading ? (
+                        <p className="text-xs text-muted">Loading tables…</p>
+                      ) : tablesError ? (
+                        <div className="space-y-1">
+                          <p className="text-xs text-[var(--color-danger)]">Could not load tables</p>
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-[var(--color-primary)] underline-offset-2 hover:underline"
+                            onClick={() => void loadTableOptions()}
+                          >
+                            Try again
+                          </button>
+                        </div>
+                      ) : tableOptions.length === 0 ? (
+                        <p className="text-xs text-[var(--color-warning)]">
+                          No tables set up. Ask a manager to add tables in the Tables menu.
+                        </p>
+                      ) : (
+                        <Select
+                          value={tableId}
+                          onChange={(e) => setTableId(e.target.value)}
+                        >
+                          <option value="">Select table</option>
+                          {tableOptions.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name}
+                            </option>
+                          ))}
+                        </Select>
+                      )}
+                    </div>
+                  ) : null}
                   <div>
-                    <p className="mb-1.5 text-xs text-muted">Payment type</p>
+                    <p className="mb-1 text-xs text-muted">Payment type</p>
                     <div className="flex gap-1 rounded-lg bg-[var(--color-cream-100)] p-1">
                       <button
                         type="button"
@@ -1202,10 +1274,10 @@ export default function PosPage() {
                   onChange={(e) => setNotes(e.target.value)}
                 />
               </section>
+              </div>
             </div>
-          </div>
 
-          <div className="shrink-0 border-t border-[var(--color-border)] bg-[var(--color-cream-50)]/60 px-3 py-2">
+            <div className="shrink-0 border-t border-[var(--color-border)] bg-[var(--color-cream-50)]/60 px-3 py-2.5">
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-medium uppercase tracking-wide text-muted">Total</p>
@@ -1223,103 +1295,41 @@ export default function PosPage() {
                 {submitting ? "…" : "Bill"}
               </Button>
             </div>
-          </div>
+            </div>
           </div>
         </div>
+
+        {cart.length > 0 ? (
+          <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--color-border)] bg-[var(--color-surface)]/95 backdrop-blur-sm safe-bottom lg:hidden">
+            <div className="mx-auto flex max-w-[1400px] items-center gap-3 px-4 py-3">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <ShoppingCart className="h-5 w-5 shrink-0 text-[var(--color-primary)]" aria-hidden />
+                <div className="min-w-0">
+                  <p className="text-xs text-[var(--color-muted)]">
+                    {cart.length} item{cart.length === 1 ? "" : "s"}
+                  </p>
+                  <p className="truncate font-mono text-base font-semibold tabular-nums text-[var(--color-primary)]">
+                    {formatMoney(grandTotalPreview)}
+                  </p>
+                </div>
+              </div>
+              <Button type="button" size="sm" className="h-11 shrink-0 px-5" onClick={scrollToCheckout}>
+                Checkout
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <section
         id="pos-recent-sales"
-        className="mt-6 space-y-3 border-t border-[var(--color-border)] pt-6 pb-10"
+        className="mt-6 border-t border-[var(--color-border)] pt-6 pb-10"
       >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Recent sales</h2>
-            <p className="text-xs text-muted">Latest completed orders</p>
-          </div>
-          <div className="flex gap-1.5">
-            {(["", "DINE_IN", "DELIVERY"] as const).map((f) => (
-              <button
-                key={f || "all"}
-                type="button"
-                onClick={() => setServiceFilter(f)}
-                className={chipClass(serviceFilter === f)}
-              >
-                {f === "" ? "All" : f === "DINE_IN" ? "Dine in" : "Delivery"}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {sales.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-cream-50)]/50 px-4 py-8 text-center">
-            <p className="text-sm text-muted">No sales yet</p>
-          </div>
-        ) : (
-          <ResponsiveTable
-              headers={[
-                "Receipt",
-                "Date",
-                "Service",
-                "Bill",
-                { label: "Total", thClassName: "text-right" },
-                {
-                  label: "Actions",
-                  thClassName: "text-right",
-                  labelWrapperClassName: tableActionsColumnClass,
-                },
-              ]}
-              ariaLabel="Recent sales"
-              density="compact"
-              className="min-w-0 border-0 shadow-none [&_table]:min-w-[40rem]"
-            >
-              {sales.map((s) => (
-                <tr key={s.id} className="border-t border-[var(--color-border)]">
-                  <td className="px-4 py-3 font-mono text-sm font-medium text-foreground whitespace-nowrap">
-                    {s.receiptNo}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted whitespace-nowrap">
-                    {formatDateTime(s.saleAt)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant="default" size="sm">
-                      {s.serviceType === "DELIVERY" ? "Delivery" : "Dine in"}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant={s.billingType === "CREDIT" ? "warning" : "success"} size="sm">
-                      {s.billingType === "CREDIT" ? "Credit" : "Paid"}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono text-sm font-semibold tabular-nums text-foreground">
-                    {formatMoney(s.grandTotal)}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className={tableActionsCellClass}>
-                      <div className="inline-flex items-center justify-end gap-1">
-                        <button
-                          type="button"
-                          className={actionIconClass}
-                          onClick={() => void openView(s.id)}
-                          aria-label={`View ${s.receiptNo}`}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          className={actionIconClass}
-                          onClick={() => void handlePrint(s.id)}
-                          aria-label={`Print ${s.receiptNo}`}
-                        >
-                          <Printer className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </ResponsiveTable>
-        )}
+        <PosRecentSales
+          key={salesRefresh}
+          onView={(id) => void openView(id)}
+          onPrint={(id) => void handlePrint(id)}
+        />
       </section>
 
       <Modal
@@ -1340,7 +1350,7 @@ export default function PosPage() {
       >
         <div className="space-y-5">
           {viewLoading ? (
-            <p className="py-8 text-center text-sm text-muted">Loading sale…</p>
+            <ViewModalSkeleton rows={3} />
           ) : viewSale ? (
             <PosSaleDetail sale={viewSale} />
           ) : null}

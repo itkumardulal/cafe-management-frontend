@@ -2,6 +2,11 @@
 
 import { formatDateOnly, formatDateTime, formatMoney } from "@/src/lib/format-display";
 import { cn } from "@/src/lib/cn";
+import {
+  getPurchasePaymentStatus,
+  purchasePaymentStatusLabel,
+  type PurchaseBillingType,
+} from "@/src/lib/money-input";
 
 export type RmPurchaseReceiptLine = {
   id?: string;
@@ -19,7 +24,12 @@ export type RmPurchaseReceiptData = {
   notes?: string | null;
   createdByName?: string | null;
   lineCount: number;
+  billingType?: PurchaseBillingType;
   grandTotal: string;
+  cashPaidAmount?: string;
+  bankPaidAmount?: string;
+  creditAmount?: string;
+  bankPaymentScreenshotUrl?: string | null;
   lines: RmPurchaseReceiptLine[];
   cafe?: {
     cafeName: string;
@@ -44,6 +54,17 @@ export function RawMaterialPurchaseReceipt({
 }: RawMaterialPurchaseReceiptProps) {
   const name = cafeName ?? purchase.cafe?.cafeName ?? "Cafe";
   const contact = purchase.cafe?.contactNumber ?? purchase.cafe?.email;
+  const cash = Number(purchase.cashPaidAmount ?? 0);
+  const bank = Number(purchase.bankPaidAmount ?? 0);
+  const credit = Number(purchase.creditAmount ?? 0);
+  const paymentStatus = getPurchasePaymentStatus({
+    billingType: purchase.billingType ?? "PAID",
+    grandTotal: purchase.grandTotal,
+    cashPaidAmount: purchase.cashPaidAmount ?? "0",
+    bankPaidAmount: purchase.bankPaidAmount ?? "0",
+    creditAmount: purchase.creditAmount ?? "0",
+  });
+  const hasPaymentBreakdown = paymentStatus !== "not_recorded";
 
   return (
     <article
@@ -137,6 +158,37 @@ export function RawMaterialPurchaseReceipt({
           </span>
         </div>
       </div>
+
+      {hasPaymentBreakdown ? (
+        <>
+          <div className="my-4 h-px w-full border-t border-dashed border-stone-400" aria-hidden />
+          <div className="space-y-1 text-[11px]">
+            <p className="font-semibold uppercase tracking-wide text-stone-500">Payment</p>
+            <p className="text-stone-600">{purchasePaymentStatusLabel(paymentStatus)}</p>
+            {cash > 0.005 ? (
+              <div className="flex justify-between text-stone-600">
+                <span>Cash paid</span>
+                <span className="font-mono tabular-nums">{formatMoney(cash)}</span>
+              </div>
+            ) : null}
+            {bank > 0.005 ? (
+              <div className="flex justify-between text-stone-600">
+                <span>Bank paid</span>
+                <span className="font-mono tabular-nums">{formatMoney(bank)}</span>
+              </div>
+            ) : null}
+            {credit > 0.005 ? (
+              <div className="flex justify-between font-medium text-stone-800">
+                <span>Credit due</span>
+                <span className="font-mono tabular-nums">{formatMoney(credit)}</span>
+              </div>
+            ) : null}
+            {bank > 0.005 && purchase.bankPaymentScreenshotUrl ? (
+              <p className="pt-1 text-[10px] text-stone-500">Bank transfer proof on file</p>
+            ) : null}
+          </div>
+        </>
+      ) : null}
 
       {purchase.notes?.trim() ? (
         <>

@@ -9,6 +9,7 @@ export function Field({
   children,
   className,
   required,
+  reserveErrorSpace = true,
 }: {
   id: string;
   label: string;
@@ -17,6 +18,7 @@ export function Field({
   children: ReactNode;
   className?: string;
   required?: boolean;
+  reserveErrorSpace?: boolean;
 }) {
   const describedBy = error ? `${id}-error` : hint ? `${id}-hint` : undefined;
 
@@ -51,7 +53,15 @@ export function Field({
           {hint}
         </p>
       ) : null}
-      {error ? (
+      {reserveErrorSpace ? (
+        <div className="min-h-[1.25rem]">
+          {error ? (
+            <p id={`${id}-error`} role="alert" className="text-xs text-[var(--color-danger)]">
+              {error}
+            </p>
+          ) : null}
+        </div>
+      ) : error ? (
         <p id={`${id}-error`} role="alert" className="text-xs text-[var(--color-danger)]">
           {error}
         </p>

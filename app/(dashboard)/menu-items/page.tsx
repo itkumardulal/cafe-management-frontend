@@ -1,16 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { UtensilsCrossed } from "lucide-react";
+import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
+import { MobileSortSelect } from "@/src/components/shared/mobile-sort-select";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { PaginatedListSection } from "@/src/components/shared/paginated-list-section";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { EmptyState } from "@/src/components/ui/empty-state";
-import { ResponsiveTable } from "@/src/components/ui/table";
+import { ResponsiveTable, tableActionsCellClass, tableActionsColumnClass, tableCenterCellClass, tableCenterColumnClass } from "@/src/components/ui/table";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import { Modal } from "@/src/components/ui/modal";
 import { Select } from "@/src/components/ui/select";
+import { FormFooter } from "@/src/components/shared/form-footer";
 import { ImageUploadField } from "@/src/components/shared/image-upload-field";
 import { RowActions } from "@/src/components/shared/row-actions";
+import { CardListSkeleton } from "@/src/components/skeletons/card-list-skeleton";
+import { PaginationSkeleton } from "@/src/components/skeletons/pagination-skeleton";
+import { TableSkeleton } from "@/src/components/skeletons/table-skeleton";
+import { usePaginatedList } from "@/src/hooks/use-paginated-list";
+import { cn } from "@/src/lib/cn";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
 
@@ -43,7 +54,49 @@ const emptyForm = {
 };
 
 export default function MenuItemsPage() {
-  const [items, setItems] = useState<MenuItemRow[]>([]);
+  return (
+    <section className="page-shell page-content space-y-4">
+      <Suspense
+        fallback={
+          <div className="space-y-4">
+            <CardListSkeleton />
+            <TableSkeleton columns={6} className="hidden md:block" />
+            <PaginationSkeleton />
+          </div>
+        }
+      >
+        <MenuItemsContent />
+      </Suspense>
+    </section>
+  );
+}
+
+function MenuItemsContent() {
+  const {
+    items,
+    meta,
+    loading,
+    isFetching,
+    hasActiveFilters,
+    searchInput,
+    setSearch,
+    clearSearch,
+    isSearching,
+    searchPlaceholder,
+    searchResultSummary,
+    setPage,
+    setPageSize,
+    setSort,
+    params,
+    clearFilters,
+    refetch,
+  } = usePaginatedList<MenuItemRow>({
+    queryKey: "menu-items",
+    fetchFn: (p) => operationsApi.menuItems.list(p),
+    defaultSort: { sortBy: "name", sortOrder: "asc" },
+    errorMessage: "Failed to load menu items",
+  });
+
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -53,35 +106,21 @@ export default function MenuItemsPage() {
   const [deleteTarget, setDeleteTarget] = useState<MenuItemRow | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const load = useCallback(async () => {
+  const loadCategories = useCallback(async () => {
     try {
-      const [menuData, categoryData] = await Promise.all([
-        operationsApi.menuItems.list(),
-        operationsApi.menuCategories.list(),
-      ]);
-      setItems(menuData.items);
-      setCategories(
-        categoryData.items.map((c) => ({ id: c.id, name: c.name })),
-      );
+      const categoryData = await operationsApi.menuCategories.list({ limit: 100 });
+      setCategories(categoryData.items.map((c) => ({ id: c.id, name: c.name })));
     } catch {
-      appToast.error("Failed to load menu items");
+      setCategories([]);
     }
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadCategories();
+  }, [loadCategories]);
 
   const groupedByCategory = useMemo(() => {
-    const map = new Map<
-      string,
-      { id: string; name: string; items: MenuItemRow[] }
-    >();
-
-    for (const cat of categories) {
-      map.set(cat.id, { id: cat.id, name: cat.name, items: [] });
-    }
-
+    const map = new Map<string, { id: string; name: string; items: MenuItemRow[] }>();
     for (const item of items) {
       const group = map.get(item.menuCategoryId) ?? {
         id: item.menuCategoryId,
@@ -91,16 +130,8 @@ export default function MenuItemsPage() {
       group.items.push(item);
       map.set(item.menuCategoryId, group);
     }
-
-    return Array.from(map.values()).sort((a, b) => {
-      const aHasItems = a.items.length > 0;
-      const bHasItems = b.items.length > 0;
-      if (aHasItems !== bHasItems) {
-        return aHasItems ? -1 : 1;
-      }
-      return a.name.localeCompare(b.name);
-    });
-  }, [categories, items]);
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [items]);
 
   const openCreate = () => {
     setEditId(null);
@@ -187,7 +218,7 @@ export default function MenuItemsPage() {
         appToast.success("Menu item added");
       }
       setOpen(false);
-      void load();
+      await refetch();
     } catch {
       appToast.error("Failed to save menu item");
     }
@@ -202,7 +233,7 @@ export default function MenuItemsPage() {
       await operationsApi.menuItems.remove(deleteTarget.id);
       appToast.success("Menu item deleted");
       setDeleteTarget(null);
-      void load();
+      await refetch();
     } catch {
       appToast.error("Failed to delete menu item");
     } finally {
@@ -216,37 +247,65 @@ export default function MenuItemsPage() {
   };
 
   return (
-    <section className="page-shell page-content space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="heading-display text-foreground">Menu items</h1>
-          <p className="text-muted">
-            Add items under menu categories with pricing and stock.
-          </p>
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          onClick={openCreate}
-          disabled={categories.length === 0}
-        >
-          Add item
-        </Button>
-      </div>
+    <>
+      <PageHeader
+        title="Menu items"
+        description="Add items under menu categories with pricing and stock."
+        action={
+          <Button type="button" size="sm" onClick={openCreate} disabled={categories.length === 0}>
+            Add item
+          </Button>
+        }
+      />
 
       {categories.length === 0 ? (
         <EmptyState
           title="No categories yet"
           description="Create menu categories first, then add items here."
         />
-      ) : items.length === 0 ? (
-        <EmptyState
-          title="No menu items"
-          description="Add your first item to a category."
-        />
       ) : (
-        <div className="space-y-4">
-          {groupedByCategory.map((group) => (
+        <PaginatedListSection
+          loading={loading}
+          isFetching={isFetching}
+          itemsCount={items.length}
+          hasActiveFilters={hasActiveFilters}
+          searchValue={searchInput}
+          onSearchChange={setSearch}
+          onSearchClear={clearSearch}
+          searchPlaceholder={searchPlaceholder}
+          isSearching={isSearching}
+          searchResultSummary={searchResultSummary}
+          tableColumns={6}
+          emptyTitle="No Menu Items Found"
+          emptyDescription="Add your first item to a category."
+          emptyIcon={UtensilsCrossed}
+          emptyAction={{ label: "Add item", onClick: openCreate }}
+          onClearFilters={() => {
+            clearSearch();
+            clearFilters();
+          }}
+          currentPage={meta.page}
+          totalPages={meta.totalPages}
+          totalRecords={meta.total}
+          pageSize={meta.limit}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          mobileSort={
+            <MobileSortSelect
+              options={[
+                { label: "Name (A–Z)", sortBy: "name", sortOrder: "asc" },
+                { label: "Name (Z–A)", sortBy: "name", sortOrder: "desc" },
+                { label: "Highest stock", sortBy: "quantityOnHand", sortOrder: "desc" },
+                { label: "Lowest stock", sortBy: "quantityOnHand", sortOrder: "asc" },
+              ]}
+              currentSortBy={params.sortBy}
+              currentSortOrder={params.sortOrder}
+              onSort={setSort}
+            />
+          }
+        >
+          <div className="space-y-4">
+            {groupedByCategory.map((group) => (
             <Card
               key={group.id}
               density="compact"
@@ -267,72 +326,63 @@ export default function MenuItemsPage() {
                 </p>
               ) : (
                 <>
-                  <ul className="space-y-2 lg:hidden">
+                  <ListCardStack>
                     {group.items.map((item) => (
-                      <li
+                      <ListCard
                         key={item.id}
-                        className="flex items-center justify-between gap-3 rounded-xl border border-(--color-border) bg-(--color-surface-muted) px-3 py-2.5"
-                      >
-                        <div className="flex min-w-0 flex-1 items-center gap-3">
-                          {item.imageUrl ? (
+                        leading={
+                          item.imageUrl ? (
                             <img
                               src={item.imageUrl}
-                              alt={item.name}
-                              className="h-10 w-10 shrink-0 rounded-lg border border-(--color-border) object-cover"
+                              alt=""
+                              loading="lazy"
+                              className="h-10 w-10 rounded-lg border border-[var(--color-border)] object-cover"
                             />
                           ) : (
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-dashed border-(--color-border) text-xs text-muted">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-dashed border-[var(--color-border)] text-xs text-muted">
                               —
                             </div>
-                          )}
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-foreground">
-                              {item.name}
-                            </p>
-                            <p className="text-xs text-subtle">{item.categoryName}</p>
-                            <p className="text-xs text-muted">
-                              Qty {cellOrDash(item.unitQuantity)} ·{" "}
-                              {cellOrDash(item.unitType)}
-                              {" · "}
-                              Cost {item.costPerUnit} · Sell{" "}
-                              {item.sellPricePerUnit} · Stock{" "}
-                              {item.quantityOnHand}
-                            </p>
-                            {item.notes ? (
-                              <p
-                                className="truncate text-xs text-subtle"
-                                title={item.notes}
-                              >
-                                {item.notes}
-                              </p>
-                            ) : null}
-                          </div>
-                        </div>
-                        <RowActions
-                          showLabels
-                          onEdit={() => openEdit(item)}
-                          onDelete={() => setDeleteTarget(item)}
-                        />
-                      </li>
+                          )
+                        }
+                        title={item.name}
+                        subtitle={item.categoryName}
+                        fields={[
+                          {
+                            label: "Unit",
+                            value: `${cellOrDash(item.unitQuantity)} · ${cellOrDash(item.unitType)}`,
+                          },
+                          { label: "Cost", value: item.costPerUnit },
+                          { label: "Sell", value: item.sellPricePerUnit },
+                          { label: "Stock", value: item.quantityOnHand },
+                          ...(item.notes ? [{ label: "Notes", value: item.notes }] : []),
+                        ]}
+                        actions={
+                          <RowActions
+                            showLabels
+                            onEdit={() => openEdit(item)}
+                            onDelete={() => setDeleteTarget(item)}
+                          />
+                        }
+                      />
                     ))}
-                  </ul>
+                  </ListCardStack>
 
-                  <div className="hidden lg:block">
+                  <div className="hidden md:block">
                     <ResponsiveTable
                       headers={[
                         "Name",
-                        "Category",
-                        "Unit qty",
-                        "Unit type",
-                        "Cost",
-                        "Sell price",
-                        "Stock",
+                        { label: "Category", thClassName: tableCenterColumnClass },
+                        { label: "Unit qty", thClassName: tableCenterColumnClass },
+                        { label: "Unit type", thClassName: tableCenterColumnClass },
+                        { label: "Cost", thClassName: tableCenterColumnClass },
+                        { label: "Sell price", thClassName: tableCenterColumnClass },
+                        { label: "Stock", thClassName: tableCenterColumnClass },
                         "Notes",
-                        "Actions",
+                        { label: "Actions", thClassName: tableActionsColumnClass },
                       ]}
                       ariaLabel={`Menu items in ${group.name}`}
                       density="comfortable"
-                      className="min-w-0 border-0 shadow-none [&_table]:min-w-full [&_thead_th:last-child]:text-center"
+                      className="min-w-0 border-0 shadow-none [&_table]:min-w-full"
                     >
                       {group.items.map((item) => (
                         <tr
@@ -345,6 +395,7 @@ export default function MenuItemsPage() {
                                 <img
                                   src={item.imageUrl}
                                   alt=""
+                                  loading="lazy"
                                   className="h-9 w-9 shrink-0 rounded-lg border border-(--color-border) object-cover"
                                 />
                               ) : (
@@ -357,22 +408,22 @@ export default function MenuItemsPage() {
                               </span>
                             </div>
                           </td>
-                          <td className="px-4 py-3.5 text-sm text-muted">
+                          <td className={cn("px-4 py-3.5 text-sm text-muted", tableCenterCellClass)}>
                             {cellOrDash(item.categoryName)}
                           </td>
-                          <td className="px-4 py-3.5 text-sm text-foreground">
+                          <td className={cn("px-4 py-3.5 text-sm text-foreground", tableCenterCellClass)}>
                             {cellOrDash(item.unitQuantity)}
                           </td>
-                          <td className="px-4 py-3.5 text-sm text-muted">
+                          <td className={cn("px-4 py-3.5 text-sm text-muted", tableCenterCellClass)}>
                             {cellOrDash(item.unitType)}
                           </td>
-                          <td className="px-4 py-3.5 text-sm text-foreground">
+                          <td className={cn("px-4 py-3.5 text-sm text-foreground", tableCenterCellClass)}>
                             {item.costPerUnit}
                           </td>
-                          <td className="px-4 py-3.5 text-sm text-foreground">
+                          <td className={cn("px-4 py-3.5 text-sm text-foreground", tableCenterCellClass)}>
                             {item.sellPricePerUnit}
                           </td>
-                          <td className="px-4 py-3.5 text-sm text-foreground">
+                          <td className={cn("px-4 py-3.5 text-sm text-foreground", tableCenterCellClass)}>
                             {item.quantityOnHand}
                           </td>
                           <td className="max-w-[200px] px-4 py-3.5 text-sm text-muted">
@@ -385,7 +436,7 @@ export default function MenuItemsPage() {
                             )}
                           </td>
                           <td className="px-4 py-3.5">
-                            <div className="flex justify-center">
+                            <div className={tableActionsCellClass}>
                               <RowActions
                                 showLabels
                                 onEdit={() => openEdit(item)}
@@ -401,7 +452,8 @@ export default function MenuItemsPage() {
               )}
             </Card>
           ))}
-        </div>
+          </div>
+        </PaginatedListSection>
       )}
 
       <Modal
@@ -446,6 +498,7 @@ export default function MenuItemsPage() {
       <Modal
         open={open}
         size="lg"
+        mobileVariant="fullscreen"
         title={editId ? "Edit menu item" : "Add menu item"}
         description={
           editId
@@ -453,6 +506,16 @@ export default function MenuItemsPage() {
             : "Add a new item under a category with image, units, and pricing."
         }
         onClose={() => setOpen(false)}
+        footer={
+          <FormFooter>
+            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void save()} loading={imageUploading}>
+              {editId ? "Save changes" : "Add item"}
+            </Button>
+          </FormFooter>
+        }
       >
         <div className="space-y-6">
           <section className="space-y-3">
@@ -594,25 +657,8 @@ export default function MenuItemsPage() {
               />
             </Field>
           </section>
-
-          <div className="sticky bottom-0 -mx-5 flex justify-end gap-2 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4 sm:-mx-6 sm:px-6">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={() => void save()}
-              loading={imageUploading}
-            >
-              {editId ? "Save changes" : "Add item"}
-            </Button>
-          </div>
         </div>
       </Modal>
-    </section>
+    </>
   );
 }

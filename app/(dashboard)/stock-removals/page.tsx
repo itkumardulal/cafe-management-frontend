@@ -1,10 +1,24 @@
 "use client";
 
-import { Eye, Plus, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Eye, PackageMinus, Trash2 } from "lucide-react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { DateRangeFilter } from "@/src/components/shared/date-range-filter";
+import { DetailInfoCard } from "@/src/components/shared/detail-info-card";
+import { DetailLineItemsSection } from "@/src/components/shared/detail-line-items-section";
+import { LineItemCard } from "@/src/components/shared/line-item-card";
+import { FilterDrawer, FilterDrawerDesktop } from "@/src/components/shared/filter-drawer";
+import { FormFooter } from "@/src/components/shared/form-footer";
+import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
+import { MobileSortSelect } from "@/src/components/shared/mobile-sort-select";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { PaginatedListSection } from "@/src/components/shared/paginated-list-section";
+import { PaginationSkeleton } from "@/src/components/skeletons/pagination-skeleton";
+import { ViewModalSkeleton } from "@/src/components/skeletons/view-modal-skeleton";
+import { TableSkeleton } from "@/src/components/skeletons/table-skeleton";
+import { SortableTableHeader } from "@/src/components/ui/sortable-table-header";
+import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
-import { EmptyState } from "@/src/components/ui/empty-state";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import { Modal } from "@/src/components/ui/modal";
@@ -13,6 +27,8 @@ import {
   ResponsiveTable,
   tableActionsCellClass,
   tableActionsColumnClass,
+  tableCenterCellClass,
+  tableCenterColumnClass,
 } from "@/src/components/ui/table";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { cn } from "@/src/lib/cn";
@@ -52,11 +68,49 @@ function reasonLabel(reason: string) {
 const emptyLine = (): Line => ({ menuItemId: "", quantity: "1" });
 
 export default function StockRemovalsPage() {
-  const [removals, setRemovals] = useState<RemovalRow[]>([]);
+  return (
+    <section className="page-shell page-content space-y-4">
+      <Suspense fallback={<div className="space-y-4"><TableSkeleton columns={7} /><PaginationSkeleton /></div>}>
+        <StockRemovalsContent />
+      </Suspense>
+    </section>
+  );
+}
+
+function StockRemovalsContent() {
+  const {
+    items: removals,
+    meta,
+    loading,
+    isFetching,
+    hasActiveFilters,
+    searchInput,
+    setSearch,
+    clearSearch,
+    isSearching,
+    searchPlaceholder,
+    searchResultSummary,
+    setPage,
+    setPageSize,
+    toggleSort,
+    setSort,
+    params,
+    setFilters,
+    clearFilters,
+    refetch,
+  } = usePaginatedList<RemovalRow>({
+    queryKey: "stock-removals",
+    fetchFn: (p) => operationsApi.stockRemovals.list(p),
+    defaultSort: { sortBy: "entryAt", sortOrder: "desc" },
+    filterKeys: ["fromDate", "toDate"],
+    errorMessage: "Failed to load stock removals",
+  });
+
   const [sellable, setSellable] = useState<{ id: string; name: string; quantityOnHand: string }[]>([]);
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [draftFromDate, setDraftFromDate] = useState(params.filters.fromDate ?? "");
+  const [draftToDate, setDraftToDate] = useState(params.filters.toDate ?? "");
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [entryAt, setEntryAt] = useState(new Date().toISOString().slice(0, 16));
@@ -87,32 +141,18 @@ export default function StockRemovalsPage() {
     }
   }, []);
 
-  const load = useCallback(async () => {
-    try {
-      const data = await operationsApi.stockRemovals.list({
-        fromDate: fromDate || undefined,
-        toDate: toDate || undefined,
-        limit: 100,
-      });
-      setRemovals(
-        data.items.map((item) => ({
-          ...item,
-          createdAt: item.createdAt ?? "",
-          lineCount: item.lineCount ?? 0,
-        })),
-      );
-    } catch (error) {
-      appToast.error(getApiErrorMessage(error, "Failed to load stock removals"));
-    }
-  }, [fromDate, toDate]);
-
   useEffect(() => {
     void loadRefs();
   }, [loadRefs]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    setDraftFromDate(params.filters.fromDate ?? "");
+    setDraftToDate(params.filters.toDate ?? "");
+  }, [params.filters.fromDate, params.filters.toDate]);
+
+  const applyDateFilter = () => {
+    setFilters({ fromDate: draftFromDate, toDate: draftToDate });
+  };
 
   const openCreate = () => {
     setEntryAt(new Date().toISOString().slice(0, 16));
@@ -188,7 +228,7 @@ export default function StockRemovalsPage() {
       });
       appToast.success("Stock removal recorded");
       setOpen(false);
-      void load();
+      await refetch();
       void loadRefs();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to save removal"));
@@ -206,7 +246,7 @@ export default function StockRemovalsPage() {
       await operationsApi.stockRemovals.remove(deleteTarget.id);
       appToast.success("Stock removal deleted");
       setDeleteTarget(null);
-      void load();
+      await refetch();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to delete stock removal"));
     } finally {
@@ -217,18 +257,16 @@ export default function StockRemovalsPage() {
   const canCreate = sellable.length > 0;
 
   return (
-    <section className="page-shell page-content space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="heading-display text-foreground">Stock removals</h1>
-          <p className="text-muted">
-            Record damage or staff use — reduces menu item stock. Staff use requires a staff name.
-          </p>
-        </div>
-        <Button type="button" size="sm" onClick={openCreate} disabled={!canCreate}>
-          New removal
-        </Button>
-      </div>
+    <>
+      <PageHeader
+        title="Stock removals"
+        description="Record damage or staff use — reduces menu item stock. Staff use requires a staff name."
+        action={
+          <Button type="button" size="sm" onClick={openCreate} disabled={!canCreate}>
+            New removal
+          </Button>
+        }
+      />
 
       {!canCreate ? (
         <p className="text-sm text-muted">
@@ -236,43 +274,137 @@ export default function StockRemovalsPage() {
         </p>
       ) : null}
 
-      <Card density="compact" className="p-4 sm:p-5">
-        <div className="mb-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-subtle">Date range</h2>
-          <p className="mt-1 text-sm text-muted">Filter by entry date and time.</p>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-          <Field id="from" label="From">
-            <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-          </Field>
-          <Field id="to" label="To">
-            <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
-          </Field>
-          <Button type="button" variant="secondary" onClick={() => void load()}>
-            Apply filter
-          </Button>
-        </div>
-      </Card>
-
-      {removals.length === 0 ? (
-        <EmptyState
-          title="No removals"
-          description="Record stock removals when items are lost or used by staff."
+      <FilterDrawerDesktop>
+        <DateRangeFilter
+          fromDate={draftFromDate}
+          toDate={draftToDate}
+          onFromDateChange={setDraftFromDate}
+          onToDateChange={setDraftToDate}
+          onApply={applyDateFilter}
+          description="Filter by entry date and time."
         />
-      ) : (
+      </FilterDrawerDesktop>
+
+      <PaginatedListSection
+        loading={loading}
+        isFetching={isFetching}
+        itemsCount={removals.length}
+        hasActiveFilters={hasActiveFilters}
+        searchValue={searchInput}
+        onSearchChange={setSearch}
+        onSearchClear={clearSearch}
+        searchPlaceholder={searchPlaceholder}
+        isSearching={isSearching}
+        searchResultSummary={searchResultSummary}
+        tableColumns={7}
+        emptyTitle="No Stock Removals Found"
+        emptyDescription="Record stock removals when items are lost or used by staff."
+        emptyIcon={PackageMinus}
+        emptyAction={{ label: "New removal", onClick: openCreate }}
+        onClearFilters={() => {
+          clearSearch();
+          setDraftFromDate("");
+          setDraftToDate("");
+          clearFilters();
+        }}
+        currentPage={meta.page}
+        totalPages={meta.totalPages}
+        totalRecords={meta.total}
+        pageSize={meta.limit}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        filters={
+          <FilterDrawer
+            open={filterDrawerOpen}
+            onOpenChange={setFilterDrawerOpen}
+            hasActiveFilters={Boolean(params.filters.fromDate || params.filters.toDate)}
+            onApply={applyDateFilter}
+            onReset={() => {
+              setDraftFromDate("");
+              setDraftToDate("");
+              clearFilters();
+            }}
+          >
+            <DateRangeFilter
+              compact
+              fromDate={draftFromDate}
+              toDate={draftToDate}
+              onFromDateChange={setDraftFromDate}
+              onToDateChange={setDraftToDate}
+              onApply={applyDateFilter}
+            />
+          </FilterDrawer>
+        }
+        mobileSort={
+          <MobileSortSelect
+            options={[
+              { label: "Date (newest)", sortBy: "entryAt", sortOrder: "desc" },
+              { label: "Date (oldest)", sortBy: "entryAt", sortOrder: "asc" },
+            ]}
+            currentSortBy={params.sortBy}
+            currentSortOrder={params.sortOrder}
+            onSort={setSort}
+          />
+        }
+        mobileCards={
+          <ListCardStack>
+            {removals.map((r) => (
+              <ListCard
+                key={r.id}
+                title={r.receiptNo}
+                subtitle={formatDateTime(r.entryAt)}
+                fields={[
+                  { label: "Reason", value: reasonLabel(r.reason) },
+                  ...(r.reason === "STAFF_USE" && r.staffName
+                    ? [{ label: "Staff", value: r.staffName }]
+                    : []),
+                  { label: "Lines", value: String(r.lineCount) },
+                  { label: "Notes", value: r.notes?.trim() || "—" },
+                ]}
+                actions={
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Button type="button" size="sm" variant="secondary" onClick={() => void openView(r.id)}>
+                      View
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setDeleteTarget(r)}
+                      className="border-danger/50 text-danger hover:border-danger hover:bg-danger/10 hover:text-danger"
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                }
+              />
+            ))}
+          </ListCardStack>
+        }
+      >
         <Card density="compact" className="overflow-hidden p-0">
           <ResponsiveTable
             headers={[
-              "Receipt",
-              "Entry date",
+              { label: "Receipt", thClassName: tableCenterColumnClass },
+              {
+                label: "Entry date",
+                headerContent: (
+                  <SortableTableHeader
+                    label="Entry date"
+                    sortKey="entryAt"
+                    currentSortBy={params.sortBy}
+                    currentSortOrder={params.sortOrder}
+                    onSort={toggleSort}
+                  />
+                ),
+              },
               "Recorded",
               "Reason",
-              { label: "Lines", thClassName: "text-right" },
+              { label: "Lines", thClassName: tableCenterColumnClass },
               "Notes",
               {
                 label: "Actions",
-                thClassName: "text-right",
-                labelWrapperClassName: tableActionsColumnClass,
+                thClassName: tableActionsColumnClass,
               },
             ]}
             ariaLabel="Stock removals"
@@ -280,8 +412,8 @@ export default function StockRemovalsPage() {
             className="min-w-0 border-0 shadow-none [&_table]:min-w-[56rem]"
           >
             {removals.map((r) => (
-              <tr key={r.id} className="border-t border-(--color-border) last:border-b-0">
-                <td className="px-4 py-3.5 text-sm font-medium text-foreground whitespace-nowrap">
+              <tr key={r.id} className="border-t border-[var(--color-border)] last:border-b-0">
+                <td className={cn("px-4 py-3.5 text-sm font-medium text-foreground whitespace-nowrap", tableCenterCellClass)}>
                   {r.receiptNo}
                 </td>
                 <td className="px-4 py-3.5 text-sm text-muted whitespace-nowrap">
@@ -301,7 +433,7 @@ export default function StockRemovalsPage() {
                     </span>
                   ) : null}
                 </td>
-                <td className="px-4 py-3.5 text-right text-sm tabular-nums text-muted">
+                <td className={cn("px-4 py-3.5 text-sm tabular-nums text-muted", tableCenterCellClass)}>
                   {r.lineCount}
                 </td>
                 <td className="max-w-[200px] px-4 py-3.5 text-sm text-muted">
@@ -313,9 +445,9 @@ export default function StockRemovalsPage() {
                     <span className="text-subtle">—</span>
                   )}
                 </td>
-                <td className="px-4 py-3.5 text-right">
+                <td className="px-4 py-3.5">
                   <div className={tableActionsCellClass}>
-                    <div className="inline-flex flex-nowrap items-center justify-end gap-1.5">
+                    <div className="inline-flex flex-nowrap items-center justify-center gap-1.5">
                       <Button type="button" size="sm" variant="secondary" onClick={() => void openView(r.id)}>
                         <span className="inline-flex items-center gap-1.5">
                           <Eye size={15} strokeWidth={1.75} aria-hidden />
@@ -341,7 +473,7 @@ export default function StockRemovalsPage() {
             ))}
           </ResponsiveTable>
         </Card>
-      )}
+      </PaginatedListSection>
 
       <Modal
         open={deleteTarget !== null}
@@ -397,62 +529,59 @@ export default function StockRemovalsPage() {
       >
         <div className="space-y-5">
           {viewLoading ? (
-            <p className="py-8 text-center text-sm text-muted">Loading removal…</p>
+            <ViewModalSkeleton rows={2} />
           ) : viewRemoval ? (
             <div className="space-y-5">
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-(--color-border) bg-(--color-surface) px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-subtle">Reason</p>
-                  <p className="mt-1 text-sm font-medium text-foreground">
-                    {reasonLabel(viewRemoval.reason)}
-                  </p>
+                <DetailInfoCard label="Reason">
+                  <p className="font-medium">{reasonLabel(viewRemoval.reason)}</p>
                   {viewRemoval.staffName ? (
-                    <p className="mt-0.5 text-xs text-muted">Staff: {viewRemoval.staffName}</p>
+                    <p className="mt-0.5 text-xs text-[var(--color-muted)]">Staff: {viewRemoval.staffName}</p>
                   ) : null}
-                </div>
-                <div className="rounded-xl border border-(--color-border) bg-(--color-surface) px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-subtle">Recorded</p>
-                  <p className="mt-1 text-sm font-medium text-foreground">
+                </DetailInfoCard>
+                <DetailInfoCard label="Recorded">
+                  <p className="font-medium">
                     {viewRemoval.createdAt ? formatDateTime(viewRemoval.createdAt) : "—"}
                   </p>
                   {viewRemoval.createdByName ? (
-                    <p className="mt-0.5 text-xs text-muted">by {viewRemoval.createdByName}</p>
+                    <p className="mt-0.5 text-xs text-[var(--color-muted)]">by {viewRemoval.createdByName}</p>
                   ) : null}
-                </div>
+                </DetailInfoCard>
               </div>
 
               {viewRemoval.notes?.trim() ? (
-                <div className="rounded-xl border border-(--color-border) bg-surface-muted px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-subtle">Notes</p>
-                  <p className="mt-1 text-sm text-foreground">{viewRemoval.notes.trim()}</p>
-                </div>
+                <DetailInfoCard label="Notes" muted>
+                  {viewRemoval.notes.trim()}
+                </DetailInfoCard>
               ) : null}
 
-              <div className="rounded-2xl border border-(--color-border) bg-(--color-surface) shadow-(--shadow-sm)">
-                <div className="border-b border-(--color-border) bg-surface-muted px-4 py-3.5">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-subtle">Line items</p>
-                  <p className="mt-0.5 text-xs text-muted">
-                    {viewRemoval.lineCount} {viewRemoval.lineCount === 1 ? "item" : "items"} removed
-                  </p>
-                </div>
-                <ResponsiveTable
-                  headers={["Menu item", { label: "Quantity", thClassName: "text-right" }]}
-                  ariaLabel="Removal line items"
-                  density="compact"
-                  className="border-0 shadow-none [&_table]:min-w-full"
-                >
-                  {viewRemoval.lines.map((line, idx) => (
-                    <tr key={line.id ?? idx} className="border-t border-(--color-border) last:border-b-0">
-                      <td className="px-4 py-3 text-sm font-medium text-foreground">
-                        {line.menuItemName}
-                      </td>
-                      <td className="px-4 py-3 text-right text-sm font-medium tabular-nums text-foreground">
-                        {formatMoney(line.quantity)}
-                      </td>
-                    </tr>
-                  ))}
-                </ResponsiveTable>
-              </div>
+              <DetailLineItemsSection
+                subtitle={`${viewRemoval.lineCount} ${viewRemoval.lineCount === 1 ? "item" : "items"} removed`}
+                headers={["Menu item", { label: "Quantity", thClassName: tableCenterColumnClass }]}
+                ariaLabel="Removal line items"
+                mobileLineItems={
+                  <>
+                    {viewRemoval.lines.map((line, idx) => (
+                      <LineItemCard
+                        key={line.id ?? idx}
+                        title={line.menuItemName}
+                        fields={[{ label: "Quantity", value: formatMoney(line.quantity) }]}
+                      />
+                    ))}
+                  </>
+                }
+              >
+                {viewRemoval.lines.map((line, idx) => (
+                  <tr key={line.id ?? idx} className="border-t border-[var(--color-border)] last:border-b-0">
+                    <td className="px-4 py-3 text-sm font-medium text-[var(--color-foreground)]">
+                      {line.menuItemName}
+                    </td>
+                    <td className={cn("px-4 py-3 text-sm font-medium tabular-nums text-[var(--color-foreground)]", tableCenterCellClass)}>
+                      {formatMoney(line.quantity)}
+                    </td>
+                  </tr>
+                ))}
+              </DetailLineItemsSection>
             </div>
           ) : null}
           <div className="flex flex-wrap justify-end gap-2">
@@ -474,6 +603,7 @@ export default function StockRemovalsPage() {
       <Modal
         open={open}
         size="xl"
+        mobileVariant="fullscreen"
         title="New stock removal"
         description="Record items removed from stock due to damage or staff use."
         onClose={() => {
@@ -481,6 +611,16 @@ export default function StockRemovalsPage() {
             setOpen(false);
           }
         }}
+        footer={
+          <FormFooter>
+            <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void submit()} loading={saving} disabled={!canCreate}>
+              Record removal
+            </Button>
+          </FormFooter>
+        }
       >
         <div className="space-y-6 pb-2">
           <section className="space-y-3">
@@ -604,24 +744,12 @@ export default function StockRemovalsPage() {
 
             <div className="flex justify-start">
               <Button type="button" variant="secondary" size="sm" onClick={addLine} disabled={!canCreate}>
-                <span className="inline-flex items-center gap-1.5">
-                  <Plus size={15} aria-hidden />
-                  Add line
-                </span>
+                Add line
               </Button>
             </div>
           </section>
-
-          <div className="sticky bottom-0 -mx-5 flex flex-wrap justify-end gap-2 border-t border-(--color-border) bg-(--color-surface)/95 px-5 py-4 backdrop-blur-sm sm:-mx-6 sm:px-6">
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={saving}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={() => void submit()} loading={saving} disabled={!canCreate}>
-              Record removal
-            </Button>
-          </div>
         </div>
       </Modal>
-    </section>
+    </>
   );
 }

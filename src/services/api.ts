@@ -19,6 +19,23 @@ export const api = axios.create({
 
 let refreshingPromise: Promise<unknown> | null = null;
 
+/** Do not treat credential/auth bootstrap 401s as an expired access token. */
+const skipRefreshRetry = (url: string | undefined) => {
+  if (!url) return false;
+  const paths = [
+    "/auth/login",
+    "/auth/refresh",
+    "/auth/logout",
+    "/auth/activate-account",
+    "/auth/forgot-password",
+    "/auth/verify-otp",
+    "/auth/resend-otp",
+    "/auth/reset-password",
+    "/auth/invitation/",
+  ];
+  return paths.some((path) => url.includes(path));
+};
+
 api.interceptors.request.use((config) => {
   const method = (config.method ?? "get").toLowerCase();
   if (!["get", "head", "options"].includes(method)) {
@@ -43,7 +60,11 @@ api.interceptors.response.use(
     const originalRequest = error.config as AxiosRequestConfig & {
       _retry?: boolean;
     };
-    if (error.response?.status !== 401 || originalRequest._retry) {
+    if (
+      error.response?.status !== 401 ||
+      originalRequest._retry ||
+      skipRefreshRetry(originalRequest.url)
+    ) {
       return Promise.reject(error);
     }
 

@@ -1,23 +1,47 @@
 "use client";
 
-import { AlertCircle, Eye, Plus, Printer, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle, Eye, Printer, Receipt, Trash2 } from "lucide-react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { DateRangeFilter } from "@/src/components/shared/date-range-filter";
+import { DetailInfoCard } from "@/src/components/shared/detail-info-card";
+import { DetailLineItemsSection } from "@/src/components/shared/detail-line-items-section";
+import { FilterDrawer, FilterDrawerDesktop } from "@/src/components/shared/filter-drawer";
+import { LineItemCard } from "@/src/components/shared/line-item-card";
+import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
+import { MobileSortSelect } from "@/src/components/shared/mobile-sort-select";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { PaginatedListSection } from "@/src/components/shared/paginated-list-section";
+import { FormFooter } from "@/src/components/shared/form-footer";
+import { ImageUploadField } from "@/src/components/shared/image-upload-field";
+import { SplitPaymentSection } from "@/src/components/shared/split-payment-section";
+import { SortableTableHeader } from "@/src/components/ui/sortable-table-header";
+import { usePaginatedList } from "@/src/hooks/use-paginated-list";
+import { ViewModalSkeleton } from "@/src/components/skeletons/view-modal-skeleton";
+import { PaginationSkeleton } from "@/src/components/skeletons/pagination-skeleton";
+import { TableSkeleton } from "@/src/components/skeletons/table-skeleton";
 import {
   RawMaterialPurchaseReceipt,
   type RmPurchaseReceiptData,
 } from "@/src/components/purchases/raw-material-purchase-receipt";
 import { Button } from "@/src/components/ui/button";
+import { Badge } from "@/src/components/ui/badge";
 import { Card } from "@/src/components/ui/card";
-import { EmptyState } from "@/src/components/ui/empty-state";
+import { DatePicker } from "@/src/components/ui/date-picker";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import { Modal } from "@/src/components/ui/modal";
-import { ResponsiveTable, tableActionsCellClass, tableActionsColumnClass } from "@/src/components/ui/table";
+import { ResponsiveTable, tableActionsCellClass, tableActionsColumnClass, tableCenterCellClass, tableCenterColumnClass } from "@/src/components/ui/table";
 import { Select } from "@/src/components/ui/select";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { cn } from "@/src/lib/cn";
 import { formatDateOnly, formatDateTime, formatMoney } from "@/src/lib/format-display";
+import {
+  getPurchasePaymentStatus,
+  parseMoneyInput,
+  purchasePaymentStatusLabel,
+  type PurchaseBillingType,
+} from "@/src/lib/money-input";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
 import { useAppSelector } from "@/src/store/hooks";
@@ -52,22 +76,120 @@ type PurchaseRow = {
   createdAt: string;
   notes?: string | null;
   lineCount: number;
+  billingType: PurchaseBillingType;
   grandTotal: string;
+  cashPaidAmount: string;
+  bankPaidAmount: string;
+  creditAmount: string;
+  bankPaymentScreenshotUrl?: string | null;
 };
 
-const actionIconClass =
-  "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-muted)] transition-colors hover:bg-[var(--color-cream-100)] hover:text-[var(--color-foreground)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)] disabled:pointer-events-none disabled:opacity-50";
+function paymentBadgeVariant(
+  status: ReturnType<typeof getPurchasePaymentStatus>,
+): "default" | "success" | "warning" {
+  switch (status) {
+    case "paid":
+      return "success";
+    case "credit":
+      return "warning";
+    case "partial":
+      return "default";
+    case "not_recorded":
+      return "default";
+  }
+}
+
+function PurchasePaymentBadge({
+  billingType,
+  grandTotal,
+  cashPaidAmount,
+  bankPaidAmount,
+  creditAmount,
+}: {
+  billingType: PurchaseBillingType;
+  grandTotal: string;
+  cashPaidAmount: string;
+  bankPaidAmount: string;
+  creditAmount: string;
+}) {
+  const status = getPurchasePaymentStatus({
+    billingType,
+    grandTotal,
+    cashPaidAmount,
+    bankPaidAmount,
+    creditAmount,
+  });
+
+  return (
+    <Badge variant={paymentBadgeVariant(status)} size="sm">
+      {purchasePaymentStatusLabel(status)}
+    </Badge>
+  );
+}
 
 export default function RawMaterialPurchasesPage() {
+  return (
+    <section className="page-shell page-content space-y-4">
+      <Suspense
+        fallback={
+          <div className="space-y-4">
+            <TableSkeleton columns={7} />
+            <PaginationSkeleton />
+          </div>
+        }
+      >
+        <RawMaterialPurchasesContent />
+      </Suspense>
+    </section>
+  );
+}
+
+function RawMaterialPurchasesContent() {
   const authUser = useAppSelector((state) => state.auth.user);
-  const [purchases, setPurchases] = useState<PurchaseRow[]>([]);
+  const {
+    items: purchases,
+    meta,
+    loading,
+    isFetching,
+    hasActiveFilters,
+    searchInput,
+    setSearch,
+    clearSearch,
+    isSearching,
+    searchPlaceholder,
+    searchResultSummary,
+    setPage,
+    setPageSize,
+    toggleSort,
+    setSort,
+    params,
+    setFilters,
+    clearFilters,
+    refetch,
+  } = usePaginatedList<PurchaseRow>({
+    queryKey: "raw-material-purchases",
+    fetchFn: (p) => operationsApi.rmPurchases.list(p),
+    defaultSort: { sortBy: "purchaseDate", sortOrder: "desc" },
+    filterKeys: ["fromDate", "toDate"],
+    errorMessage: "Failed to load purchases",
+  });
+
   const [materials, setMaterials] = useState<{ id: string; name: string }[]>([]);
   const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
+  const [draftFromDate, setDraftFromDate] = useState(params.filters.fromDate ?? "");
+  const [draftToDate, setDraftToDate] = useState(params.filters.toDate ?? "");
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<Line[]>([emptyLine()]);
+  const [billingType, setBillingType] = useState<PurchaseBillingType>("PAID");
+  const [cashPaidStr, setCashPaidStr] = useState("0");
+  const [bankPaidStr, setBankPaidStr] = useState("0");
+  const [bankScreenshotUrl, setBankScreenshotUrl] = useState("");
+  const [bankScreenshotUploading, setBankScreenshotUploading] = useState(false);
+  const [uploadEntityId, setUploadEntityId] = useState("");
   const [viewOpen, setViewOpen] = useState(false);
   const [viewLoading, setViewLoading] = useState(false);
   const [viewPurchase, setViewPurchase] = useState<RmPurchaseReceiptData | null>(null);
@@ -79,30 +201,19 @@ export default function RawMaterialPurchasesPage() {
     [lines],
   );
 
-  const load = useCallback(async () => {
-    try {
-      const data = await operationsApi.rmPurchases.list({ limit: 50 });
-      setPurchases(
-        data.items.map((item) => ({
-          id: item.id,
-          receiptNo: item.receiptNo,
-          purchaseDate: item.purchaseDate,
-          createdAt: item.createdAt ?? "",
-          notes: item.notes,
-          lineCount: item.lineCount ?? 0,
-          grandTotal: item.grandTotal ?? "0",
-        })),
-      );
-    } catch (error) {
-      appToast.error(getApiErrorMessage(error, "Failed to load purchases"));
+  const bankPaidResult = useMemo(() => parseMoneyInput(bankPaidStr), [bankPaidStr]);
+
+  useEffect(() => {
+    if (bankPaidResult.amount <= 0.005) {
+      setBankScreenshotUrl("");
     }
-  }, []);
+  }, [bankPaidResult.amount]);
 
   const loadRefs = useCallback(async () => {
     try {
       const [m, s] = await Promise.all([
-        operationsApi.rawMaterials.list(),
-        operationsApi.suppliers.list(),
+        operationsApi.rawMaterials.list({ limit: 100 }),
+        operationsApi.suppliers.list({ limit: 100 }),
       ]);
       setMaterials(m.items.map((i) => ({ id: i.id, name: i.name })));
       setSuppliers(s.items.map((i) => ({ id: i.id, name: i.name })));
@@ -112,14 +223,31 @@ export default function RawMaterialPurchasesPage() {
   }, []);
 
   useEffect(() => {
-    void load();
     void loadRefs();
-  }, [load, loadRefs]);
+  }, [loadRefs]);
+
+  useEffect(() => {
+    setDraftFromDate(params.filters.fromDate ?? "");
+    setDraftToDate(params.filters.toDate ?? "");
+  }, [params.filters.fromDate, params.filters.toDate]);
+
+  const applyDateFilter = () => {
+    setFilters({
+      fromDate: draftFromDate,
+      toDate: draftToDate,
+    });
+  };
 
   const openCreate = () => {
     setPurchaseDate(new Date().toISOString().slice(0, 10));
     setNotes("");
     setLines([emptyLine()]);
+    setBillingType("PAID");
+    setCashPaidStr("0");
+    setBankPaidStr("0");
+    setBankScreenshotUrl("");
+    setBankScreenshotUploading(false);
+    setUploadEntityId(crypto.randomUUID());
     setOpen(true);
   };
 
@@ -166,11 +294,52 @@ export default function RawMaterialPurchasesPage() {
       }
     }
 
+    const cashPaid = parseMoneyInput(cashPaidStr);
+    const bankPaid = parseMoneyInput(bankPaidStr);
+    if (cashPaid.invalid || bankPaid.invalid) {
+      appToast.error("Enter valid payment amounts");
+      return;
+    }
+
+    const roundedGrandTotal = Math.round(grandTotal * 100) / 100;
+    const creditPreview =
+      Math.round((roundedGrandTotal - cashPaid.amount - bankPaid.amount) * 100) / 100;
+
+    if (billingType === "PAID") {
+      if (creditPreview > 0.005) {
+        appToast.error("Paid purchases must have no credit balance");
+        return;
+      }
+      if (Math.abs(cashPaid.amount + bankPaid.amount - roundedGrandTotal) > 0.005) {
+        appToast.error("Cash and bank must add up to the grand total");
+        return;
+      }
+    } else {
+      if (creditPreview <= 0.005) {
+        appToast.error("Credit billing requires a credit balance; use Paid if fully paid");
+        return;
+      }
+      if (cashPaid.amount + bankPaid.amount > roundedGrandTotal + 0.005) {
+        appToast.error("Cash and bank cannot exceed the grand total");
+        return;
+      }
+    }
+
+    if (bankPaid.amount > 0.005 && !bankScreenshotUrl.trim()) {
+      appToast.error("Bank transfer proof is required when bank payment is recorded");
+      return;
+    }
+
     setSaving(true);
     try {
       await operationsApi.rmPurchases.create({
         purchaseDate,
         notes: notes.trim() || undefined,
+        billingType,
+        cashPaidAmount: cashPaid.amount,
+        bankPaidAmount: bankPaid.amount,
+        bankPaymentScreenshotUrl:
+          bankPaid.amount > 0.005 ? bankScreenshotUrl.trim() : undefined,
         lines: lines.map((l) => ({
           rawMaterialItemId: l.rawMaterialItemId,
           supplierId: l.supplierId,
@@ -180,7 +349,7 @@ export default function RawMaterialPurchasesPage() {
       });
       appToast.success("Purchase recorded");
       setOpen(false);
-      void load();
+      await refetch();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to save purchase"));
     } finally {
@@ -205,7 +374,12 @@ export default function RawMaterialPurchasesPage() {
       notes: detail.notes,
       createdByName: detail.createdByName,
       lineCount: detail.lineCount ?? lines.length,
+      billingType: detail.billingType,
       grandTotal,
+      cashPaidAmount: detail.cashPaidAmount,
+      bankPaidAmount: detail.bankPaidAmount,
+      creditAmount: detail.creditAmount,
+      bankPaymentScreenshotUrl: detail.bankPaymentScreenshotUrl,
       cafe: detail.cafe,
       lines,
     } satisfies RmPurchaseReceiptData;
@@ -248,18 +422,16 @@ export default function RawMaterialPurchasesPage() {
   }, [printPurchase]);
 
   return (
-    <section className="page-shell page-content space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="heading-display text-foreground">Raw material purchases</h1>
-          <p className="text-muted">
-            Purchase receipts for expenses. These records do not update inventory stock.
-          </p>
-        </div>
-        <Button type="button" size="sm" onClick={openCreate}>
-          New purchase
-        </Button>
-      </div>
+    <>
+      <PageHeader
+        title="Raw material purchases"
+        description="Purchase receipts for expenses. These records do not update inventory stock."
+        action={
+          <Button type="button" size="sm" onClick={openCreate}>
+            New purchase
+          </Button>
+        }
+      />
 
       {!hasRefs ? (
         <p className="text-sm text-muted">
@@ -267,26 +439,173 @@ export default function RawMaterialPurchasesPage() {
         </p>
       ) : null}
 
-      {purchases.length === 0 ? (
-        <EmptyState title="No purchases" description="Record your first raw material purchase." />
-      ) : (
+      <FilterDrawerDesktop>
+        <DateRangeFilter
+          fromDate={draftFromDate}
+          toDate={draftToDate}
+          onFromDateChange={setDraftFromDate}
+          onToDateChange={setDraftToDate}
+          onApply={applyDateFilter}
+          description="Filter by purchase date."
+        />
+      </FilterDrawerDesktop>
+
+      <PaginatedListSection
+        loading={loading}
+        isFetching={isFetching}
+        itemsCount={purchases.length}
+        hasActiveFilters={hasActiveFilters}
+        searchValue={searchInput}
+        onSearchChange={setSearch}
+        onSearchClear={clearSearch}
+        searchPlaceholder={searchPlaceholder}
+        isSearching={isSearching}
+        searchResultSummary={searchResultSummary}
+        tableColumns={7}
+        emptyTitle="No Purchases Found"
+        emptyDescription="Record raw material purchases for the selected period, or clear filters."
+        emptyIcon={Receipt}
+        emptyAction={{ label: "New purchase", onClick: openCreate }}
+        onClearFilters={() => {
+          clearSearch();
+          setDraftFromDate("");
+          setDraftToDate("");
+          clearFilters();
+        }}
+        currentPage={meta.page}
+        totalPages={meta.totalPages}
+        totalRecords={meta.total}
+        pageSize={meta.limit}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        filters={
+          <FilterDrawer
+            open={filterDrawerOpen}
+            onOpenChange={setFilterDrawerOpen}
+            hasActiveFilters={Boolean(params.filters.fromDate || params.filters.toDate)}
+            onApply={applyDateFilter}
+            onReset={() => {
+              setDraftFromDate("");
+              setDraftToDate("");
+              clearFilters();
+            }}
+          >
+            <DateRangeFilter
+              compact
+              fromDate={draftFromDate}
+              toDate={draftToDate}
+              onFromDateChange={setDraftFromDate}
+              onToDateChange={setDraftToDate}
+              onApply={applyDateFilter}
+            />
+          </FilterDrawer>
+        }
+        mobileSort={
+          <MobileSortSelect
+            options={[
+              { label: "Purchase date (newest)", sortBy: "purchaseDate", sortOrder: "desc" },
+              { label: "Purchase date (oldest)", sortBy: "purchaseDate", sortOrder: "asc" },
+              { label: "Receipt (A–Z)", sortBy: "receiptNo", sortOrder: "asc" },
+            ]}
+            currentSortBy={params.sortBy}
+            currentSortOrder={params.sortOrder}
+            onSort={setSort}
+          />
+        }
+        mobileCards={
+          <ListCardStack>
+            {purchases.map((p) => (
+              <ListCard
+                key={p.id}
+                title={p.receiptNo}
+                subtitle={formatDateOnly(p.purchaseDate)}
+                badge={
+                  <PurchasePaymentBadge
+                    billingType={p.billingType ?? "PAID"}
+                    grandTotal={p.grandTotal}
+                    cashPaidAmount={p.cashPaidAmount ?? "0"}
+                    bankPaidAmount={p.bankPaidAmount ?? "0"}
+                    creditAmount={p.creditAmount ?? "0"}
+                  />
+                }
+                fields={[
+                  { label: "Total", value: formatMoney(p.grandTotal) },
+                  { label: "Lines", value: String(p.lineCount ?? 0) },
+                ]}
+                actions={
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="secondary" onClick={() => void openView(p.id)}>
+                      <span className="inline-flex items-center gap-1.5">
+                        <Eye size={15} strokeWidth={1.75} aria-hidden />
+                        View
+                      </span>
+                    </Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => void handlePrint(p.id)}>
+                      <span className="inline-flex items-center gap-1.5">
+                        <Printer size={15} strokeWidth={1.75} aria-hidden />
+                        Print
+                      </span>
+                    </Button>
+                  </div>
+                }
+              />
+            ))}
+          </ListCardStack>
+        }
+      >
         <Card density="compact" className="overflow-hidden p-0">
           <ResponsiveTable
             headers={[
-              "Receipt",
-              "Purchase date",
-              "Recorded",
-              { label: "Lines", thClassName: "text-right" },
-              { label: "Grand total", thClassName: "text-right", labelWrapperClassName: "ml-auto text-right" },
-              { label: "Actions", thClassName: "text-right", labelWrapperClassName: tableActionsColumnClass },
+              {
+                label: "Receipt",
+                thClassName: tableCenterColumnClass,
+                headerContent: (
+                  <SortableTableHeader
+                    label="Receipt"
+                    sortKey="receiptNo"
+                    currentSortBy={params.sortBy}
+                    currentSortOrder={params.sortOrder}
+                    onSort={toggleSort}
+                    align="center"
+                  />
+                ),
+              },
+              {
+                label: "Purchase date",
+                headerContent: (
+                  <SortableTableHeader
+                    label="Purchase date"
+                    sortKey="purchaseDate"
+                    currentSortBy={params.sortBy}
+                    currentSortOrder={params.sortOrder}
+                    onSort={toggleSort}
+                  />
+                ),
+              },
+              {
+                label: "Recorded",
+                headerContent: (
+                  <SortableTableHeader
+                    label="Recorded"
+                    sortKey="createdAt"
+                    currentSortBy={params.sortBy}
+                    currentSortOrder={params.sortOrder}
+                    onSort={toggleSort}
+                  />
+                ),
+              },
+              { label: "Lines", thClassName: tableCenterColumnClass },
+              { label: "Grand total", thClassName: tableCenterColumnClass },
+              { label: "Payment", thClassName: tableCenterColumnClass },
+              { label: "Actions", thClassName: tableActionsColumnClass },
             ]}
             ariaLabel="Purchases"
             density="comfortable"
-            className="min-w-0 border-0 shadow-none [&_table]:min-w-[52rem]"
+            className="min-w-0 border-0 shadow-none [&_table]:min-w-[58rem]"
           >
             {purchases.map((p) => (
               <tr key={p.id} className="border-t border-(--color-border) last:border-b-0">
-                <td className="px-4 py-3.5 text-sm font-medium text-foreground whitespace-nowrap">
+                <td className={cn("px-4 py-3.5 text-sm font-medium text-foreground whitespace-nowrap", tableCenterCellClass)}>
                   {p.receiptNo}
                 </td>
                 <td className="px-4 py-3.5 text-sm text-muted whitespace-nowrap">
@@ -295,31 +614,36 @@ export default function RawMaterialPurchasesPage() {
                 <td className="px-4 py-3.5 text-sm text-muted whitespace-nowrap">
                   <span title={p.createdAt}>{formatDateTime(p.createdAt)}</span>
                 </td>
-                <td className="px-4 py-3.5 text-right text-sm tabular-nums text-muted">
+                <td className={cn("px-4 py-3.5 text-sm tabular-nums text-muted", tableCenterCellClass)}>
                   {p.lineCount ?? 0}
                 </td>
-                <td className="px-4 py-3.5 text-right text-sm font-medium tabular-nums text-foreground">
+                <td className={cn("px-4 py-3.5 text-sm font-medium tabular-nums text-foreground", tableCenterCellClass)}>
                   {formatMoney(p.grandTotal)}
+                </td>
+                <td className={cn("px-4 py-3.5", tableCenterCellClass)}>
+                  <PurchasePaymentBadge
+                    billingType={p.billingType ?? "PAID"}
+                    grandTotal={p.grandTotal}
+                    cashPaidAmount={p.cashPaidAmount ?? "0"}
+                    bankPaidAmount={p.bankPaidAmount ?? "0"}
+                    creditAmount={p.creditAmount ?? "0"}
+                  />
                 </td>
                 <td className="px-4 py-3.5">
                   <div className={tableActionsCellClass}>
-                    <div className="inline-flex items-center gap-1">
-                      <button
-                        type="button"
-                        className={actionIconClass}
-                        aria-label={`View receipt ${p.receiptNo}`}
-                        onClick={() => void openView(p.id)}
-                      >
-                        <Eye size={16} strokeWidth={1.75} aria-hidden />
-                      </button>
-                      <button
-                        type="button"
-                        className={actionIconClass}
-                        aria-label={`Print receipt ${p.receiptNo}`}
-                        onClick={() => void handlePrint(p.id)}
-                      >
-                        <Printer size={16} strokeWidth={1.75} aria-hidden />
-                      </button>
+                    <div className="inline-flex flex-nowrap items-center justify-center gap-1.5">
+                      <Button type="button" size="sm" variant="secondary" onClick={() => void openView(p.id)}>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Eye size={15} strokeWidth={1.75} aria-hidden />
+                          View
+                        </span>
+                      </Button>
+                      <Button type="button" size="sm" variant="secondary" onClick={() => void handlePrint(p.id)}>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Printer size={15} strokeWidth={1.75} aria-hidden />
+                          Print
+                        </span>
+                      </Button>
                     </div>
                   </div>
                 </td>
@@ -327,7 +651,7 @@ export default function RawMaterialPurchasesPage() {
             ))}
           </ResponsiveTable>
         </Card>
-      )}
+      </PaginatedListSection>
 
       <Modal
         open={viewOpen}
@@ -347,106 +671,160 @@ export default function RawMaterialPurchasesPage() {
       >
         <div className="space-y-5">
           {viewLoading ? (
-            <p className="py-8 text-center text-sm text-muted">Loading purchase…</p>
+            <ViewModalSkeleton rows={3} />
           ) : viewPurchase ? (
             <div className="space-y-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <PurchasePaymentBadge
+                  billingType={viewPurchase.billingType ?? "PAID"}
+                  grandTotal={viewPurchase.grandTotal}
+                  cashPaidAmount={viewPurchase.cashPaidAmount ?? "0"}
+                  bankPaidAmount={viewPurchase.bankPaidAmount ?? "0"}
+                  creditAmount={viewPurchase.creditAmount ?? "0"}
+                />
+              </div>
+
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-(--color-border) bg-(--color-surface) px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-subtle">
-                    Purchase date
-                  </p>
-                  <p className="mt-1 text-sm font-medium text-foreground">
-                    {formatDateOnly(viewPurchase.purchaseDate)}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-(--color-border) bg-(--color-surface) px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-subtle">
-                    Recorded
-                  </p>
-                  <p className="mt-1 text-sm font-medium text-foreground">
-                    {formatDateTime(viewPurchase.createdAt)}
-                  </p>
+                <DetailInfoCard label="Purchase date">
+                  <p className="font-medium">{formatDateOnly(viewPurchase.purchaseDate)}</p>
+                </DetailInfoCard>
+                <DetailInfoCard label="Recorded">
+                  <p className="font-medium">{formatDateTime(viewPurchase.createdAt)}</p>
                   {viewPurchase.createdByName ? (
-                    <p className="mt-0.5 text-xs text-muted">
+                    <p className="mt-0.5 text-xs text-[var(--color-muted)]">
                       by {viewPurchase.createdByName}
                     </p>
                   ) : null}
-                </div>
+                </DetailInfoCard>
               </div>
 
-              {viewPurchase.notes?.trim() ? (
-                <div className="rounded-xl border border-(--color-border) bg-(--color-surface-muted) px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-subtle">
-                    Notes
-                  </p>
-                  <p className="mt-1 text-sm text-foreground">{viewPurchase.notes.trim()}</p>
+              {getPurchasePaymentStatus({
+                billingType: viewPurchase.billingType ?? "PAID",
+                grandTotal: viewPurchase.grandTotal,
+                cashPaidAmount: viewPurchase.cashPaidAmount ?? "0",
+                bankPaidAmount: viewPurchase.bankPaidAmount ?? "0",
+                creditAmount: viewPurchase.creditAmount ?? "0",
+              }) !== "not_recorded" ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <DetailInfoCard label="Payment">
+                    <dl className="mt-2 space-y-1.5 text-sm">
+                      {Number(viewPurchase.cashPaidAmount) > 0 ? (
+                        <div className="flex justify-between gap-2 text-[var(--color-muted)]">
+                          <dt>Cash paid</dt>
+                          <dd className="font-mono tabular-nums">
+                            {formatMoney(viewPurchase.cashPaidAmount ?? 0)}
+                          </dd>
+                        </div>
+                      ) : null}
+                      {Number(viewPurchase.bankPaidAmount) > 0 ? (
+                        <div className="flex justify-between gap-2 text-[var(--color-muted)]">
+                          <dt>Bank paid</dt>
+                          <dd className="font-mono tabular-nums">
+                            {formatMoney(viewPurchase.bankPaidAmount ?? 0)}
+                          </dd>
+                        </div>
+                      ) : null}
+                      {Number(viewPurchase.creditAmount) > 0.005 ? (
+                        <div className="flex justify-between gap-2 font-medium text-[var(--color-foreground)]">
+                          <dt>Credit due</dt>
+                          <dd className="font-mono tabular-nums">
+                            {formatMoney(viewPurchase.creditAmount ?? 0)}
+                          </dd>
+                        </div>
+                      ) : null}
+                    </dl>
+                  </DetailInfoCard>
+                  {viewPurchase.bankPaymentScreenshotUrl ? (
+                    <DetailInfoCard label="Bank transfer proof">
+                      <a
+                        href={viewPurchase.bankPaymentScreenshotUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block overflow-hidden rounded-lg border border-[var(--color-border)]"
+                      >
+                        <img
+                          src={viewPurchase.bankPaymentScreenshotUrl}
+                          loading="lazy"
+                          alt="Bank transfer proof"
+                          className="max-h-40 w-full object-contain bg-[var(--color-surface-muted)]"
+                        />
+                      </a>
+                      <p className="mt-2 text-xs text-[var(--color-muted)]">Click to open full size</p>
+                    </DetailInfoCard>
+                  ) : null}
                 </div>
+              ) : (
+                <DetailInfoCard label="Payment" muted>
+                  Payment not recorded for this purchase.
+                </DetailInfoCard>
+              )}
+
+              {viewPurchase.notes?.trim() ? (
+                <DetailInfoCard label="Notes" muted>
+                  {viewPurchase.notes.trim()}
+                </DetailInfoCard>
               ) : null}
 
-              <div className="rounded-2xl border border-(--color-border) bg-(--color-surface) shadow-(--shadow-sm)">
-                <div className="flex flex-wrap items-end justify-between gap-3 border-b border-(--color-border) bg-(--color-surface-muted) px-4 py-3.5">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-subtle">
-                      Line items
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted">
-                      {viewPurchase.lineCount}{" "}
-                      {viewPurchase.lineCount === 1 ? "line" : "lines"}
-                    </p>
-                  </div>
+              <DetailLineItemsSection
+                subtitle={`${viewPurchase.lineCount} ${viewPurchase.lineCount === 1 ? "line" : "lines"}`}
+                headerAside={
                   <div className="text-left sm:text-right">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-subtle">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
                       Grand total
                     </p>
-                    <p className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
+                    <p className="mt-0.5 text-lg font-semibold tabular-nums text-[var(--color-foreground)]">
                       {formatMoney(viewPurchase.grandTotal)}
                     </p>
                   </div>
-                </div>
-
-                <div className="p-0">
-                  <ResponsiveTable
-                    headers={[
-                      "Item",
-                      "Supplier",
-                      { label: "Qty", thClassName: "text-right" },
-                      { label: "Rate", thClassName: "text-right" },
-                      { label: "Total", thClassName: "text-right" },
-                    ]}
-                    ariaLabel="Purchase line items"
-                    density="compact"
-                    className="border-0 shadow-none [&_table]:min-w-full"
-                  >
+                }
+                headers={[
+                  "Item",
+                  "Supplier",
+                  { label: "Qty", thClassName: tableCenterColumnClass },
+                  { label: "Rate", thClassName: tableCenterColumnClass },
+                  { label: "Total", thClassName: tableCenterColumnClass },
+                ]}
+                ariaLabel="Purchase line items"
+                mobileLineItems={
+                  <>
                     {viewPurchase.lines.map((line, idx) => (
-                      <tr
+                      <LineItemCard
                         key={idx}
-                        className="border-t border-(--color-border) last:border-b-0"
-                      >
-                        <td className="px-4 py-3 text-sm font-medium text-foreground">
-                          <div className="min-w-0">
-                            <p className="truncate">{line.rawMaterialItem.name}</p>
-                            <p className="mt-0.5 text-xs text-muted">
-                              Unit: {line.rawMaterialItem.unit}
-                            </p>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-muted">
-                          {line.supplier.name}
-                        </td>
-                        <td className="px-4 py-3 text-right text-sm tabular-nums text-muted">
-                          {formatMoney(line.quantity)}
-                        </td>
-                        <td className="px-4 py-3 text-right text-sm tabular-nums text-muted">
-                          {formatMoney(line.ratePerUnit)}
-                        </td>
-                        <td className="px-4 py-3 text-right text-sm font-medium tabular-nums text-foreground">
-                          {formatMoney(line.lineTotal)}
-                        </td>
-                      </tr>
+                        title={line.rawMaterialItem.name}
+                        fields={[
+                          { label: "Supplier", value: line.supplier.name },
+                          { label: "Qty", value: formatMoney(line.quantity) },
+                          { label: "Rate", value: formatMoney(line.ratePerUnit) },
+                          { label: "Total", value: formatMoney(line.lineTotal) },
+                        ]}
+                      />
                     ))}
-                  </ResponsiveTable>
-                </div>
-              </div>
+                  </>
+                }
+              >
+                {viewPurchase.lines.map((line, idx) => (
+                  <tr key={idx} className="border-t border-[var(--color-border)] last:border-b-0">
+                    <td className="px-4 py-3 text-sm font-medium text-[var(--color-foreground)]">
+                      <div className="min-w-0">
+                        <p className="truncate">{line.rawMaterialItem.name}</p>
+                        <p className="mt-0.5 text-xs text-[var(--color-muted)]">
+                          Unit: {line.rawMaterialItem.unit}
+                        </p>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-[var(--color-muted)]">{line.supplier.name}</td>
+                    <td className={cn("px-4 py-3 text-sm tabular-nums text-[var(--color-muted)]", tableCenterCellClass)}>
+                      {formatMoney(line.quantity)}
+                    </td>
+                    <td className={cn("px-4 py-3 text-sm tabular-nums text-[var(--color-muted)]", tableCenterCellClass)}>
+                      {formatMoney(line.ratePerUnit)}
+                    </td>
+                    <td className={cn("px-4 py-3 text-sm font-medium tabular-nums text-[var(--color-foreground)]", tableCenterCellClass)}>
+                      {formatMoney(line.lineTotal)}
+                    </td>
+                  </tr>
+                ))}
+              </DetailLineItemsSection>
             </div>
           ) : null}
           <div className="flex flex-wrap justify-end gap-2">
@@ -495,6 +873,7 @@ export default function RawMaterialPurchasesPage() {
       <Modal
         open={open}
         size="xl"
+        mobileVariant="fullscreen"
         title="New purchase"
         description="Record a purchase receipt with one or more line items. Totals are calculated automatically."
         onClose={() => {
@@ -502,6 +881,21 @@ export default function RawMaterialPurchasesPage() {
             setOpen(false);
           }
         }}
+        footer={
+          <FormFooter>
+            <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void submit()}
+              loading={saving}
+              disabled={!hasRefs || saving || bankScreenshotUploading}
+            >
+              Save purchase
+            </Button>
+          </FormFooter>
+        }
       >
         <div className="space-y-6 pb-2">
           {!hasRefs ? (
@@ -545,10 +939,12 @@ export default function RawMaterialPurchasesPage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-[minmax(0,220px)_1fr]">
               <Field id="date" label="Purchase date" required>
-                <Input
-                  type="date"
+                <DatePicker
+                  id="date"
                   value={purchaseDate}
-                  onChange={(e) => setPurchaseDate(e.target.value)}
+                  onChange={setPurchaseDate}
+                  placeholder="Pick purchase date"
+                  aria-label="Purchase date"
                 />
               </Field>
               <Field id="notes" label="Notes" hint="Optional — invoice ref, delivery note, etc.">
@@ -695,15 +1091,12 @@ export default function RawMaterialPurchasesPage() {
                 onClick={addLine}
                 disabled={!hasRefs}
                 className={cn(
-                  "flex w-full items-center justify-start gap-2 border-b border-dashed border-[var(--color-border)] px-4 py-3.5 text-sm font-medium transition-colors",
+                  "flex w-full items-center justify-start border-b border-dashed border-[var(--color-border)] px-4 py-3.5 text-sm font-medium transition-colors",
                   hasRefs
-                    ? "text-[var(--color-primary)] hover:bg-[var(--color-cream-100)]"
+                    ? "cursor-pointer text-[var(--color-primary)] hover:bg-[var(--color-cream-100)]"
                     : "cursor-not-allowed text-[var(--color-subtle)]",
                 )}
               >
-                <span className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-primary)]/25 bg-[var(--color-primary)]/8">
-                  <Plus size={16} aria-hidden />
-                </span>
                 Add another line item
               </button>
               <div className="flex flex-wrap items-center justify-between gap-4 bg-[var(--color-surface-muted)] px-4 py-4 sm:px-5">
@@ -727,21 +1120,38 @@ export default function RawMaterialPurchasesPage() {
             </div>
           </section>
 
-          <div className="sticky bottom-0 -mx-5 flex flex-wrap justify-end gap-2 border-t border-[var(--color-border)] bg-[var(--color-surface)]/95 px-5 py-4 backdrop-blur-sm sm:-mx-6 sm:px-6">
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={saving}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={() => void submit()}
-              loading={saving}
-              disabled={!hasRefs || saving}
-            >
-              Save purchase
-            </Button>
-          </div>
+          <SplitPaymentSection
+            grandTotal={Math.round(grandTotal * 100) / 100}
+            billingType={billingType}
+            onBillingTypeChange={setBillingType}
+            cashPaidStr={cashPaidStr}
+            onCashPaidStrChange={setCashPaidStr}
+            bankPaidStr={bankPaidStr}
+            onBankPaidStrChange={setBankPaidStr}
+            disabled={!hasRefs || saving}
+            idPrefix="rm-purchase"
+            showBankProofHint={bankPaidResult.amount > 0.005}
+            bankProofSlot={
+              <ImageUploadField
+                id="rmPurchaseBankProof"
+                label=""
+                required
+                value={bankScreenshotUrl}
+                onChange={setBankScreenshotUrl}
+                assetType="module"
+                module="raw-material-purchases"
+                entityId={uploadEntityId}
+                dropTitle="Drop screenshot here"
+                recommendedSize="PNG or JPG, max 5MB"
+                previewAlt="Bank transfer proof preview"
+                uploadedLabel="Proof attached"
+                onUploadingChange={setBankScreenshotUploading}
+                className="[&_label]:sr-only"
+              />
+            }
+          />
         </div>
       </Modal>
-    </section>
+    </>
   );
 }

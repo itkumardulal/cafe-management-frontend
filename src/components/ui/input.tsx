@@ -13,7 +13,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       <input
         ref={ref}
         className={cn(
-          "touch-target rounded-xl border bg-[var(--color-surface)] px-3 text-sm text-[var(--color-foreground)] placeholder:text-[var(--color-subtle)] caret-[var(--color-foreground)] outline-none transition-colors",
+          "touch-target rounded-xl border bg-[var(--color-surface)] px-3 text-base md:text-sm text-[var(--color-foreground)] placeholder:text-[var(--color-subtle)] caret-[var(--color-foreground)] outline-none transition-colors",
           fullWidth && "w-full",
           size === "sm" && "text-xs",
           size === "lg" && "text-base",

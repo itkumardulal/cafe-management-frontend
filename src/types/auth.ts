@@ -12,6 +12,7 @@ export interface AuthUser {
     logo?: string | null;
   } | null;
   isActive?: boolean;
+  mustChangePassword?: boolean;
 }
 
 export interface MenuItem {

@@ -5,13 +5,14 @@ import { type ChangeEvent, type DragEvent, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
+import { cn } from "@/src/lib/cn";
 import { IMAGE_UPLOAD_ACCEPT, isAllowedImageFile } from "@/src/lib/image-upload";
 import { appToast } from "@/src/lib/toast";
 import { api } from "@/src/services/api";
 
 export type ImageUploadAssetType = "logo" | "module";
 
-type ImageUploadFieldProps = {
+export type ImageUploadFieldProps = {
   id: string;
   label: string;
   hint?: string;
@@ -114,13 +115,18 @@ export function ImageUploadField({
     onChange("");
   };
 
+  const openFilePicker = () => {
+    fileInputRef.current?.click();
+  };
+
   return (
     <Field id={id} label={label} error={error} hint={hint} className={className} required={required}>
       <div className="space-y-3">
         <div
           role="button"
           tabIndex={0}
-          onClick={() => fileInputRef.current?.click()}
+          aria-label={`${dropTitle}. ${recommendedSize}`}
+          onClick={openFilePicker}
           onDragOver={(event) => {
             event.preventDefault();
             setIsDragActive(true);
@@ -130,42 +136,51 @@ export function ImageUploadField({
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
-              fileInputRef.current?.click();
+              openFilePicker();
             }
           }}
-          className={`cursor-pointer rounded-xl border border-dashed p-4 text-center transition ${
+          className={cn(
+            "touch-target flex w-full min-h-[7rem] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed p-4 text-center transition",
             isDragActive
-              ? "border-primary bg-primary-soft"
-              : "border-(--color-border) bg-surface-muted hover:border-primary/60"
-          }`}
+              ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)]"
+              : "border-[var(--color-border)] bg-[var(--color-surface-muted)] hover:border-[var(--color-primary)]/60",
+          )}
         >
-          <p className="text-sm font-medium text-foreground">{dropTitle}</p>
-          <p className="mt-1 text-xs text-muted">or click to browse files</p>
-          <p className="mt-2 text-[11px] text-subtle">{recommendedSize}</p>
+          <p className="text-sm font-medium text-[var(--color-foreground)]">{dropTitle}</p>
+          <p className="mt-1 text-xs text-[var(--color-muted)]">or tap to browse files</p>
+          <p className="mt-2 text-[11px] text-[var(--color-subtle)]">{recommendedSize}</p>
         </div>
 
         <Input
           ref={fileInputRef}
-          id={id}
+          id={`${id}-file`}
           type="file"
           accept={IMAGE_UPLOAD_ACCEPT}
           onChange={(event) => void handleFileChange(event)}
           className="hidden"
           disabled={uploading}
+          aria-hidden
+          tabIndex={-1}
         />
 
         {value ? (
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-(--color-border) bg-(--color-surface) px-3 py-2">
-            <div className="inline-flex items-center gap-3">
-              <img src={value} alt={previewAlt} className="h-10 w-10 rounded-md object-cover" />
-              <p className="text-xs text-muted">{uploadedLabel}</p>
+          <div className="flex flex-col gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="inline-flex min-w-0 items-center gap-3">
+              <img
+                src={value}
+                alt={previewAlt}
+                loading="lazy"
+                className="h-12 w-12 shrink-0 rounded-md object-cover"
+              />
+              <p className="truncate text-xs text-[var(--color-muted)]">{uploadedLabel}</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 sm:shrink-0">
               <Button
                 type="button"
                 size="sm"
                 variant="secondary"
-                onClick={() => fileInputRef.current?.click()}
+                className="min-h-11 flex-1 sm:flex-none"
+                onClick={openFilePicker}
                 disabled={uploading}
               >
                 <span className="inline-flex items-center gap-1.5">
@@ -173,7 +188,14 @@ export function ImageUploadField({
                   Replace
                 </span>
               </Button>
-              <Button type="button" size="sm" variant="ghost" onClick={clearImage} disabled={uploading}>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="min-h-11 flex-1 sm:flex-none"
+                onClick={clearImage}
+                disabled={uploading}
+              >
                 <span className="inline-flex items-center gap-1.5">
                   <Trash2 size={14} aria-hidden="true" />
                   Remove
@@ -183,7 +205,11 @@ export function ImageUploadField({
           </div>
         ) : null}
 
-        {uploading ? <p className="text-xs text-muted">Uploading image...</p> : null}
+        {uploading ? (
+          <p className="text-xs text-[var(--color-muted)]" role="status" aria-live="polite">
+            Uploading image…
+          </p>
+        ) : null}
       </div>
     </Field>
   );

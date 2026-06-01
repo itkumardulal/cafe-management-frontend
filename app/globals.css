@@ -1,10 +1,15 @@
 @import "tailwindcss";
 
+/*
+ * Design contract: tokens and responsive matrix are locked in
+ * docs/DESIGN_CONTRACT.md — update that doc when changing breakpoints or semantics.
+ */
+
 @theme {
   /* Color contract (keep brand identity intact) */
   --color-primary: #c2410c;
   --color-primary-hover: #7c2d12;
-  --color-primary-soft: #fff7ed;
+  --color-primary-soft: #ffedd5;
   --color-primary-foreground: #ffffff;
 
   --color-background: #f7f5f2;
@@ -12,8 +17,13 @@
   --color-surface-muted: #fdfaf7;
 
   --color-foreground: #1c1917;
-  --color-muted: #6b625c;
-  --color-subtle: #9c9189;
+  --color-muted: #57534e;
+  --color-subtle: #78716c;
+
+  /* Navigation & menu text — tuned for white and cream-tinted surfaces */
+  --color-nav-idle: #44403c;
+  --color-nav-idle-hover: #1c1917;
+  --color-nav-active-text: #9a3412;
   --color-success: #15803d;
   --color-warning: #b45309;
   --color-danger: #dc2626;
@@ -53,6 +63,12 @@
   --line-tight: 1.2;
   --line-normal: 1.45;
   --line-relaxed: 1.6;
+
+  /* Z-index contract */
+  --z-dropdown: 20;
+  --z-sticky: 30;
+  --z-overlay: 40;
+  --z-modal: 50;
 }
 
 @layer base {
@@ -75,6 +91,10 @@
     --color-foreground: #f5f5f4;
     --color-muted: #d6d3d1;
     --color-subtle: #a8a29e;
+
+    --color-nav-idle: #d6d3d1;
+    --color-nav-idle-hover: #fafaf9;
+    --color-nav-active-text: #fdba74;
     --color-success: #4ade80;
     --color-warning: #fbbf24;
     --color-danger: #f87171;
@@ -116,6 +136,20 @@
     box-shadow: 0 0 0 1000px var(--color-surface) inset !important;
     -webkit-box-shadow: 0 0 0 1000px var(--color-surface) inset !important;
     transition: background-color 9999s ease-out 0s, color 9999s ease-out 0s;
+  }
+
+  button:not(:disabled),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [type="button"]:disabled,
+  [type="submit"]:disabled,
+  [type="reset"]:disabled {
+    cursor: not-allowed;
   }
 
   *:focus-visible {
@@ -160,16 +194,91 @@
   }
 
   .heading-display {
-    font-size: var(--font-size-2xl);
+    font-size: clamp(1.25rem, 2.5vw + 0.75rem, var(--font-size-2xl));
     line-height: var(--line-tight);
     letter-spacing: -0.02em;
     font-weight: 600;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .gap-page {
+    gap: 1rem;
+  }
+
+  @media (min-width: 768px) {
+    .gap-page {
+      gap: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .gap-page {
+      gap: 2rem;
+    }
+  }
+
+  .p-card {
+    padding: 1rem;
+  }
+
+  @media (min-width: 768px) {
+    .p-card {
+      padding: 1.25rem;
+    }
   }
 
   .text-muted {
     color: var(--color-muted);
     line-height: var(--line-normal);
     font-size: var(--font-size-sm);
+  }
+
+  .text-subtle {
+    color: var(--color-subtle);
+  }
+
+  .menu-chip {
+    color: var(--color-nav-idle);
+    background: var(--color-cream-100);
+  }
+
+  .menu-chip:hover {
+    color: var(--color-nav-idle-hover);
+    background: var(--color-cream-200);
+  }
+
+  .menu-chip-active {
+    color: var(--color-nav-active-text);
+    background: var(--color-primary-soft);
+  }
+
+  .menu-segment-idle {
+    color: var(--color-nav-idle);
+  }
+
+  .menu-segment-idle:hover {
+    color: var(--color-nav-idle-hover);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
   }
 
   .surface-card {
@@ -181,6 +290,67 @@
 
   .touch-target {
     min-height: var(--min-height-touch);
+  }
+
+  /* Square icon controls (close/clear) — avoids oval stretch from touch-target + fixed width */
+  .icon-button-square {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+
+  /* Password show/hide — sits inside rounded inputs; subtle hover, no harsh fill */
+  .input-password-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+    border-radius: var(--radius-sm);
+    color: var(--color-subtle);
+    cursor: pointer;
+    transition:
+      color var(--motion-quick),
+      background-color var(--motion-quick);
+  }
+
+  .input-password-toggle:hover {
+    color: var(--color-foreground);
+    background-color: color-mix(in srgb, var(--color-muted) 12%, transparent);
+  }
+
+  .input-password-toggle:active {
+    background-color: color-mix(in srgb, var(--color-muted) 18%, transparent);
+  }
+
+  .input-password-toggle[aria-pressed="true"] {
+    color: var(--color-primary);
+  }
+
+  .input-password-toggle[aria-pressed="true"]:hover {
+    color: var(--color-primary-hover);
+    background-color: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  }
+
+  .input-password-toggle:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  html.dark .input-password-toggle:hover {
+    background-color: color-mix(in srgb, var(--color-foreground) 8%, transparent);
+  }
+
+  html.dark .input-password-toggle[aria-pressed="true"]:hover {
+    background-color: color-mix(in srgb, var(--color-primary) 16%, transparent);
   }
 
   .density-comfortable {

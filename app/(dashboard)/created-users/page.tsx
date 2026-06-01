@@ -4,9 +4,12 @@ import { useEffect } from "react";
 import { Badge } from "@/src/components/ui/badge";
 import { Card } from "@/src/components/ui/card";
 import { EmptyState } from "@/src/components/ui/empty-state";
-import { ResponsiveTable } from "@/src/components/ui/table";
-import { NotAuthorized } from "@/src/components/shared/not-authorized";
+import { ResponsiveTable, tableCenterCellClass, tableCenterColumnClass } from "@/src/components/ui/table";
+import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
+import { PageHeader } from "@/src/components/shared/page-header";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
+import { cn } from "@/src/lib/cn";
+import { userStatusBadgeVariant, userStatusLabel } from "@/src/lib/user-status";
 import { fetchCreatedUsersThunk } from "@/src/store/slices/user.slice";
 
 export default function CreatedUsersPage() {
@@ -20,16 +23,12 @@ export default function CreatedUsersPage() {
     }
   }, [dispatch, user?.role]);
 
-  if (user?.role !== "SUPER_ADMIN") {
-    return <NotAuthorized description="Only Super Admin can view users created by them." />;
-  }
-
   return (
     <section className="page-shell page-content">
-      <div className="space-y-1">
-        <h1 className="heading-display text-foreground">Created Users</h1>
-        <p className="text-muted">Users created by your Super Admin account.</p>
-      </div>
+      <PageHeader
+        title="Created Users"
+        description="Users created by your Super Admin account."
+      />
 
       {!loading && createdUsers.length === 0 ? (
         <EmptyState
@@ -39,28 +38,47 @@ export default function CreatedUsersPage() {
       ) : null}
 
       {createdUsers.length > 0 ? (
-        <Card density="compact">
-          <ResponsiveTable
-            headers={["Name", "Email", "Role", "Cafe", "Status"]}
-            className="hidden md:block"
-            ariaLabel="Created users records"
-            density="compact"
-          >
+        <>
+          <ListCardStack>
+            {createdUsers.map((item) => (
+              <ListCard
+                key={item.id}
+                title={item.fullName}
+                subtitle={item.email}
+                badge={
+                  <Badge variant={userStatusBadgeVariant(item.status, item.isActive)}>
+                    {userStatusLabel(item.status, item.isActive)}
+                  </Badge>
+                }
+                fields={[
+                  { label: "Role", value: item.role },
+                  { label: "Cafe", value: item.cafe?.cafeName ?? "—" },
+                ]}
+              />
+            ))}
+          </ListCardStack>
+          <Card density="compact" className="hidden md:block">
+            <ResponsiveTable
+              headers={["Name", "Email", { label: "Role", thClassName: tableCenterColumnClass }, "Cafe", { label: "Status", thClassName: tableCenterColumnClass }]}
+              ariaLabel="Created users records"
+              density="compact"
+            >
             {createdUsers.map((item) => (
               <tr key={item.id} className="border-t border-(--color-border)">
                 <td className="px-3 py-2.5">{item.fullName}</td>
                 <td className="px-3 py-2.5">{item.email}</td>
-                <td className="px-3 py-2.5">{item.role}</td>
+                <td className={cn("px-3 py-2.5", tableCenterCellClass)}>{item.role}</td>
                 <td className="px-3 py-2.5">{item.cafe?.cafeName ?? "-"}</td>
-                <td className="px-3 py-2.5">
-                  <Badge variant={item.isActive ? "success" : "warning"}>
-                    {item.isActive ? "Active" : "Disabled"}
+                <td className={cn("px-3 py-2.5", tableCenterCellClass)}>
+                  <Badge variant={userStatusBadgeVariant(item.status, item.isActive)}>
+                    {userStatusLabel(item.status, item.isActive)}
                   </Badge>
                 </td>
               </tr>
             ))}
           </ResponsiveTable>
-        </Card>
+          </Card>
+        </>
       ) : null}
     </section>
   );

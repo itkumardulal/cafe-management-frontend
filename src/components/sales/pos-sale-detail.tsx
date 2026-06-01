@@ -1,8 +1,12 @@
 "use client";
 
 import { Badge } from "@/src/components/ui/badge";
-import { ResponsiveTable } from "@/src/components/ui/table";
+import { DetailInfoCard } from "@/src/components/shared/detail-info-card";
+import { DetailLineItemsSection } from "@/src/components/shared/detail-line-items-section";
+import { LineItemCard } from "@/src/components/shared/line-item-card";
+import { tableCenterCellClass, tableCenterColumnClass } from "@/src/components/ui/table";
 import { formatDateTime, formatMoney } from "@/src/lib/format-display";
+import { cn } from "@/src/lib/cn";
 import type { PosSaleReceiptData } from "@/src/components/sales/pos-sale-receipt";
 
 function serviceLabel(type: PosSaleReceiptData["serviceType"]) {
@@ -35,84 +39,87 @@ export function PosSaleDetail({ sale }: PosSaleDetailProps) {
         <Badge variant={sale.billingType === "CREDIT" ? "warning" : "success"}>
           {billingLabel(sale.billingType)}
         </Badge>
+        {sale.serviceType === "DINE_IN" && sale.tableName ? (
+          <Badge variant="default">Table: {sale.tableName}</Badge>
+        ) : null}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Receipt</p>
-          <p className="mt-1 font-mono text-sm font-semibold text-foreground">{sale.receiptNo}</p>
-          <p className="mt-0.5 text-xs text-muted">{formatDateTime(sale.saleAt)}</p>
-        </div>
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Recorded</p>
-          <p className="mt-1 text-sm font-medium text-foreground">
-            {formatDateTime(sale.createdAt)}
-          </p>
+        <DetailInfoCard label="Receipt">
+          <p className="font-mono font-semibold">{sale.receiptNo}</p>
+          <p className="mt-0.5 text-xs text-[var(--color-muted)]">{formatDateTime(sale.saleAt)}</p>
+        </DetailInfoCard>
+        <DetailInfoCard label="Recorded">
+          <p className="font-medium">{formatDateTime(sale.createdAt)}</p>
           {sale.createdByName ? (
-            <p className="mt-0.5 text-xs text-muted">by {sale.createdByName}</p>
+            <p className="mt-0.5 text-xs text-[var(--color-muted)]">by {sale.createdByName}</p>
           ) : null}
-        </div>
+        </DetailInfoCard>
       </div>
 
       {hasCustomer ? (
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-cream-50)]/50 px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Customer</p>
-          {sale.customerName ? (
-            <p className="mt-1 text-sm font-medium text-foreground">{sale.customerName}</p>
-          ) : null}
+        <DetailInfoCard label="Customer" muted>
+          {sale.customerName ? <p className="font-medium">{sale.customerName}</p> : null}
           {sale.customerPhone ? (
-            <p className="mt-0.5 text-sm text-muted">{sale.customerPhone}</p>
+            <p className={sale.customerName ? "mt-0.5 text-[var(--color-muted)]" : "font-medium"}>
+              {sale.customerPhone}
+            </p>
           ) : null}
           {sale.customerAddress ? (
-            <p className="mt-1 text-sm text-muted">
+            <p className="mt-1 text-[var(--color-muted)]">
               {sale.serviceType === "DELIVERY" ? "Deliver to: " : ""}
               {sale.customerAddress}
             </p>
           ) : null}
           {sale.customerEmail ? (
-            <p className="mt-0.5 text-sm text-muted">{sale.customerEmail}</p>
+            <p className="mt-0.5 text-[var(--color-muted)]">{sale.customerEmail}</p>
           ) : null}
-        </div>
+        </DetailInfoCard>
       ) : null}
 
-      <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-sm)]">
-        <div className="border-b border-[var(--color-border)] bg-[var(--color-cream-50)] px-4 py-3.5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Line items</p>
-          <p className="mt-0.5 text-xs text-muted">
-            {sale.lineCount} {sale.lineCount === 1 ? "item" : "items"}
-          </p>
-        </div>
-        <ResponsiveTable
-          headers={[
-            "Item",
-            { label: "Qty", thClassName: "text-right" },
-            { label: "Unit price", thClassName: "text-right" },
-            { label: "Line total", thClassName: "text-right" },
-          ]}
-          ariaLabel="Sale line items"
-          density="compact"
-          className="border-0 shadow-none [&_table]:min-w-full"
-        >
-          {sale.lines.map((line, idx) => (
-            <tr key={idx} className="border-t border-[var(--color-border)]">
-              <td className="px-4 py-3 text-sm font-medium text-foreground">{line.menuItemName}</td>
-              <td className="px-4 py-3 text-right text-sm tabular-nums text-muted">
-                {formatMoney(line.quantity)}
-              </td>
-              <td className="px-4 py-3 text-right text-sm font-mono tabular-nums text-muted">
-                {formatMoney(line.unitPrice)}
-              </td>
-              <td className="px-4 py-3 text-right text-sm font-mono font-medium tabular-nums text-foreground">
-                {formatMoney(line.lineTotal)}
-              </td>
-            </tr>
-          ))}
-        </ResponsiveTable>
-      </div>
+      <DetailLineItemsSection
+        subtitle={`${sale.lineCount} ${sale.lineCount === 1 ? "item" : "items"}`}
+        headers={[
+          "Item",
+          { label: "Qty", thClassName: tableCenterColumnClass },
+          { label: "Unit price", thClassName: tableCenterColumnClass },
+          { label: "Line total", thClassName: tableCenterColumnClass },
+        ]}
+        ariaLabel="Sale line items"
+        mobileLineItems={
+          <>
+            {sale.lines.map((line, idx) => (
+              <LineItemCard
+                key={idx}
+                title={line.menuItemName}
+                fields={[
+                  { label: "Qty", value: formatMoney(line.quantity) },
+                  { label: "Unit price", value: formatMoney(line.unitPrice) },
+                  { label: "Line total", value: formatMoney(line.lineTotal) },
+                ]}
+              />
+            ))}
+          </>
+        }
+      >
+        {sale.lines.map((line, idx) => (
+          <tr key={idx} className="border-t border-[var(--color-border)] last:border-b-0">
+            <td className="px-4 py-3 text-sm font-medium text-[var(--color-foreground)]">{line.menuItemName}</td>
+            <td className={cn("px-4 py-3 text-sm tabular-nums text-[var(--color-muted)]", tableCenterCellClass)}>
+              {formatMoney(line.quantity)}
+            </td>
+            <td className={cn("px-4 py-3 text-sm font-mono tabular-nums text-[var(--color-muted)]", tableCenterCellClass)}>
+              {formatMoney(line.unitPrice)}
+            </td>
+            <td className={cn("px-4 py-3 text-sm font-mono font-medium tabular-nums text-[var(--color-foreground)]", tableCenterCellClass)}>
+              {formatMoney(line.lineTotal)}
+            </td>
+          </tr>
+        ))}
+      </DetailLineItemsSection>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Totals</p>
+        <DetailInfoCard label="Totals">
           <dl className="mt-2 space-y-1.5 text-sm">
             <div className="flex justify-between gap-2 text-muted">
               <dt>Subtotal</dt>
@@ -140,9 +147,8 @@ export function PosSaleDetail({ sale }: PosSaleDetailProps) {
               </dd>
             </div>
           </dl>
-        </div>
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Payment</p>
+        </DetailInfoCard>
+        <DetailInfoCard label="Payment">
           <dl className="mt-2 space-y-1.5 text-sm">
             {Number(sale.cashPaidAmount) > 0 ? (
               <div className="flex justify-between gap-2 text-muted">
@@ -166,14 +172,13 @@ export function PosSaleDetail({ sale }: PosSaleDetailProps) {
               <p className="text-muted">—</p>
             ) : null}
           </dl>
-        </div>
+        </DetailInfoCard>
       </div>
 
       {sale.notes?.trim() ? (
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-cream-50)]/50 px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Notes</p>
-          <p className="mt-1 text-sm text-foreground">{sale.notes.trim()}</p>
-        </div>
+        <DetailInfoCard label="Notes" muted>
+          {sale.notes.trim()}
+        </DetailInfoCard>
       ) : null}
     </div>
   );

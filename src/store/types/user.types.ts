@@ -1,4 +1,5 @@
 import type { UserRole } from "@/src/types/auth";
+import type { UserStatus } from "@/src/lib/user-status";
 
 export interface StaffMenuAccess {
   menu: { code: string; name: string };
@@ -11,6 +12,7 @@ export interface StaffRecord {
   email: string;
   contactNumber?: string;
   isActive: boolean;
+  status?: UserStatus;
   menuAccess?: StaffMenuAccess[];
 }
 
@@ -26,6 +28,7 @@ export interface CreatedUserRecord {
   email: string;
   role: UserRole;
   isActive: boolean;
+  status?: UserStatus;
   createdAt: string;
   cafe?: {
     id: string;
@@ -38,9 +41,9 @@ export interface CreatedUserRecord {
 export interface CreateStaffPayload {
   fullName: string;
   email: string;
-  password: string;
   contactNumber?: string;
   accessMenuCodes?: string[];
+  password?: string;
 }
 
 export interface UpdateStaffPayload {

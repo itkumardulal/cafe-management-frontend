@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { useEffect } from "react";
 import Link from "next/link";
+import { PageHeader } from "@/src/components/shared/page-header";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
@@ -51,19 +52,17 @@ export default function DashboardPage() {
   if (user?.role === "SUPER_ADMIN") {
     return (
       <section className="page-shell page-content">
-        <div className="flex items-center justify-between gap-3">
-          <div className="space-y-1">
-            <h1 className="heading-display text-foreground">Cafe Overview (Read-only)</h1>
-            <p className="text-muted sm:text-base">
-              Switch cafe context to view summary data for cafes you created.
-            </p>
-          </div>
-          <Link href="/cafe-admins/create">
-            <Button type="button" size="sm">
-              Create Cafe Admin
-            </Button>
-          </Link>
-        </div>
+        <PageHeader
+          title="Cafe Overview (Read-only)"
+          description="Switch cafe context to view summary data for cafes you created."
+          action={
+            <Link href="/cafe-admins?add=1">
+              <Button type="button" size="sm">
+                Add cafe admin
+              </Button>
+            </Link>
+          }
+        />
 
         {managedCafes.length > 0 ? (
           <Card density="compact">
@@ -143,11 +142,12 @@ export default function DashboardPage() {
         {["Today Orders", "Revenue", "Active Tables", "Staff On Duty"].map((title, index) => (
           <motion.div
             key={title}
+            className="h-full"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
           >
-            <Card density="compact" className="space-y-2">
+            <Card density="compact" className="flex h-full flex-col space-y-2">
               <p className="text-xs uppercase tracking-wide text-subtle">{title}</p>
               <p className="text-2xl font-semibold text-foreground">--</p>
               <Badge variant="default" size="sm">

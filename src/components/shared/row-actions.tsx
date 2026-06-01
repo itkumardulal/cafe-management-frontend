@@ -5,7 +5,7 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/lib/cn";
 
 const actionBtnClass =
-  "inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-[var(--color-cream-100)] hover:text-[var(--color-foreground)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)] disabled:pointer-events-none disabled:opacity-50";
+  "touch-target inline-flex h-11 w-11 min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-lg text-[var(--color-nav-idle)] transition-colors hover:bg-[var(--color-cream-100)] hover:text-[var(--color-nav-idle-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)] disabled:cursor-not-allowed disabled:pointer-events-none disabled:opacity-50";
 
 export function RowActions({
   onEdit,

@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ChevronLeft, Coffee, LogOut } from "lucide-react";
 import { getMenuIcon } from "@/src/lib/menu-icons";
 import { motion } from "framer-motion";
 import { Button } from "@/src/components/ui/button";
+import { Card } from "@/src/components/ui/card";
+import { Modal } from "@/src/components/ui/modal";
 import { cn } from "@/src/lib/cn";
 import { logoutThunk } from "@/src/store/slices/auth.slice";
-import { fetchAuthorizedMenusThunk } from "../../store/slices/menu.slice";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 
 type SidebarProps = {
@@ -24,22 +25,21 @@ export function Sidebar({ collapsed = false, onToggle, className }: SidebarProps
   const dispatch = useAppDispatch();
   const menus = useAppSelector((state) => state.menu.items);
   const [loggingOut, setLoggingOut] = useState(false);
-
-  useEffect(() => {
-    void dispatch(fetchAuthorizedMenusThunk());
-  }, [dispatch]);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
   const handleLogout = async () => {
     setLoggingOut(true);
     try {
       await dispatch(logoutThunk());
+      setLogoutConfirmOpen(false);
+      router.replace("/login");
     } finally {
       setLoggingOut(false);
-      router.replace("/login");
     }
   };
 
   return (
+    <>
     <aside
       className={cn(
         "flex h-full max-h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-surface)] p-3 transition-all duration-300",
@@ -62,7 +62,7 @@ export function Sidebar({ collapsed = false, onToggle, className }: SidebarProps
           <button
             type="button"
             onClick={onToggle}
-            className="hidden shrink-0 rounded-lg p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-cream-100)] lg:block"
+            className="hidden shrink-0 rounded-lg p-1.5 text-[var(--color-nav-idle)] hover:bg-[var(--color-cream-100)] hover:text-[var(--color-nav-idle-hover)] lg:block"
             aria-label="Toggle sidebar"
           >
             <ChevronLeft
@@ -84,10 +84,10 @@ export function Sidebar({ collapsed = false, onToggle, className }: SidebarProps
             <motion.div key={menu.id} whileHover={{ x: 2 }}>
               <Link
                 href={menu.route}
-                className={`touch-target flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition ${
+                className={`touch-target flex min-h-11 items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition ${
                   active
-                    ? "bg-[var(--color-primary-soft)] font-medium text-[var(--color-primary)]"
-                    : "text-[var(--color-muted)] hover:bg-[var(--color-cream-100)] hover:text-[var(--color-foreground)]"
+                    ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-nav-active-text)] shadow-[inset_3px_0_0_0_var(--color-primary)]"
+                    : "text-[var(--color-nav-idle)] hover:bg-[var(--color-cream-100)] hover:text-[var(--color-nav-idle-hover)]"
                 }`}
                 title={collapsed ? menu.name : undefined}
                 aria-current={active ? "page" : undefined}
@@ -107,7 +107,7 @@ export function Sidebar({ collapsed = false, onToggle, className }: SidebarProps
           size="sm"
           fullWidth={!collapsed}
           loading={loggingOut}
-          onClick={() => void handleLogout()}
+          onClick={() => setLogoutConfirmOpen(true)}
           aria-label="Logout"
           className={collapsed ? "w-full justify-center px-0" : ""}
         >
@@ -116,5 +116,41 @@ export function Sidebar({ collapsed = false, onToggle, className }: SidebarProps
         </Button>
       </div>
     </aside>
+
+    <Modal
+      open={logoutConfirmOpen}
+      title="Sign out"
+      description="You will need to sign in again to access your account."
+      onClose={() => {
+        if (!loggingOut) {
+          setLogoutConfirmOpen(false);
+        }
+      }}
+      size="md"
+    >
+      <Card density="comfortable" className="border-0 bg-[var(--color-cream-50)] shadow-none">
+        <p className="text-sm text-[var(--color-foreground)]">
+          Do you want to logout?
+        </p>
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setLogoutConfirmOpen(false)}
+            disabled={loggingOut}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            loading={loggingOut}
+            onClick={() => void handleLogout()}
+          >
+            Yes, logout
+          </Button>
+        </div>
+      </Card>
+    </Modal>
+    </>
   );
 }

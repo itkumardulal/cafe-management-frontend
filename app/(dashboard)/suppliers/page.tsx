@@ -1,18 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
+import { Truck } from "lucide-react";
+import { FormFooter } from "@/src/components/shared/form-footer";
+import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
+import { MobileSortSelect } from "@/src/components/shared/mobile-sort-select";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { PaginatedListSection } from "@/src/components/shared/paginated-list-section";
+import { RowActions } from "@/src/components/shared/row-actions";
+import { CardListSkeleton } from "@/src/components/skeletons/card-list-skeleton";
+import { PaginationSkeleton } from "@/src/components/skeletons/pagination-skeleton";
+import { TableSkeleton } from "@/src/components/skeletons/table-skeleton";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
-import { EmptyState } from "@/src/components/ui/empty-state";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import { Modal } from "@/src/components/ui/modal";
+import { SortableTableHeader } from "@/src/components/ui/sortable-table-header";
 import {
   ResponsiveTable,
   tableActionsCellClass,
   tableActionsColumnClass,
+  tableCenterCellClass,
+  tableCenterColumnClass,
 } from "@/src/components/ui/table";
-import { RowActions } from "@/src/components/shared/row-actions";
+import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { cn } from "@/src/lib/cn";
 import { appToast } from "@/src/lib/toast";
@@ -38,25 +50,55 @@ const emptyForm = {
 };
 
 export default function SuppliersPage() {
-  const [items, setItems] = useState<Row[]>([]);
+  return (
+    <section className="page-shell page-content space-y-4">
+      <Suspense
+        fallback={
+          <div className="space-y-4">
+            <CardListSkeleton />
+            <TableSkeleton columns={7} className="hidden md:block" />
+            <PaginationSkeleton />
+          </div>
+        }
+      >
+        <SuppliersContent />
+      </Suspense>
+    </section>
+  );
+}
+
+function SuppliersContent() {
+  const {
+    items,
+    meta,
+    loading,
+    isFetching,
+    hasActiveFilters,
+    searchInput,
+    setSearch,
+    clearSearch,
+    isSearching,
+    searchPlaceholder,
+    searchResultSummary,
+    setPage,
+    setPageSize,
+    toggleSort,
+    setSort,
+    params,
+    clearFilters,
+    refetch,
+  } = usePaginatedList<Row>({
+    queryKey: "suppliers",
+    fetchFn: (p) => operationsApi.suppliers.list(p),
+    defaultSort: { sortBy: "name", sortOrder: "asc" },
+    errorMessage: "Failed to load suppliers",
+  });
+
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<Row | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState(emptyForm);
-
-  const load = useCallback(async () => {
-    try {
-      const data = await operationsApi.suppliers.list();
-      setItems(data.items);
-    } catch {
-      appToast.error("Failed to load suppliers");
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   const openCreate = () => {
     setEdit(null);
@@ -100,7 +142,7 @@ export default function SuppliersPage() {
         appToast.success("Supplier added");
       }
       setOpen(false);
-      void load();
+      await refetch();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to save supplier"));
     }
@@ -115,7 +157,7 @@ export default function SuppliersPage() {
       await operationsApi.suppliers.remove(deleteTarget.id);
       appToast.success("Supplier deleted");
       setDeleteTarget(null);
-      void load();
+      await refetch();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to delete supplier"));
     } finally {
@@ -129,113 +171,144 @@ export default function SuppliersPage() {
   };
 
   return (
-    <section className="page-shell page-content space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="heading-display text-foreground">Suppliers</h1>
-          <p className="text-muted">Vendors for raw material purchases.</p>
-        </div>
-        <Button type="button" size="sm" onClick={openCreate}>
-          Add supplier
-        </Button>
-      </div>
+    <>
+      <PageHeader
+        title="Suppliers"
+        description="Vendors for raw material purchases."
+        action={
+          <Button type="button" size="sm" onClick={openCreate}>
+            Add supplier
+          </Button>
+        }
+      />
 
-      {items.length === 0 ? (
-        <EmptyState title="No suppliers" description="Add suppliers used for purchase receipts." />
-      ) : (
-        <>
-          <div className="space-y-2 md:hidden">
+      <PaginatedListSection
+        loading={loading}
+        isFetching={isFetching}
+        itemsCount={items.length}
+        hasActiveFilters={hasActiveFilters}
+        searchValue={searchInput}
+        onSearchChange={setSearch}
+        onSearchClear={clearSearch}
+        searchPlaceholder={searchPlaceholder}
+        isSearching={isSearching}
+        searchResultSummary={searchResultSummary}
+        tableColumns={7}
+        emptyTitle="No Suppliers Found"
+        emptyDescription="Add suppliers used for purchase receipts."
+        emptyIcon={Truck}
+        emptyAction={{ label: "Add supplier", onClick: openCreate }}
+        onClearFilters={() => {
+          clearSearch();
+          clearFilters();
+        }}
+        currentPage={meta.page}
+        totalPages={meta.totalPages}
+        totalRecords={meta.total}
+        pageSize={meta.limit}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        mobileSort={
+          <MobileSortSelect
+            options={[
+              { label: "Name (A–Z)", sortBy: "name", sortOrder: "asc" },
+              { label: "Name (Z–A)", sortBy: "name", sortOrder: "desc" },
+            ]}
+            currentSortBy={params.sortBy}
+            currentSortOrder={params.sortOrder}
+            onSort={setSort}
+          />
+        }
+        mobileCards={
+          <ListCardStack>
             {items.map((item) => (
-              <div
+              <ListCard
                 key={item.id}
-                className="flex items-start justify-between gap-3 rounded-xl border border-(--color-border) bg-(--color-surface) px-4 py-3"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">{item.name}</p>
-                  <p className="text-xs text-muted">
-                    {[item.contactPerson, item.phone, item.email].filter(Boolean).join(" · ") ||
-                      "No contact details"}
-                  </p>
-                  {item.address ? (
-                    <p className="mt-1 truncate text-xs text-muted" title={item.address}>
-                      {item.address}
-                    </p>
-                  ) : null}
-                  {item.notes ? (
-                    <p className="mt-1 line-clamp-2 text-xs text-subtle" title={item.notes}>
-                      {item.notes}
-                    </p>
-                  ) : null}
-                </div>
-                <RowActions
-                  showLabels
-                  onEdit={() => openEdit(item)}
-                  onDelete={() => setDeleteTarget(item)}
-                />
-              </div>
+                title={item.name}
+                fields={[
+                  { label: "Contact", value: cellOrDash(item.contactPerson) },
+                  { label: "Phone", value: cellOrDash(item.phone) },
+                  { label: "Email", value: cellOrDash(item.email) },
+                ]}
+                actions={
+                  <RowActions
+                    showLabels
+                    onEdit={() => openEdit(item)}
+                    onDelete={() => setDeleteTarget(item)}
+                  />
+                }
+              />
             ))}
-          </div>
-
-          <Card density="compact" className="hidden overflow-hidden p-0 md:block">
-            <ResponsiveTable
-              headers={[
-                "Name",
-                "Contact",
-                "Phone",
-                "Email",
-                "Address",
-                "Notes",
-                {
-                  label: "Actions",
-                  thClassName: "text-right",
-                  labelWrapperClassName: tableActionsColumnClass,
-                },
-              ]}
-              ariaLabel="Suppliers"
-              density="comfortable"
-              className="min-w-0 border-0 shadow-none [&_table]:min-w-full"
-            >
-              {items.map((item) => (
-                <tr key={item.id} className="border-t border-(--color-border) last:border-b-0">
-                  <td className="px-4 py-3.5 text-sm font-medium text-foreground">{item.name}</td>
-                  <td className="px-4 py-3.5 text-sm text-muted">{cellOrDash(item.contactPerson)}</td>
-                  <td className="px-4 py-3.5 text-sm text-muted whitespace-nowrap">
-                    {cellOrDash(item.phone)}
-                  </td>
-                  <td className="px-4 py-3.5 text-sm text-muted">{cellOrDash(item.email)}</td>
-                  <td className="max-w-[180px] px-4 py-3.5 text-sm text-muted">
-                    {item.address ? (
-                      <span className="line-clamp-2" title={item.address}>
-                        {item.address}
-                      </span>
-                    ) : (
-                      <span className="text-subtle">—</span>
-                    )}
-                  </td>
-                  <td className="max-w-[200px] px-4 py-3.5 text-sm text-muted">
-                    {item.notes ? (
-                      <span className="line-clamp-2" title={item.notes}>
-                        {item.notes}
-                      </span>
-                    ) : (
-                      <span className="text-subtle">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3.5 text-right">
-                    <div className={tableActionsCellClass}>
-                      <RowActions
-                        showLabels
-                        onEdit={() => openEdit(item)}
-                        onDelete={() => setDeleteTarget(item)}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </ResponsiveTable>
-          </Card>
-        </>
-      )}
+          </ListCardStack>
+        }
+      >
+        <Card density="compact" className="overflow-hidden p-0">
+          <ResponsiveTable
+            headers={[
+              {
+                label: "Name",
+                headerContent: (
+                  <SortableTableHeader
+                    label="Name"
+                    sortKey="name"
+                    currentSortBy={params.sortBy}
+                    currentSortOrder={params.sortOrder}
+                    onSort={toggleSort}
+                  />
+                ),
+              },
+              "Contact",
+              "Phone",
+              "Email",
+              "Address",
+              "Notes",
+              {
+                label: "Actions",
+                thClassName: tableActionsColumnClass,
+              },
+            ]}
+            ariaLabel="Suppliers"
+            density="comfortable"
+            className="min-w-0 border-0 shadow-none [&_table]:min-w-full"
+          >
+            {items.map((item) => (
+              <tr key={item.id} className="border-t border-[var(--color-border)] last:border-b-0">
+                <td className="px-4 py-3.5 text-sm font-medium text-foreground">{item.name}</td>
+                <td className="px-4 py-3.5 text-sm text-muted">{cellOrDash(item.contactPerson)}</td>
+                <td className="px-4 py-3.5 text-sm text-muted whitespace-nowrap">{cellOrDash(item.phone)}</td>
+                <td className="px-4 py-3.5 text-sm text-muted">{cellOrDash(item.email)}</td>
+                <td className="max-w-[180px] px-4 py-3.5 text-sm text-muted">
+                  {item.address ? (
+                    <span className="line-clamp-2" title={item.address}>
+                      {item.address}
+                    </span>
+                  ) : (
+                    <span className="text-subtle">—</span>
+                  )}
+                </td>
+                <td className="max-w-[200px] px-4 py-3.5 text-sm text-muted">
+                  {item.notes ? (
+                    <span className="line-clamp-2" title={item.notes}>
+                      {item.notes}
+                    </span>
+                  ) : (
+                    <span className="text-subtle">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-3.5">
+                  <div className={tableActionsCellClass}>
+                    <RowActions
+                      showLabels
+                      onEdit={() => openEdit(item)}
+                      onDelete={() => setDeleteTarget(item)}
+                    />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </ResponsiveTable>
+        </Card>
+      </PaginatedListSection>
 
       <Modal
         open={deleteTarget !== null}
@@ -345,16 +418,16 @@ export default function SuppliersPage() {
             </Field>
           </section>
 
-          <div className="sticky bottom-0 -mx-5 flex justify-end gap-2 border-t border-(--color-border) bg-(--color-surface) px-5 py-4 sm:-mx-6 sm:px-6">
+          <FormFooter>
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <Button type="button" onClick={() => void save()}>
               {edit ? "Save changes" : "Add supplier"}
             </Button>
-          </div>
+          </FormFooter>
         </div>
       </Modal>
-    </section>
+    </>
   );
 }

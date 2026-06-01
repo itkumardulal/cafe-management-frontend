@@ -1,19 +1,34 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { Wallet } from "lucide-react";
+import { DateRangeFilter } from "@/src/components/shared/date-range-filter";
+import { FilterDrawer, FilterDrawerDesktop } from "@/src/components/shared/filter-drawer";
+import { FormFooter } from "@/src/components/shared/form-footer";
+import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
+import { MobileSortSelect } from "@/src/components/shared/mobile-sort-select";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { PaginatedListSection } from "@/src/components/shared/paginated-list-section";
+import { RowActions } from "@/src/components/shared/row-actions";
+import { CardListSkeleton } from "@/src/components/skeletons/card-list-skeleton";
+import { PaginationSkeleton } from "@/src/components/skeletons/pagination-skeleton";
+import { TableSkeleton } from "@/src/components/skeletons/table-skeleton";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
-import { EmptyState } from "@/src/components/ui/empty-state";
+import { DatePicker } from "@/src/components/ui/date-picker";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import { Modal } from "@/src/components/ui/modal";
 import { Select } from "@/src/components/ui/select";
+import { SortableTableHeader } from "@/src/components/ui/sortable-table-header";
 import {
   ResponsiveTable,
   tableActionsCellClass,
   tableActionsColumnClass,
+  tableCenterCellClass,
+  tableCenterColumnClass,
 } from "@/src/components/ui/table";
-import { RowActions } from "@/src/components/shared/row-actions";
+import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { cn } from "@/src/lib/cn";
 import { formatDateOnly, formatMoney } from "@/src/lib/format-display";
@@ -40,10 +55,55 @@ const emptyForm = {
 };
 
 export default function DailyExpensesPage() {
-  const [entries, setEntries] = useState<ExpenseEntryRow[]>([]);
+  return (
+    <section className="page-shell page-content space-y-4">
+      <Suspense
+        fallback={
+          <div className="space-y-4">
+            <TableSkeleton columns={6} />
+            <PaginationSkeleton />
+          </div>
+        }
+      >
+        <DailyExpensesContent />
+      </Suspense>
+    </section>
+  );
+}
+
+function DailyExpensesContent() {
+  const {
+    items: entries,
+    meta,
+    loading,
+    isFetching,
+    hasActiveFilters,
+    searchInput,
+    setSearch,
+    clearSearch,
+    isSearching,
+    searchPlaceholder,
+    searchResultSummary,
+    setPage,
+    setPageSize,
+    toggleSort,
+    setSort,
+    params,
+    setFilters,
+    clearFilters,
+    refetch,
+  } = usePaginatedList<ExpenseEntryRow>({
+    queryKey: "daily-expenses",
+    fetchFn: (p) => operationsApi.expenseEntries.list(p),
+    defaultSort: { sortBy: "expenseDate", sortOrder: "desc" },
+    filterKeys: ["fromDate", "toDate"],
+    errorMessage: "Failed to load expenses",
+  });
+
   const [expenseItems, setExpenseItems] = useState<ExpenseItemOption[]>([]);
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [draftFromDate, setDraftFromDate] = useState(params.filters.fromDate ?? "");
+  const [draftToDate, setDraftToDate] = useState(params.filters.toDate ?? "");
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [edit, setEdit] = useState<ExpenseEntryRow | null>(null);
@@ -60,31 +120,21 @@ export default function DailyExpensesPage() {
     }
   }, []);
 
-  const load = useCallback(async () => {
-    try {
-      const data = await operationsApi.expenseEntries.list({
-        fromDate: fromDate || undefined,
-        toDate: toDate || undefined,
-        limit: 100,
-      });
-      setEntries(
-        data.items.map((item) => ({
-          ...item,
-          createdAt: item.createdAt ?? "",
-        })),
-      );
-    } catch (error) {
-      appToast.error(getApiErrorMessage(error, "Failed to load expenses"));
-    }
-  }, [fromDate, toDate]);
-
   useEffect(() => {
     void loadExpenseItems();
   }, [loadExpenseItems]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    setDraftFromDate(params.filters.fromDate ?? "");
+    setDraftToDate(params.filters.toDate ?? "");
+  }, [params.filters.fromDate, params.filters.toDate]);
+
+  const applyDateFilter = () => {
+    setFilters({
+      fromDate: draftFromDate,
+      toDate: draftToDate,
+    });
+  };
 
   const openCreate = () => {
     setEdit(null);
@@ -137,7 +187,7 @@ export default function DailyExpensesPage() {
         appToast.success("Expense recorded");
       }
       setOpen(false);
-      void load();
+      await refetch();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to save expense"));
     } finally {
@@ -154,7 +204,7 @@ export default function DailyExpensesPage() {
       await operationsApi.expenseEntries.remove(deleteTarget.id);
       appToast.success("Expense deleted");
       setDeleteTarget(null);
-      void load();
+      await refetch();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to delete expense"));
     } finally {
@@ -165,16 +215,16 @@ export default function DailyExpensesPage() {
   const canAddExpense = expenseItems.length > 0;
 
   return (
-    <section className="page-shell page-content space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="heading-display text-foreground">Daily expenses</h1>
-          <p className="text-muted">Log day-to-day cafe expenses from your expense item catalog.</p>
-        </div>
-        <Button type="button" size="sm" onClick={openCreate} disabled={!canAddExpense}>
-          Add expense
-        </Button>
-      </div>
+    <>
+      <PageHeader
+        title="Daily expenses"
+        description="Log day-to-day cafe expenses from your expense item catalog."
+        action={
+          <Button type="button" size="sm" onClick={openCreate} disabled={!canAddExpense}>
+            Add expense
+          </Button>
+        }
+      />
 
       {!canAddExpense ? (
         <p className="text-sm text-muted">
@@ -182,42 +232,140 @@ export default function DailyExpensesPage() {
         </p>
       ) : null}
 
-      <Card density="compact" className="p-4 sm:p-5">
-        <div className="mb-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-subtle">Date range</h2>
-          <p className="mt-1 text-sm text-muted">Filter entries by expense date.</p>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-          <Field id="from" label="From">
-            <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-          </Field>
-          <Field id="to" label="To">
-            <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
-          </Field>
-          <Button type="button" variant="secondary" onClick={() => void load()}>
-            Apply filter
-          </Button>
-        </div>
-      </Card>
-
-      {entries.length === 0 ? (
-        <EmptyState
-          title="No expenses"
-          description="Record expenses for the selected period, or clear the date filter."
+      <FilterDrawerDesktop>
+        <DateRangeFilter
+          fromDate={draftFromDate}
+          toDate={draftToDate}
+          onFromDateChange={setDraftFromDate}
+          onToDateChange={setDraftToDate}
+          onApply={applyDateFilter}
+          description="Filter entries by expense date."
         />
-      ) : (
+      </FilterDrawerDesktop>
+
+      <PaginatedListSection
+        loading={loading}
+        isFetching={isFetching}
+        itemsCount={entries.length}
+        hasActiveFilters={hasActiveFilters}
+        searchValue={searchInput}
+        onSearchChange={setSearch}
+        onSearchClear={clearSearch}
+        searchPlaceholder={searchPlaceholder}
+        isSearching={isSearching}
+        searchResultSummary={searchResultSummary}
+        tableColumns={6}
+        emptyTitle="No Daily Expenses Found"
+        emptyDescription="Record expenses for the selected period, or clear the date filter."
+        emptyIcon={Wallet}
+        emptyAction={{ label: "Add expense", onClick: openCreate }}
+        onClearFilters={() => {
+          clearSearch();
+          setDraftFromDate("");
+          setDraftToDate("");
+          clearFilters();
+        }}
+        currentPage={meta.page}
+        totalPages={meta.totalPages}
+        totalRecords={meta.total}
+        pageSize={meta.limit}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        filters={
+          <>
+            <FilterDrawer
+              open={filterDrawerOpen}
+              onOpenChange={setFilterDrawerOpen}
+              hasActiveFilters={Boolean(params.filters.fromDate || params.filters.toDate)}
+              onApply={applyDateFilter}
+              onReset={() => {
+                setDraftFromDate("");
+                setDraftToDate("");
+                clearFilters();
+              }}
+            >
+              <DateRangeFilter
+                compact
+                fromDate={draftFromDate}
+                toDate={draftToDate}
+                onFromDateChange={setDraftFromDate}
+                onToDateChange={setDraftToDate}
+                onApply={applyDateFilter}
+              />
+            </FilterDrawer>
+          </>
+        }
+        mobileSort={
+          <MobileSortSelect
+            options={[
+              { label: "Date (newest)", sortBy: "expenseDate", sortOrder: "desc" },
+              { label: "Date (oldest)", sortBy: "expenseDate", sortOrder: "asc" },
+              { label: "Amount (high)", sortBy: "amount", sortOrder: "desc" },
+              { label: "Amount (low)", sortBy: "amount", sortOrder: "asc" },
+            ]}
+            currentSortBy={params.sortBy}
+            currentSortOrder={params.sortOrder}
+            onSort={setSort}
+          />
+        }
+        mobileCards={
+          <ListCardStack>
+            {entries.map((entry) => (
+              <ListCard
+                key={entry.id}
+                title={entry.expenseItemName}
+                fields={[
+                  { label: "Amount", value: formatMoney(entry.amount) },
+                  { label: "Date", value: formatDateOnly(entry.expenseDate) },
+                  { label: "Notes", value: entry.notes?.trim() || "—" },
+                ]}
+                actions={
+                  <RowActions
+                    showLabels
+                    onEdit={() => openEdit(entry)}
+                    onDelete={() => setDeleteTarget(entry)}
+                  />
+                }
+              />
+            ))}
+          </ListCardStack>
+        }
+      >
         <Card density="compact" className="overflow-hidden p-0">
           <ResponsiveTable
             headers={[
               "Expense item",
-              { label: "Amount", thClassName: "text-right" },
-              "Expense date",
+              {
+                label: "Amount",
+                thClassName: tableCenterColumnClass,
+                headerContent: (
+                  <SortableTableHeader
+                    label="Amount"
+                    sortKey="amount"
+                    currentSortBy={params.sortBy}
+                    currentSortOrder={params.sortOrder}
+                    onSort={toggleSort}
+                    align="center"
+                  />
+                ),
+              },
+              {
+                label: "Expense date",
+                headerContent: (
+                  <SortableTableHeader
+                    label="Expense date"
+                    sortKey="expenseDate"
+                    currentSortBy={params.sortBy}
+                    currentSortOrder={params.sortOrder}
+                    onSort={toggleSort}
+                  />
+                ),
+              },
               "Recorded",
               "Notes",
               {
                 label: "Actions",
-                thClassName: "text-right",
-                labelWrapperClassName: tableActionsColumnClass,
+                thClassName: tableActionsColumnClass,
               },
             ]}
             ariaLabel="Daily expenses"
@@ -225,11 +373,11 @@ export default function DailyExpensesPage() {
             className="min-w-0 border-0 shadow-none [&_table]:min-w-[52rem]"
           >
             {entries.map((entry) => (
-              <tr key={entry.id} className="border-t border-(--color-border) last:border-b-0">
+              <tr key={entry.id} className="border-t border-[var(--color-border)] last:border-b-0">
                 <td className="px-4 py-3.5 text-sm font-medium text-foreground">
                   {entry.expenseItemName}
                 </td>
-                <td className="px-4 py-3.5 text-right text-sm font-medium tabular-nums text-foreground">
+                <td className={cn("px-4 py-3.5 text-sm font-medium tabular-nums text-foreground", tableCenterCellClass)}>
                   {formatMoney(entry.amount)}
                 </td>
                 <td className="px-4 py-3.5 text-sm text-muted whitespace-nowrap">
@@ -247,7 +395,7 @@ export default function DailyExpensesPage() {
                     <span className="text-subtle">—</span>
                   )}
                 </td>
-                <td className="px-4 py-3.5 text-right">
+                <td className="px-4 py-3.5">
                   <div className={tableActionsCellClass}>
                     <RowActions
                       showLabels
@@ -260,7 +408,7 @@ export default function DailyExpensesPage() {
             ))}
           </ResponsiveTable>
         </Card>
-      )}
+      </PaginatedListSection>
 
       <Modal
         open={deleteTarget !== null}
@@ -278,7 +426,7 @@ export default function DailyExpensesPage() {
             <span className="font-semibold text-foreground">{deleteTarget?.expenseItemName}</span>
             {deleteTarget ? ` (${formatMoney(deleteTarget.amount)})` : null}?
           </p>
-          <div className="flex flex-wrap justify-end gap-2">
+          <FormFooter>
             <Button
               type="button"
               variant="secondary"
@@ -295,13 +443,14 @@ export default function DailyExpensesPage() {
             >
               Yes, delete
             </Button>
-          </div>
+          </FormFooter>
         </div>
       </Modal>
 
       <Modal
         open={open}
         size="lg"
+        mobileVariant="fullscreen"
         title={edit ? "Edit expense" : "New expense"}
         description={
           edit
@@ -313,6 +462,16 @@ export default function DailyExpensesPage() {
             setOpen(false);
           }
         }}
+        footer={
+          <FormFooter>
+            <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void save()} loading={saving}>
+              {edit ? "Save changes" : "Record expense"}
+            </Button>
+          </FormFooter>
+        }
       >
         <div className="space-y-6">
           <section className="space-y-3">
@@ -359,10 +518,12 @@ export default function DailyExpensesPage() {
                 />
               </Field>
               <Field id="date" label="Expense date" required>
-                <Input
-                  type="date"
+                <DatePicker
+                  id="date"
                   value={form.expenseDate}
-                  onChange={(e) => setForm((f) => ({ ...f, expenseDate: e.target.value }))}
+                  onChange={(expenseDate) => setForm((f) => ({ ...f, expenseDate }))}
+                  placeholder="Pick expense date"
+                  aria-label="Expense date"
                 />
               </Field>
             </div>
@@ -382,17 +543,8 @@ export default function DailyExpensesPage() {
               />
             </Field>
           </section>
-
-          <div className="flex flex-wrap justify-end gap-2 border-t border-(--color-border) pt-4">
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={saving}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={() => void save()} loading={saving}>
-              {edit ? "Save changes" : "Record expense"}
-            </Button>
-          </div>
         </div>
       </Modal>
-    </section>
+    </>
   );
 }

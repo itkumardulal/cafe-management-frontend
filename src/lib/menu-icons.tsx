@@ -4,6 +4,7 @@ import {
   Coffee,
   FolderTree,
   LayoutDashboard,
+  LayoutGrid,
   Package,
   PackageMinus,
   ReceiptText,
@@ -24,6 +25,7 @@ import {
 
 const ICON_MAP: Record<string, LucideIcon> = {
   "layout-dashboard": LayoutDashboard,
+  "layout-grid": LayoutGrid,
   "receipt-text": ReceiptText,
   package: Package,
   "shopping-bag": ShoppingBag,

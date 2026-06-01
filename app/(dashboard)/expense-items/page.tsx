@@ -1,19 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Wallet } from "lucide-react";
+import { FormFooter } from "@/src/components/shared/form-footer";
+import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
+import { MobileSortSelect } from "@/src/components/shared/mobile-sort-select";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { PaginatedListSection } from "@/src/components/shared/paginated-list-section";
+import { RowActions } from "@/src/components/shared/row-actions";
+import { CardListSkeleton } from "@/src/components/skeletons/card-list-skeleton";
+import { PaginationSkeleton } from "@/src/components/skeletons/pagination-skeleton";
+import { TableSkeleton } from "@/src/components/skeletons/table-skeleton";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
-import { EmptyState } from "@/src/components/ui/empty-state";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import { Modal } from "@/src/components/ui/modal";
+import { Select } from "@/src/components/ui/select";
+import { SortableTableHeader } from "@/src/components/ui/sortable-table-header";
 import {
   ResponsiveTable,
   tableActionsCellClass,
   tableActionsColumnClass,
+  tableCenterCellClass,
+  tableCenterColumnClass,
 } from "@/src/components/ui/table";
-import { Select } from "@/src/components/ui/select";
-import { RowActions } from "@/src/components/shared/row-actions";
+import { usePaginatedList } from "@/src/hooks/use-paginated-list";
+import { cn } from "@/src/lib/cn";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { MONTHLY_SHEET_CATEGORIES } from "@/src/lib/expense-categories";
 import { formatDateOnly } from "@/src/lib/format-display";
@@ -32,7 +45,49 @@ type Row = {
 type StaffOption = { id: string; fullName: string; staffId: string | null };
 
 export default function ExpenseItemsPage() {
-  const [items, setItems] = useState<Row[]>([]);
+  return (
+    <section className="page-shell page-content space-y-4">
+      <Suspense
+        fallback={
+          <div className="space-y-4">
+            <TableSkeleton columns={5} />
+            <PaginationSkeleton />
+          </div>
+        }
+      >
+        <ExpenseItemsContent />
+      </Suspense>
+    </section>
+  );
+}
+
+function ExpenseItemsContent() {
+  const {
+    items,
+    meta,
+    loading,
+    isFetching,
+    hasActiveFilters,
+    searchInput,
+    setSearch,
+    clearSearch,
+    isSearching,
+    searchPlaceholder,
+    searchResultSummary,
+    setPage,
+    setPageSize,
+    toggleSort,
+    setSort,
+    params,
+    clearFilters,
+    refetch,
+  } = usePaginatedList<Row>({
+    queryKey: "expense-items",
+    fetchFn: (p) => operationsApi.expenseItems.list(p),
+    defaultSort: { sortBy: "name", sortOrder: "asc" },
+    errorMessage: "Failed to load expense items",
+  });
+
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<Row | null>(null);
@@ -47,32 +102,15 @@ export default function ExpenseItemsPage() {
 
   const categoryOptions = useMemo(() => MONTHLY_SHEET_CATEGORIES, []);
 
-  const load = useCallback(async () => {
-    try {
-      const [itemResult, staffResult] = await Promise.allSettled([
-        operationsApi.expenseItems.list({ limit: 100 }),
-        operationsApi.stockRemovals.staffOptions(),
-      ]);
-
-      if (itemResult.status === "fulfilled") {
-        setItems(itemResult.value.items);
-      } else {
-        throw itemResult.reason;
-      }
-
-      if (staffResult.status === "fulfilled") {
-        setStaffOptions(staffResult.value);
-      } else {
-        setStaffOptions([]);
-      }
-    } catch {
-      appToast.error("Failed to load expense items");
-    }
+  useEffect(() => {
+    void operationsApi.stockRemovals.staffOptions().then(setStaffOptions).catch(() => setStaffOptions([]));
   }, []);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const openCreate = () => {
+    setEdit(null);
+    setForm({ name: "", description: "", monthlySheetCategory: "NONE", salaryStaffUserId: "" });
+    setOpen(true);
+  };
 
   const save = async () => {
     const trimmedName = form.name.trim();
@@ -101,7 +139,7 @@ export default function ExpenseItemsPage() {
         appToast.success("Created");
       }
       setOpen(false);
-      void load();
+      await refetch();
     } catch {
       appToast.error("Failed to save");
     }
@@ -116,7 +154,7 @@ export default function ExpenseItemsPage() {
       await operationsApi.expenseItems.remove(deleteTarget.id);
       appToast.success("Expense item deleted");
       setDeleteTarget(null);
-      void load();
+      await refetch();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to delete expense item"));
     } finally {
@@ -135,39 +173,113 @@ export default function ExpenseItemsPage() {
   );
 
   return (
-    <section className="page-shell page-content space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <h1 className="heading-display text-foreground">Expense items</h1>
-          <p className="text-muted">Catalog for daily expense entries.</p>
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          onClick={() => {
-            setEdit(null);
-            setForm({ name: "", description: "", monthlySheetCategory: "NONE", salaryStaffUserId: "" });
-            setOpen(true);
-          }}
-        >
-          Add item
-        </Button>
-      </div>
+    <>
+      <PageHeader
+        title="Expense items"
+        description="Catalog for daily expense entries."
+        action={
+          <Button type="button" size="sm" onClick={openCreate}>
+            Add item
+          </Button>
+        }
+      />
 
-      {items.length === 0 ? (
-        <EmptyState title="No expense items" description="Create expense categories for daily logging." />
-      ) : (
+      <PaginatedListSection
+        loading={loading}
+        isFetching={isFetching}
+        itemsCount={items.length}
+        hasActiveFilters={hasActiveFilters}
+        searchValue={searchInput}
+        onSearchChange={setSearch}
+        onSearchClear={clearSearch}
+        searchPlaceholder={searchPlaceholder}
+        isSearching={isSearching}
+        searchResultSummary={searchResultSummary}
+        tableColumns={5}
+        emptyTitle="No Expense Items Found"
+        emptyDescription="Create expense categories for daily logging."
+        emptyIcon={Wallet}
+        emptyAction={{ label: "Add item", onClick: openCreate }}
+        onClearFilters={() => {
+          clearSearch();
+          clearFilters();
+        }}
+        currentPage={meta.page}
+        totalPages={meta.totalPages}
+        totalRecords={meta.total}
+        pageSize={meta.limit}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        mobileSort={
+          <MobileSortSelect
+            options={[
+              { label: "Name (A–Z)", sortBy: "name", sortOrder: "asc" },
+              { label: "Name (Z–A)", sortBy: "name", sortOrder: "desc" },
+            ]}
+            currentSortBy={params.sortBy}
+            currentSortOrder={params.sortOrder}
+            onSort={setSort}
+          />
+        }
+        mobileCards={
+          <ListCardStack>
+            {items.map((item) => (
+              <ListCard
+                key={item.id}
+                title={item.name}
+                fields={[
+                  {
+                    label: "Category",
+                    value: categoryLabel(item.monthlySheetCategory, item.salaryStaffName),
+                  },
+                  {
+                    label: "Added",
+                    value: item.createdAt ? formatDateOnly(item.createdAt) : "—",
+                  },
+                  { label: "Description", value: item.description?.trim() || "—" },
+                ]}
+                actions={
+                  <RowActions
+                    showLabels
+                    onEdit={() => {
+                      setEdit(item);
+                      setForm({
+                        name: item.name,
+                        description: item.description ?? "",
+                        monthlySheetCategory: item.monthlySheetCategory,
+                        salaryStaffUserId: item.salaryStaffUserId ?? "",
+                      });
+                      setOpen(true);
+                    }}
+                    onDelete={() => setDeleteTarget(item)}
+                  />
+                }
+              />
+            ))}
+          </ListCardStack>
+        }
+      >
         <Card density="compact" className="overflow-hidden p-0">
           <ResponsiveTable
             headers={[
-              "Name",
-              "Sheet category",
+              {
+                label: "Name",
+                headerContent: (
+                  <SortableTableHeader
+                    label="Name"
+                    sortKey="name"
+                    currentSortBy={params.sortBy}
+                    currentSortOrder={params.sortOrder}
+                    onSort={toggleSort}
+                  />
+                ),
+              },
+              { label: "Sheet category", thClassName: tableCenterColumnClass },
               "Added on",
               "Description",
               {
                 label: "Actions",
-                thClassName: "text-right",
-                labelWrapperClassName: tableActionsColumnClass,
+                thClassName: tableActionsColumnClass,
               },
             ]}
             ariaLabel="Expense items"
@@ -175,9 +287,9 @@ export default function ExpenseItemsPage() {
             className="min-w-0 border-0 shadow-none [&_table]:min-w-[48rem]"
           >
             {items.map((item) => (
-              <tr key={item.id} className="border-t border-(--color-border) last:border-b-0">
+              <tr key={item.id} className="border-t border-[var(--color-border)] last:border-b-0">
                 <td className="px-4 py-3.5 text-sm font-medium text-foreground">{item.name}</td>
-                <td className="px-4 py-3.5 text-sm text-muted">
+                <td className={cn("px-4 py-3.5 text-sm text-muted", tableCenterCellClass)}>
                   {categoryLabel(item.monthlySheetCategory, item.salaryStaffName)}
                 </td>
                 <td className="px-4 py-3.5 text-sm text-muted whitespace-nowrap">
@@ -192,7 +304,7 @@ export default function ExpenseItemsPage() {
                     <span className="text-subtle">—</span>
                   )}
                 </td>
-                <td className="px-4 py-3.5 text-right">
+                <td className="px-4 py-3.5">
                   <div className={tableActionsCellClass}>
                     <RowActions
                       showLabels
@@ -214,7 +326,7 @@ export default function ExpenseItemsPage() {
             ))}
           </ResponsiveTable>
         </Card>
-      )}
+      </PaginatedListSection>
 
       <Modal
         open={deleteTarget !== null}
@@ -231,7 +343,7 @@ export default function ExpenseItemsPage() {
             Are you sure you want to delete{" "}
             <span className="font-semibold text-foreground">{deleteTarget?.name}</span>?
           </p>
-          <div className="flex flex-wrap justify-end gap-2">
+          <FormFooter>
             <Button
               type="button"
               variant="secondary"
@@ -248,16 +360,27 @@ export default function ExpenseItemsPage() {
             >
               Yes, delete
             </Button>
-          </div>
+          </FormFooter>
         </div>
       </Modal>
 
       <Modal
         open={open}
         size="lg"
+        mobileVariant="fullscreen"
         title={edit ? "Edit expense item" : "New expense item"}
         description="Create an expense catalog item and map it to a monthly sheet category."
         onClose={() => setOpen(false)}
+        footer={
+          <FormFooter>
+            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void save()}>
+              Save item
+            </Button>
+          </FormFooter>
+        }
       >
         <div className="space-y-6">
           <section className="space-y-3">
@@ -355,17 +478,8 @@ export default function ExpenseItemsPage() {
             Choose "Staff salary" and pick a staff member to keep salary entries explicit (for example:
             "John Doe salary").
           </div>
-
-          <div className="flex flex-wrap justify-end gap-2 border-t border-(--color-border) pt-4">
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={() => void save()}>
-              Save item
-            </Button>
-          </div>
         </div>
       </Modal>
-    </section>
+    </>
   );
 }

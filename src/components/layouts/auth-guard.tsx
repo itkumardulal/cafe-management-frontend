@@ -20,6 +20,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (initialized && !user) {
       router.replace("/login");
+      return;
+    }
+    if (initialized && user?.mustChangePassword) {
+      router.replace("/change-password-first");
     }
   }, [initialized, router, user]);
 

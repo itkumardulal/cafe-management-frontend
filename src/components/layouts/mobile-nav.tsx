@@ -13,8 +13,15 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
   }, [pathname, onClose]);
 
   return (
-    <Drawer open={open} onClose={onClose} className="flex flex-col overflow-hidden p-0">
-      <Sidebar className="h-full w-full border-r-0" />
+    <Drawer
+      open={open}
+      onClose={onClose}
+      title="Navigation menu"
+      className="flex flex-col overflow-hidden p-0"
+    >
+      <div id="mobile-navigation" className="h-full overflow-hidden">
+        <Sidebar className="h-full w-full border-r-0" />
+      </div>
     </Drawer>
   );
 }

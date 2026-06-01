@@ -1,25 +1,28 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { type ButtonHTMLAttributes, forwardRef } from "react";
+import { motion, type HTMLMotionProps } from "framer-motion";
+import { forwardRef, type ReactNode } from "react";
 import { cn } from "@/src/lib/cn";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 type ButtonSize = "sm" | "md" | "lg";
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+type ButtonProps = Omit<HTMLMotionProps<"button">, "ref" | "children"> & {
   variant?: ButtonVariant;
   size?: ButtonSize;
   loading?: boolean;
   fullWidth?: boolean;
+  children?: ReactNode;
 };
+
+export type { ButtonProps, ButtonSize, ButtonVariant };
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
     "shadow-[var(--shadow-sm)] bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:bg-[var(--color-primary-hover)]",
   secondary:
     "border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-foreground)] hover:bg-[var(--color-cream-100)] hover:border-[var(--color-input)]",
-  ghost: "text-[var(--color-muted)] hover:bg-[var(--color-cream-100)]",
+  ghost: "text-[var(--color-nav-idle)] hover:bg-[var(--color-cream-100)] hover:text-[var(--color-nav-idle-hover)]",
   danger: "bg-[var(--color-danger)] text-white hover:opacity-90",
 };
 
@@ -49,7 +52,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         whileTap={{ scale: 0.98 }}
         transition={{ duration: 0.12 }}
         className={cn(
-          "touch-target inline-flex items-center justify-center rounded-md font-medium transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60",
+          "touch-target inline-flex cursor-pointer items-center justify-center rounded-md font-medium transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60",
           variantClasses[variant],
           sizeClasses[size],
           fullWidth && "w-full",

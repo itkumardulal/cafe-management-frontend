@@ -7,6 +7,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -30,6 +31,8 @@ type SelectProps = Omit<SelectHTMLAttributes<HTMLButtonElement>, "onChange" | "v
   hasError?: boolean;
   size?: "sm" | "md" | "lg";
   fullWidth?: boolean;
+  /** Match secondary button styling (compact toolbar controls). */
+  appearance?: "field" | "button";
 };
 
 function optionLabel(children: ReactNode): string {
@@ -80,6 +83,7 @@ export function Select({
   hasError,
   size = "md",
   fullWidth = true,
+  appearance = "field",
   value,
   onChange,
   children,
@@ -109,29 +113,45 @@ export function Select({
     placeholderOption?.label ??
     (value ? value : "Select an option");
   const isPlaceholder = !selectedOption && Boolean(placeholderOption);
+  const isButtonAppearance = appearance === "button";
 
   const updateMenuPosition = useCallback(() => {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) {
       return;
     }
+
+    const menuWidth = Math.max(rect.width, isButtonAppearance ? 88 : rect.width);
+    const menuHeight =
+      listRef.current?.offsetHeight ??
+      Math.min(selectableOptions.length * 44 + 8, 224);
+    const gap = 6;
+    const spaceBelow = window.innerHeight - rect.bottom - gap;
+    const spaceAbove = rect.top - gap;
+    const shouldOpenUpward = spaceBelow < menuHeight && spaceAbove > spaceBelow;
+
     setMenuStyle({
-      top: rect.bottom + 6,
-      left: rect.left,
-      width: rect.width,
+      top: shouldOpenUpward ? rect.top - menuHeight - gap : rect.bottom + gap,
+      left: Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8)),
+      width: menuWidth,
     });
-  }, []);
+  }, [isButtonAppearance, selectableOptions.length]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useLayoutEffect(() => {
+    if (open) {
+      updateMenuPosition();
+    }
+  }, [open, updateMenuPosition]);
 
   useEffect(() => {
     if (!open) {
       return;
     }
 
-    updateMenuPosition();
     const handleReposition = () => updateMenuPosition();
     window.addEventListener("resize", handleReposition);
     window.addEventListener("scroll", handleReposition, true);
@@ -248,7 +268,10 @@ export function Select({
               zIndex: 9999,
             }}
             onKeyDown={handleListKeyDown}
-            className="max-h-56 overflow-y-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-1 shadow-[var(--shadow-md)]"
+            className={cn(
+              "max-h-56 overflow-y-auto border border-[var(--color-border)] bg-[var(--color-surface)] p-1 shadow-[var(--shadow-md)]",
+              isButtonAppearance ? "rounded-md" : "rounded-xl",
+            )}
           >
             {selectableOptions.map((option, index) => {
               const isSelected = option.value === value;
@@ -262,17 +285,18 @@ export function Select({
                     aria-selected={isSelected}
                     disabled={option.disabled}
                     className={cn(
-                      "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition-colors",
+                      "flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm transition-colors",
+                      isButtonAppearance ? "rounded-md" : "rounded-lg",
                       isSelected
-                        ? "bg-[var(--color-primary-soft)] font-medium text-[var(--color-foreground)]"
+                        ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-nav-active-text)]"
                         : isHighlighted
-                          ? "bg-[var(--color-cream-100)] text-[var(--color-foreground)]"
-                          : "text-[var(--color-muted)] hover:bg-[var(--color-cream-100)] hover:text-[var(--color-foreground)]",
+                          ? "bg-[var(--color-cream-100)] text-[var(--color-nav-idle-hover)]"
+                          : "text-[var(--color-nav-idle)] hover:bg-[var(--color-cream-100)] hover:text-[var(--color-nav-idle-hover)]",
                     )}
                     onMouseEnter={() => setHighlightIndex(index)}
                     onClick={() => selectValue(option.value)}
                   >
-                    <span className="truncate">{option.label}</span>
+                    <span className="whitespace-nowrap tabular-nums">{option.label}</span>
                     {isSelected ? (
                       <Check size={16} className="shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
                     ) : (
@@ -305,22 +329,43 @@ export function Select({
         }}
         onKeyDown={handleTriggerKeyDown}
         className={cn(
-          "touch-target inline-flex items-center justify-between gap-2 rounded-xl border px-3 text-left text-sm outline-none transition-colors",
-          "focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-background)]",
-          fullWidth && "w-full",
+          "inline-flex items-center text-left outline-none transition-colors",
+          !isButtonAppearance && "touch-target text-sm",
+          !isButtonAppearance &&
+            "focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-background)]",
+          isButtonAppearance
+            ? cn(
+                "h-9 min-h-9 justify-center gap-1.5 rounded-md border px-3 text-sm font-medium",
+                "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-foreground)]",
+                "hover:bg-[var(--color-cream-100)] hover:border-[var(--color-input)]",
+                "focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-background)]",
+                open && "border-[var(--color-input)] bg-[var(--color-cream-100)]",
+                !fullWidth && "w-auto",
+              )
+            : cn(
+                "justify-between gap-2 rounded-xl border px-3",
+                fullWidth && "w-full",
+                hasError
+                  ? "border-[var(--color-danger)]"
+                  : open
+                    ? "border-[var(--color-primary)]"
+                    : "border-[var(--color-input)] hover:border-[var(--color-primary)]/60",
+                "bg-[var(--color-surface)]",
+              ),
           size === "sm" && "text-xs",
           size === "lg" && "text-base",
           disabled && "cursor-not-allowed opacity-60",
-          hasError
-            ? "border-[var(--color-danger)]"
-            : open
-              ? "border-[var(--color-primary)]"
-              : "border-[var(--color-input)] hover:border-[var(--color-primary)]/60",
-          "bg-[var(--color-surface)]",
           className,
         )}
       >
-        <span className={cn("truncate", isPlaceholder && "text-[var(--color-subtle)]")}>{displayLabel}</span>
+        <span
+          className={cn(
+            isButtonAppearance ? "whitespace-nowrap tabular-nums" : "truncate",
+            !isButtonAppearance && isPlaceholder && "text-[var(--color-subtle)]",
+          )}
+        >
+          {displayLabel}
+        </span>
         <ChevronDown
           size={16}
           aria-hidden="true"

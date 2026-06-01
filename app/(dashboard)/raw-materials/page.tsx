@@ -1,18 +1,31 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
+import { Wheat } from "lucide-react";
+import { FormFooter } from "@/src/components/shared/form-footer";
+import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
+import { MobileSortSelect } from "@/src/components/shared/mobile-sort-select";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { PaginatedListSection } from "@/src/components/shared/paginated-list-section";
+import { RowActions } from "@/src/components/shared/row-actions";
+import { CardListSkeleton } from "@/src/components/skeletons/card-list-skeleton";
+import { PaginationSkeleton } from "@/src/components/skeletons/pagination-skeleton";
+import { TableSkeleton } from "@/src/components/skeletons/table-skeleton";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
-import { EmptyState } from "@/src/components/ui/empty-state";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import { Modal } from "@/src/components/ui/modal";
+import { SortableTableHeader } from "@/src/components/ui/sortable-table-header";
 import {
   ResponsiveTable,
   tableActionsCellClass,
   tableActionsColumnClass,
+  tableCenterCellClass,
+  tableCenterColumnClass,
 } from "@/src/components/ui/table";
-import { RowActions } from "@/src/components/shared/row-actions";
+import { usePaginatedList } from "@/src/hooks/use-paginated-list";
+import { cn } from "@/src/lib/cn";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
@@ -34,25 +47,55 @@ function formatAddedDate(value: string) {
 }
 
 export default function RawMaterialsPage() {
-  const [items, setItems] = useState<Row[]>([]);
+  return (
+    <section className="page-shell page-content space-y-4">
+      <Suspense
+        fallback={
+          <div className="space-y-4">
+            <CardListSkeleton />
+            <TableSkeleton columns={5} className="hidden md:block" />
+            <PaginationSkeleton />
+          </div>
+        }
+      >
+        <RawMaterialsContent />
+      </Suspense>
+    </section>
+  );
+}
+
+function RawMaterialsContent() {
+  const {
+    items,
+    meta,
+    loading,
+    isFetching,
+    hasActiveFilters,
+    searchInput,
+    setSearch,
+    clearSearch,
+    isSearching,
+    searchPlaceholder,
+    searchResultSummary,
+    setPage,
+    setPageSize,
+    toggleSort,
+    setSort,
+    params,
+    clearFilters,
+    refetch,
+  } = usePaginatedList<Row>({
+    queryKey: "raw-materials",
+    fetchFn: (p) => operationsApi.rawMaterials.list(p),
+    defaultSort: { sortBy: "name", sortOrder: "asc" },
+    errorMessage: "Failed to load raw materials",
+  });
+
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<Row | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({ name: "", unit: "", description: "" });
-
-  const load = useCallback(async () => {
-    try {
-      const data = await operationsApi.rawMaterials.list();
-      setItems(data.items);
-    } catch {
-      appToast.error("Failed to load raw materials");
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   const openCreate = () => {
     setEdit(null);
@@ -94,7 +137,7 @@ export default function RawMaterialsPage() {
         appToast.success("Raw material added");
       }
       setOpen(false);
-      void load();
+      await refetch();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to save raw material"));
     }
@@ -109,7 +152,7 @@ export default function RawMaterialsPage() {
       await operationsApi.rawMaterials.remove(deleteTarget.id);
       appToast.success("Raw material deleted");
       setDeleteTarget(null);
-      void load();
+      await refetch();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to delete raw material"));
     } finally {
@@ -118,92 +161,136 @@ export default function RawMaterialsPage() {
   };
 
   return (
-    <section className="page-shell page-content space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="heading-display text-foreground">Raw materials</h1>
-          <p className="text-muted">Catalog of ingredients and supplies.</p>
-        </div>
-        <Button type="button" size="sm" onClick={openCreate}>
-          Add material
-        </Button>
-      </div>
+    <>
+      <PageHeader
+        title="Raw materials"
+        description="Catalog of ingredients and supplies."
+        action={
+          <Button type="button" size="sm" onClick={openCreate}>
+            Add material
+          </Button>
+        }
+      />
 
-      {items.length === 0 ? (
-        <EmptyState title="No raw materials" description="Add your first raw material item." />
-      ) : (
-        <>
-          <div className="space-y-2 md:hidden">
+      <PaginatedListSection
+        loading={loading}
+        isFetching={isFetching}
+        itemsCount={items.length}
+        hasActiveFilters={hasActiveFilters}
+        searchValue={searchInput}
+        onSearchChange={setSearch}
+        onSearchClear={clearSearch}
+        searchPlaceholder={searchPlaceholder}
+        isSearching={isSearching}
+        searchResultSummary={searchResultSummary}
+        tableColumns={5}
+        emptyTitle="No Raw Materials Found"
+        emptyDescription="Add your first raw material item."
+        emptyIcon={Wheat}
+        emptyAction={{ label: "Add material", onClick: openCreate }}
+        onClearFilters={() => {
+          clearSearch();
+          clearFilters();
+        }}
+        currentPage={meta.page}
+        totalPages={meta.totalPages}
+        totalRecords={meta.total}
+        pageSize={meta.limit}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        mobileSort={
+          <MobileSortSelect
+            options={[
+              { label: "Name (A–Z)", sortBy: "name", sortOrder: "asc" },
+              { label: "Name (Z–A)", sortBy: "name", sortOrder: "desc" },
+              { label: "Newest first", sortBy: "createdAt", sortOrder: "desc" },
+              { label: "Oldest first", sortBy: "createdAt", sortOrder: "asc" },
+            ]}
+            currentSortBy={params.sortBy}
+            currentSortOrder={params.sortOrder}
+            onSort={setSort}
+          />
+        }
+        mobileCards={
+          <ListCardStack>
             {items.map((item) => (
-              <div
+              <ListCard
                 key={item.id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-(--color-border) bg-(--color-surface) px-4 py-3"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">{item.name}</p>
-                  <p className="text-xs text-muted">
-                    {item.unit}
-                    {item.description ? ` · ${item.description}` : ""}
-                  </p>
-                  <p className="text-xs text-subtle">Added {formatAddedDate(item.createdAt)}</p>
-                </div>
-                <RowActions
-                  showLabels
-                  onEdit={() => openEdit(item)}
-                  onDelete={() => setDeleteTarget(item)}
-                />
-              </div>
+                title={item.name}
+                fields={[
+                  { label: "Unit", value: item.unit },
+                  { label: "Description", value: item.description?.trim() || "—" },
+                  { label: "Added", value: formatAddedDate(item.createdAt) },
+                ]}
+                actions={
+                  <RowActions
+                    showLabels
+                    onEdit={() => openEdit(item)}
+                    onDelete={() => setDeleteTarget(item)}
+                  />
+                }
+              />
             ))}
-          </div>
-
-          <Card density="compact" className="hidden overflow-hidden p-0 md:block">
-            <ResponsiveTable
-              headers={[
-                "Name",
-                "Unit",
-                "Description",
-                "Added on",
-                {
-                  label: "Actions",
-                  thClassName: "text-right",
-                  labelWrapperClassName: tableActionsColumnClass,
-                },
-              ]}
-              ariaLabel="Raw materials"
-              density="comfortable"
-              className="min-w-0 border-0 shadow-none [&_table]:min-w-full"
-            >
-              {items.map((item) => (
-                <tr key={item.id} className="border-t border-(--color-border) last:border-b-0">
-                  <td className="px-4 py-3.5 text-sm font-medium text-foreground">{item.name}</td>
-                  <td className="px-4 py-3.5 text-sm text-foreground">{item.unit}</td>
-                  <td className="max-w-[240px] px-4 py-3.5 text-sm text-muted">
-                    {item.description ? (
-                      <span className="line-clamp-2" title={item.description}>
-                        {item.description}
-                      </span>
-                    ) : (
-                      <span className="text-subtle">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3.5 text-sm text-muted whitespace-nowrap">
-                    {formatAddedDate(item.createdAt)}
-                  </td>
-                  <td className="px-4 py-3.5 text-right">
-                    <div className={tableActionsCellClass}>
-                      <RowActions
-                        showLabels
-                        onEdit={() => openEdit(item)}
-                        onDelete={() => setDeleteTarget(item)}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </ResponsiveTable>
-          </Card>
-        </>
-      )}
+          </ListCardStack>
+        }
+      >
+        <Card density="compact" className="overflow-hidden p-0">
+          <ResponsiveTable
+            headers={[
+              {
+                label: "Name",
+                headerContent: (
+                  <SortableTableHeader
+                    label="Name"
+                    sortKey="name"
+                    currentSortBy={params.sortBy}
+                    currentSortOrder={params.sortOrder}
+                    onSort={toggleSort}
+                  />
+                ),
+              },
+              { label: "Unit", thClassName: tableCenterColumnClass },
+              "Description",
+              "Added on",
+              {
+                label: "Actions",
+                thClassName: tableActionsColumnClass,
+              },
+            ]}
+            ariaLabel="Raw materials"
+            density="comfortable"
+            className="min-w-0 border-0 shadow-none [&_table]:min-w-full"
+          >
+            {items.map((item) => (
+              <tr key={item.id} className="border-t border-[var(--color-border)] last:border-b-0">
+                <td className="px-4 py-3.5 text-sm font-medium text-foreground">{item.name}</td>
+                <td className={cn("px-4 py-3.5 text-sm text-foreground", tableCenterCellClass)}>{item.unit}</td>
+                <td className="max-w-[240px] px-4 py-3.5 text-sm text-muted">
+                  {item.description ? (
+                    <span className="line-clamp-2" title={item.description}>
+                      {item.description}
+                    </span>
+                  ) : (
+                    <span className="text-subtle">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-3.5 text-sm text-muted whitespace-nowrap">
+                  {formatAddedDate(item.createdAt)}
+                </td>
+                <td className="px-4 py-3.5">
+                  <div className={tableActionsCellClass}>
+                    <RowActions
+                      showLabels
+                      onEdit={() => openEdit(item)}
+                      onDelete={() => setDeleteTarget(item)}
+                    />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </ResponsiveTable>
+        </Card>
+      </PaginatedListSection>
 
       <Modal
         open={deleteTarget !== null}
@@ -258,16 +345,16 @@ export default function RawMaterialsPage() {
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
             />
           </Field>
-          <div className="flex justify-end gap-2 pt-2">
+          <FormFooter>
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <Button type="button" onClick={() => void save()}>
               {edit ? "Save changes" : "Add material"}
             </Button>
-          </div>
+          </FormFooter>
         </div>
       </Modal>
-    </section>
+    </>
   );
 }
