@@ -1,6 +1,7 @@
 "use client";
 
 import { Eye, PackageMinus, Trash2 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { DateRangeFilter } from "@/src/components/shared/date-range-filter";
 import { DetailInfoCard } from "@/src/components/shared/detail-info-card";
@@ -36,7 +37,7 @@ import { formatDateTime, formatMoney } from "@/src/lib/format-display";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
 
-type Line = { menuItemId: string; quantity: string };
+type Line = { itemKey: string; quantity: string };
 
 type RemovalRow = {
   id: string;
@@ -53,8 +54,11 @@ type RemovalRow = {
 type RemovalDetail = RemovalRow & {
   lines: Array<{
     id: string;
-    menuItemId: string;
-    menuItemName: string;
+    lineType: "MENU" | "INVENTORY";
+    menuItemId: string | null;
+    stockItemId: string | null;
+    itemName: string;
+    unit?: string | null;
     quantity: string;
   }>;
 };
@@ -65,7 +69,7 @@ function reasonLabel(reason: string) {
   return reason === "STAFF_USE" ? "Staff use" : "Damage";
 }
 
-const emptyLine = (): Line => ({ menuItemId: "", quantity: "1" });
+const emptyLine = (): Line => ({ itemKey: "", quantity: "1" });
 
 export default function StockRemovalsPage() {
   return (
@@ -78,6 +82,7 @@ export default function StockRemovalsPage() {
 }
 
 function StockRemovalsContent() {
+  const searchParams = useSearchParams();
   const {
     items: removals,
     meta,
@@ -106,7 +111,10 @@ function StockRemovalsContent() {
     errorMessage: "Failed to load stock removals",
   });
 
-  const [sellable, setSellable] = useState<{ id: string; name: string; quantityOnHand: string }[]>([]);
+  const [lineOptions, setLineOptions] = useState<{
+    menuItems: Array<{ id: string; name: string; quantityOnHand: string; unit?: string | null }>;
+    stockItems: Array<{ id: string; name: string; quantityOnHand: string; unit?: string | null }>;
+  }>({ menuItems: [], stockItems: [] });
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
   const [draftFromDate, setDraftFromDate] = useState(params.filters.fromDate ?? "");
   const [draftToDate, setDraftToDate] = useState(params.filters.toDate ?? "");
@@ -126,13 +134,13 @@ function StockRemovalsContent() {
 
   const loadRefs = useCallback(async () => {
     const [stockResult, staffResult] = await Promise.allSettled([
-      operationsApi.menuItems.sellableStock(),
+      operationsApi.stockRemovals.lineOptions(),
       operationsApi.stockRemovals.staffOptions(),
     ]);
     if (stockResult.status === "fulfilled") {
-      setSellable(stockResult.value);
+      setLineOptions(stockResult.value);
     } else {
-      setSellable([]);
+      setLineOptions({ menuItems: [], stockItems: [] });
     }
     if (staffResult.status === "fulfilled") {
       setStaffOptions(staffResult.value);
@@ -144,6 +152,21 @@ function StockRemovalsContent() {
   useEffect(() => {
     void loadRefs();
   }, [loadRefs]);
+
+  useEffect(() => {
+    const menuItemId = searchParams.get("menuItemId");
+    const stockItemId = searchParams.get("stockItemId");
+    if (!menuItemId && !stockItemId) {
+      return;
+    }
+    setOpen(true);
+    setLines([
+      {
+        itemKey: menuItemId ? `MENU:${menuItemId}` : `INVENTORY:${stockItemId}`,
+        quantity: "1",
+      },
+    ]);
+  }, [searchParams]);
 
   useEffect(() => {
     setDraftFromDate(params.filters.fromDate ?? "");
@@ -200,16 +223,31 @@ function StockRemovalsContent() {
       return;
     }
 
+    const parsedLines: Array<{
+      menuItemId?: string;
+      stockItemId?: string;
+      quantity: number;
+    }> = [];
+
     for (let i = 0; i < lines.length; i += 1) {
       const line = lines[i];
       const row = i + 1;
-      if (!line.menuItemId) {
-        appToast.error(`Line ${row}: select a menu item`);
+      if (!line.itemKey) {
+        appToast.error(`Line ${row}: select an item`);
         return;
       }
       const qty = Number(line.quantity);
       if (Number.isNaN(qty) || qty <= 0) {
         appToast.error(`Line ${row}: enter a valid quantity`);
+        return;
+      }
+      const [kind, id] = line.itemKey.split(":");
+      if (kind === "MENU") {
+        parsedLines.push({ menuItemId: id, quantity: qty });
+      } else if (kind === "INVENTORY") {
+        parsedLines.push({ stockItemId: id, quantity: qty });
+      } else {
+        appToast.error(`Line ${row}: invalid item`);
         return;
       }
     }
@@ -221,10 +259,7 @@ function StockRemovalsContent() {
         reason,
         staffUserId: reason === "STAFF_USE" ? staffUserId : undefined,
         notes: notes.trim() || undefined,
-        lines: lines.map((l) => ({
-          menuItemId: l.menuItemId,
-          quantity: Number(l.quantity),
-        })),
+        lines: parsedLines,
       });
       appToast.success("Stock removal recorded");
       setOpen(false);
@@ -254,7 +289,8 @@ function StockRemovalsContent() {
     }
   };
 
-  const canCreate = sellable.length > 0;
+  const canCreate =
+    lineOptions.menuItems.length > 0 || lineOptions.stockItems.length > 0;
 
   return (
     <>
@@ -557,15 +593,21 @@ function StockRemovalsContent() {
 
               <DetailLineItemsSection
                 subtitle={`${viewRemoval.lineCount} ${viewRemoval.lineCount === 1 ? "item" : "items"} removed`}
-                headers={["Menu item", { label: "Quantity", thClassName: tableCenterColumnClass }]}
+                headers={["Item", { label: "Quantity", thClassName: tableCenterColumnClass }]}
                 ariaLabel="Removal line items"
                 mobileLineItems={
                   <>
                     {viewRemoval.lines.map((line, idx) => (
                       <LineItemCard
                         key={line.id ?? idx}
-                        title={line.menuItemName}
-                        fields={[{ label: "Quantity", value: formatMoney(line.quantity) }]}
+                        title={line.itemName}
+                        fields={[
+                          {
+                            label: "Type",
+                            value: line.lineType === "INVENTORY" ? "Inventory" : "Menu",
+                          },
+                          { label: "Quantity", value: formatMoney(line.quantity) },
+                        ]}
                       />
                     ))}
                   </>
@@ -574,7 +616,10 @@ function StockRemovalsContent() {
                 {viewRemoval.lines.map((line, idx) => (
                   <tr key={line.id ?? idx} className="border-t border-[var(--color-border)] last:border-b-0">
                     <td className="px-4 py-3 text-sm font-medium text-[var(--color-foreground)]">
-                      {line.menuItemName}
+                      {line.itemName}
+                      <span className="ml-2 text-xs font-normal text-muted">
+                        ({line.lineType === "INVENTORY" ? "Inventory" : "Menu"})
+                      </span>
                     </td>
                     <td className={cn("px-4 py-3 text-sm font-medium tabular-nums text-[var(--color-foreground)]", tableCenterCellClass)}>
                       {formatMoney(line.quantity)}
@@ -605,7 +650,7 @@ function StockRemovalsContent() {
         size="xl"
         mobileVariant="fullscreen"
         title="New stock removal"
-        description="Record items removed from stock due to damage or staff use."
+        description="Record stock removed from menu or inventory (damage, staff use)."
         onClose={() => {
           if (!saving) {
             setOpen(false);
@@ -684,7 +729,9 @@ function StockRemovalsContent() {
             <div className="flex flex-wrap items-end justify-between gap-2">
               <div>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-subtle">Line items</h3>
-                <p className="mt-1 text-sm text-muted">Menu items and quantities removed from stock.</p>
+                <p className="mt-1 text-sm text-muted">
+                  Menu (tracked) or inventory items and quantities removed.
+                </p>
               </div>
               <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-muted">
                 {lines.length} {lines.length === 1 ? "line" : "lines"}
@@ -713,16 +760,24 @@ function StockRemovalsContent() {
                     ) : null}
                   </header>
                   <div className="grid gap-3 p-4 sm:grid-cols-2">
-                    <Field id={`item-${idx}`} label="Menu item" required>
+                    <Field id={`item-${idx}`} label="Item" required>
                       <Select
-                        value={line.menuItemId}
-                        onChange={(e) => updateLine(idx, { menuItemId: e.target.value })}
-                        disabled={sellable.length === 0}
+                        value={line.itemKey}
+                        onChange={(e) => updateLine(idx, { itemKey: e.target.value })}
+                        disabled={
+                          lineOptions.menuItems.length === 0 &&
+                          lineOptions.stockItems.length === 0
+                        }
                       >
-                        <option value="">Choose menu item</option>
-                        {sellable.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name} (stock: {formatMoney(s.quantityOnHand)})
+                        <option value="">Choose item</option>
+                        {lineOptions.menuItems.map((s) => (
+                          <option key={`MENU:${s.id}`} value={`MENU:${s.id}`}>
+                            Menu · {s.name} (on hand: {formatMoney(s.quantityOnHand)})
+                          </option>
+                        ))}
+                        {lineOptions.stockItems.map((s) => (
+                          <option key={`INVENTORY:${s.id}`} value={`INVENTORY:${s.id}`}>
+                            Inventory · {s.name} (on hand: {formatMoney(s.quantityOnHand)})
                           </option>
                         ))}
                       </Select>

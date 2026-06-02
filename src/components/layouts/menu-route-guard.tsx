@@ -11,23 +11,26 @@ export function MenuRouteGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { items: menus, loading, error } = useAppSelector((state) => state.menu);
+  const { items: menus, loading, error, initialized: menusInitialized } = useAppSelector(
+    (state) => state.menu,
+  );
   const initialized = useAppSelector((state) => state.auth.initialized);
   const user = useAppSelector((state) => state.auth.user);
 
   const allowedRoutes = menus.map((menu) => menu.route);
-  const menusReady = !loading || menus.length > 0;
-  const canCheckAccess = Boolean(user && menusReady && !(error && menus.length === 0));
+  const canCheckAccess = Boolean(
+    user && menusInitialized && !(error && menus.length === 0),
+  );
   const pathAllowed = canCheckAccess ? isPathAllowed(pathname, allowedRoutes) : true;
   const fallback =
     canCheckAccess && !pathAllowed ? firstAllowedRoute(allowedRoutes) : null;
   const shouldRedirect = Boolean(fallback && fallback !== pathname);
 
   useEffect(() => {
-    if (initialized && user) {
+    if (initialized && user && !menusInitialized && !loading) {
       void dispatch(fetchAuthorizedMenusThunk());
     }
-  }, [dispatch, initialized, user]);
+  }, [dispatch, initialized, user, menusInitialized, loading]);
 
   useEffect(() => {
     if (!shouldRedirect || !fallback) {
@@ -40,7 +43,7 @@ export function MenuRouteGuard({ children }: { children: React.ReactNode }) {
     return null;
   }
 
-  if (loading && menus.length === 0) {
+  if (!menusInitialized || loading) {
     return (
       <div className="flex min-h-[12rem] items-center justify-center">
         <p className="text-sm text-[var(--color-muted)]">Loading navigation...</p>

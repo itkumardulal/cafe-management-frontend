@@ -1,8 +1,6 @@
 "use client";
 
 import {
-  Banknote,
-  Building2,
   CheckCircle2,
   ChevronDown,
   Eye,
@@ -11,14 +9,19 @@ import {
   Printer,
   Search,
   ShoppingCart,
-  Split,
   Trash2,
   Truck,
   UtensilsCrossed,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import {
+  buildInitialPaymentsFromCheckout,
+  PosCheckoutPaymentSection,
+  useCheckoutPaymentValidation,
+} from "@/src/components/pos/pos-checkout-payment-section";
 import { PosSaleDetail } from "@/src/components/sales/pos-sale-detail";
+import type { CheckoutPaymentType, PaymentTermsPreset } from "@/src/lib/ar-types";
 import { ViewModalSkeleton } from "@/src/components/skeletons/view-modal-skeleton";
 import {
   PosSaleReceipt,
@@ -48,7 +51,8 @@ type CatalogItem = {
   name: string;
   categoryName: string;
   imageUrl?: string | null;
-  quantityOnHand: string;
+  trackStock: boolean;
+  quantityOnHand: string | null;
   sellPricePerUnit: string;
 };
 
@@ -81,8 +85,6 @@ function parseMoneyInput(str: string) {
   if (!Number.isFinite(n) || n < 0) return { amount: 0, invalid: true };
   return { amount: Math.round(n * 100) / 100, invalid: false };
 }
-
-type PaymentPreset = "CASH" | "BANK" | "BOTH";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]";
@@ -126,15 +128,6 @@ const chipClass = (active: boolean) =>
       : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-nav-idle)] hover:border-[var(--color-input)] hover:bg-[var(--color-cream-100)] hover:text-[var(--color-nav-idle-hover)]",
   );
 
-const paymentPresetClass = (active: boolean) =>
-  cn(
-    "flex flex-col items-center gap-1 rounded-lg border px-2 py-3 text-center transition-colors",
-    focusRing,
-    active
-      ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-nav-active-text)]"
-      : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-nav-idle)] hover:border-[var(--color-primary)]/30 hover:text-[var(--color-nav-idle-hover)]",
-  );
-
 function MenuItemCard({
   item,
   qtyInCart,
@@ -145,8 +138,9 @@ function MenuItemCard({
   onAdd: () => void;
 }) {
   const inCart = qtyInCart > 0;
-  const stock = Number(item.quantityOnHand);
-  const outOfStock = !Number.isFinite(stock) || stock <= 0;
+  const stock = item.trackStock ? Number(item.quantityOnHand ?? 0) : null;
+  const outOfStock =
+    item.trackStock && (!Number.isFinite(stock!) || (stock ?? 0) <= 0);
 
   return (
     <button
@@ -192,7 +186,11 @@ function MenuItemCard({
             {formatMoney(item.sellPricePerUnit)}
           </span>
           <span className="text-[10px] tabular-nums text-muted">
-            {outOfStock ? "Out of stock" : `${item.quantityOnHand} left`}
+            {outOfStock
+              ? "Out of stock"
+              : item.trackStock
+                ? `${item.quantityOnHand} left`
+                : "In stock"}
           </span>
         </div>
       </div>
@@ -256,7 +254,15 @@ export default function PosPage() {
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [serviceType, setServiceType] = useState<"DINE_IN" | "DELIVERY">("DINE_IN");
-  const [billingType, setBillingType] = useState<"PAID" | "CREDIT">("PAID");
+  const [checkoutPaymentType, setCheckoutPaymentType] =
+    useState<CheckoutPaymentType>("FULLY_PAID");
+  const [paidAmountStr, setPaidAmountStr] = useState("");
+  const [tenderMode, setTenderMode] = useState<"CASH" | "BANK" | "CHEQUE" | "SPLIT">("CASH");
+  const [chequeBankName, setChequeBankName] = useState("");
+  const [chequeNumber, setChequeNumber] = useState("");
+  const [bankReference, setBankReference] = useState("");
+  const [paymentTermsPreset, setPaymentTermsPreset] = useState<PaymentTermsPreset>("NET_7");
+  const [customDueDate, setCustomDueDate] = useState("");
   const [tableId, setTableId] = useState("");
   const [tableOptions, setTableOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [tablesLoading, setTablesLoading] = useState(true);
@@ -281,7 +287,9 @@ export default function PosPage() {
   const [successSale, setSuccessSale] = useState<{ id: string; receiptNo: string } | null>(null);
   const [customerOpen, setCustomerOpen] = useState(false);
   const needsCustomerDetails =
-    serviceType === "DELIVERY" || billingType === "CREDIT";
+    serviceType === "DELIVERY" ||
+    checkoutPaymentType === "CREDIT" ||
+    checkoutPaymentType === "PARTIALLY_PAID";
 
   useEffect(() => {
     if (needsCustomerDetails) {
@@ -373,28 +381,37 @@ export default function PosPage() {
   );
 
   useEffect(() => {
-    if (billingType === "PAID") {
+    if (checkoutPaymentType === "FULLY_PAID" && tenderMode === "CASH") {
       setCashPaidStr(String(grandTotalPreview));
       setBankPaidStr("0");
     }
-  }, [grandTotalPreview, billingType]);
+  }, [grandTotalPreview, checkoutPaymentType, tenderMode]);
 
   const cashPaidResult = useMemo(() => parseMoneyInput(cashPaidStr), [cashPaidStr]);
   const bankPaidResult = useMemo(() => parseMoneyInput(bankPaidStr), [bankPaidStr]);
 
-  const creditPreview = useMemo(() => {
-    if (otherChargeResult.invalid || cashPaidResult.invalid || bankPaidResult.invalid) {
-      return 0;
-    }
-    return (
-      Math.round((grandTotalPreview - cashPaidResult.amount - bankPaidResult.amount) * 100) / 100
-    );
-  }, [
-    grandTotalPreview,
-    cashPaidResult,
-    bankPaidResult,
-    otherChargeResult.invalid,
-  ]);
+  const paidNowPreview = useMemo(() => {
+    if (checkoutPaymentType === "FULLY_PAID") return grandTotalPreview;
+    if (checkoutPaymentType === "CREDIT") return 0;
+    const p = parseMoneyInput(paidAmountStr);
+    return p.invalid ? 0 : p.amount;
+  }, [checkoutPaymentType, grandTotalPreview, paidAmountStr]);
+
+  const creditPreview = useMemo(
+    () => Math.max(0, Math.round((grandTotalPreview - paidNowPreview) * 100) / 100),
+    [grandTotalPreview, paidNowPreview],
+  );
+
+  const paymentValid = useCheckoutPaymentValidation({
+    checkoutPaymentType,
+    grandTotal: grandTotalPreview,
+    paidAmountStr,
+    tenderMode,
+    cashPaidStr,
+    bankPaidStr,
+    chequeBankName,
+    chequeNumber,
+  });
 
   const loadCatalog = useCallback(async () => {
     setCatalogLoading(true);
@@ -428,7 +445,7 @@ export default function PosPage() {
   }, [loadCatalog, loadTableOptions]);
 
   const addToCart = (item: CatalogItem) => {
-    const maxQty = Number(item.quantityOnHand);
+    const maxQty = item.trackStock ? Number(item.quantityOnHand ?? 0) : 999_999;
     const price = Number(item.sellPricePerUnit);
     setCart((prev) => {
       const existing = prev.find((l) => l.menuItemId === item.id);
@@ -500,30 +517,23 @@ export default function PosPage() {
       }
     }
 
-    if (billingType === "CREDIT") {
+    if (
+      checkoutPaymentType === "CREDIT" ||
+      checkoutPaymentType === "PARTIALLY_PAID"
+    ) {
       if (!phone || !name || !address) {
         return "Credit sales require customer name, phone, and address";
       }
-      if (creditPreview <= 0) {
-        return "Credit billing requires a credit balance; use Paid if fully collected";
+      if (!paymentTermsPreset) {
+        return "Select payment terms for credit balance";
       }
-      if (cashPaidResult.amount + bankPaidResult.amount > grandTotalPreview + 0.005) {
-        return "Cash and bank cannot exceed the grand total";
-      }
-    } else {
-      if (creditPreview > 0.005) {
-        return "Paid sales must have no credit balance";
-      }
-      if (
-        Math.round((cashPaidResult.amount + bankPaidResult.amount) * 100) !==
-        Math.round(grandTotalPreview * 100)
-      ) {
-        return "Cash and bank must add up to the grand total";
+      if (paymentTermsPreset === "CUSTOM" && !customDueDate.trim()) {
+        return "Select a due date";
       }
     }
 
-    if (cashPaidResult.invalid || bankPaidResult.invalid) {
-      return "Invalid payment amounts";
+    if (!paymentValid) {
+      return "Complete payment details";
     }
 
     return null;
@@ -541,6 +551,14 @@ export default function PosPage() {
     setNotes("");
     setCashPaidStr("0");
     setBankPaidStr("0");
+    setCheckoutPaymentType("FULLY_PAID");
+    setPaidAmountStr("");
+    setTenderMode("CASH");
+    setChequeBankName("");
+    setChequeNumber("");
+    setBankReference("");
+    setPaymentTermsPreset("NET_7");
+    setCustomDueDate("");
     setTableId("");
   };
 
@@ -552,9 +570,38 @@ export default function PosPage() {
     }
     setSubmitting(true);
     try {
+      const paidResult = parseMoneyInput(paidAmountStr);
+      const paidAmount =
+        checkoutPaymentType === "FULLY_PAID"
+          ? grandTotalPreview
+          : checkoutPaymentType === "CREDIT"
+            ? 0
+            : paidResult.invalid
+              ? 0
+              : paidResult.amount;
+
+      const initialPayments = buildInitialPaymentsFromCheckout({
+        checkoutPaymentType,
+        grandTotal: grandTotalPreview,
+        paidAmount,
+        tenderMode,
+        cashPaid: cashPaidResult.amount,
+        bankPaid: bankPaidResult.amount,
+        chequeBankName,
+        chequeNumber,
+        bankReference,
+      });
+
       const result = await operationsApi.sales.create({
         serviceType,
-        billingType,
+        checkoutPaymentType,
+        ...(initialPayments.length > 0 ? { initialPayments } : {}),
+        ...(creditPreview > 0.005
+          ? {
+              paymentTermsPreset,
+              ...(paymentTermsPreset === "CUSTOM" ? { customDueDate } : {}),
+            }
+          : {}),
         ...(serviceType === "DINE_IN" && tableId ? { tableId } : {}),
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
@@ -567,8 +614,6 @@ export default function PosPage() {
         ...(discountMode === "percent" && discountPreview > 0
           ? { discountPercent: parseMoneyInput(discountStr).amount }
           : {}),
-        cashPaidAmount: cashPaidResult.amount,
-        bankPaidAmount: bankPaidResult.amount,
         notes: notes.trim() || undefined,
         lines: cart.map((l) => ({
           menuItemId: l.menuItemId,
@@ -576,7 +621,9 @@ export default function PosPage() {
           unitPrice: l.unitPrice,
         })),
       });
-      appToast.success(`Sale ${result.receiptNo} recorded`);
+      const creditMsg =
+        creditPreview > 0.005 ? ` · Credit due: ${formatMoney(creditPreview)}` : "";
+      appToast.success(`Sale ${result.receiptNo} recorded${creditMsg}`);
       setSuccessSale({ id: result.id, receiptNo: result.receiptNo });
       resetCheckout();
       void loadCatalog();
@@ -626,78 +673,6 @@ export default function PosPage() {
     }, 150);
     return () => window.clearTimeout(timer);
   }, [printSale]);
-
-  const roundMoneyStr = (n: number) => String(Math.round(Math.max(0, n) * 100) / 100);
-
-  const setAllCashPayment = () => {
-    setCashPaidStr(roundMoneyStr(grandTotalPreview));
-    setBankPaidStr("0");
-  };
-
-  const setAllBankPayment = () => {
-    setCashPaidStr("0");
-    setBankPaidStr(roundMoneyStr(grandTotalPreview));
-  };
-
-  /** Paid: 50% cash + 50% bank. Credit: 50% of total paid now, split cash/bank; rest on credit. */
-  const setSplitHalfPayment = () => {
-    if (billingType === "CREDIT") {
-      const paidNow = Math.floor((grandTotalPreview * 100) / 2) / 100;
-      const cashHalf = Math.floor((paidNow * 100) / 2) / 100;
-      const bankHalf = Math.round((paidNow - cashHalf) * 100) / 100;
-      setCashPaidStr(roundMoneyStr(cashHalf));
-      setBankPaidStr(roundMoneyStr(bankHalf));
-      return;
-    }
-    const cashHalf = Math.floor((grandTotalPreview * 100) / 2) / 100;
-    const bankHalf = Math.round((grandTotalPreview - cashHalf) * 100) / 100;
-    setCashPaidStr(roundMoneyStr(cashHalf));
-    setBankPaidStr(roundMoneyStr(bankHalf));
-  };
-
-  const detectedPaymentPreset = useMemo((): PaymentPreset | "CUSTOM" => {
-    if (otherChargeResult.invalid || grandTotalPreview <= 0) return "CUSTOM";
-    const cash = cashPaidResult.amount;
-    const bank = bankPaidResult.amount;
-    const sum = Math.round((cash + bank) * 100);
-    const grand = Math.round(grandTotalPreview * 100);
-    if (sum !== grand) return "CUSTOM";
-    if (bank < 0.005) return "CASH";
-    if (cash < 0.005) return "BANK";
-    const half = Math.floor(grand / 2);
-    if (Math.round(cash * 100) === half && Math.round(bank * 100) === grand - half) {
-      return "BOTH";
-    }
-    if (cash > 0.005 && bank > 0.005) return "BOTH";
-    return "CUSTOM";
-  }, [
-    cashPaidResult.amount,
-    bankPaidResult.amount,
-    grandTotalPreview,
-    otherChargeResult.invalid,
-  ]);
-
-  const paymentCollected = cashPaidResult.amount + bankPaidResult.amount;
-  const paymentRemainder =
-    billingType === "PAID"
-      ? grandTotalPreview - paymentCollected
-      : creditPreview;
-  const paymentBalanced =
-    billingType === "PAID"
-      ? Math.abs(paymentRemainder) < 0.005
-      : creditPreview > 0 && paymentCollected <= grandTotalPreview + 0.005;
-
-  const fillBankFromCash = () => {
-    const c = parseMoneyInput(cashPaidStr);
-    if (c.invalid) return;
-    setBankPaidStr(roundMoneyStr(grandTotalPreview - c.amount));
-  };
-
-  const fillCashFromBank = () => {
-    const b = parseMoneyInput(bankPaidStr);
-    if (b.invalid) return;
-    setCashPaidStr(roundMoneyStr(grandTotalPreview - b.amount));
-  };
 
   const scrollToCheckout = () => {
     document.getElementById("pos-checkout")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -883,25 +858,6 @@ export default function PosPage() {
                       )}
                     </div>
                   ) : null}
-                  <div>
-                    <p className="mb-1 text-xs text-muted">Payment type</p>
-                    <div className="flex gap-1 rounded-lg bg-[var(--color-cream-100)] p-1">
-                      <button
-                        type="button"
-                        className={segmentClass(billingType === "PAID")}
-                        onClick={() => setBillingType("PAID")}
-                      >
-                        Paid now
-                      </button>
-                      <button
-                        type="button"
-                        className={segmentClass(billingType === "CREDIT")}
-                        onClick={() => setBillingType("CREDIT")}
-                      >
-                        On credit
-                      </button>
-                    </div>
-                  </div>
                 </div>
               </section>
 
@@ -1174,95 +1130,30 @@ export default function PosPage() {
 
               <section className={checkoutSectionGap}>
                 <h3 className={checkoutSectionTitle}>Payment</h3>
-                <div className="space-y-3">
-              <div className="grid grid-cols-3 gap-2">
-                {(
-                  [
-                    { key: "CASH" as const, label: "Cash", icon: Banknote, onClick: setAllCashPayment },
-                    { key: "BANK" as const, label: "Bank", icon: Building2, onClick: setAllBankPayment },
-                    { key: "BOTH" as const, label: "Both", icon: Split, onClick: setSplitHalfPayment },
-                  ] as const
-                ).map(({ key, label, icon: Icon, onClick }) => (
-                  <button
-                    key={key}
-                    type="button"
-                    disabled={otherChargeResult.invalid || grandTotalPreview <= 0}
-                    onClick={onClick}
-                    className={paymentPresetClass(detectedPaymentPreset === key)}
-                  >
-                    <Icon className="h-5 w-5" />
-                    <span className="text-xs font-semibold">{label}</span>
-                  </button>
-                ))}
-              </div>
-              {grandTotalPreview > 0 && !otherChargeResult.invalid ? (
-                <div className="mt-3 space-y-1">
-                  <div className="flex h-2 overflow-hidden rounded-full bg-[var(--color-cream-200)]">
-                    <div
-                      className="bg-emerald-600 transition-all duration-300 ease-out"
-                      style={{
-                        width: `${Math.min(100, (cashPaidResult.amount / grandTotalPreview) * 100)}%`,
-                      }}
-                    />
-                    <div
-                      className="bg-sky-600 transition-all duration-300 ease-out"
-                      style={{
-                        width: `${Math.min(100, (bankPaidResult.amount / grandTotalPreview) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              ) : null}
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-emerald-700/15 bg-emerald-500/5 p-3 dark:border-emerald-500/25 dark:bg-emerald-500/10">
-                  <label htmlFor="pos-cash" className="mb-1.5 block text-xs font-medium text-muted">
-                    Cash received
-                  </label>
-                  <Input
-                    id="pos-cash"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={cashPaidStr}
-                    onChange={(e) => setCashPaidStr(e.target.value)}
-                    onBlur={billingType === "PAID" ? fillBankFromCash : undefined}
-                    className="h-10 border-emerald-700/20 bg-[var(--color-surface)] font-mono tabular-nums dark:border-emerald-500/30"
-                  />
-                </div>
-                <div className="rounded-xl border border-sky-700/15 bg-sky-500/5 p-3 dark:border-sky-500/25 dark:bg-sky-500/10">
-                  <label htmlFor="pos-bank" className="mb-1.5 block text-xs font-medium text-muted">
-                    Bank received
-                  </label>
-                  <Input
-                    id="pos-bank"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={bankPaidStr}
-                    onChange={(e) => setBankPaidStr(e.target.value)}
-                    onBlur={billingType === "PAID" ? fillCashFromBank : undefined}
-                    className="h-10 border-sky-700/20 bg-[var(--color-surface)] font-mono tabular-nums dark:border-sky-500/30"
-                  />
-                </div>
-              </div>
-              <div
-                className={cn(
-                  "mt-3 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm",
-                  paymentBalanced
-                    ? "bg-green-500/10 text-green-800 dark:text-green-300"
-                    : "bg-amber-500/10 text-amber-900 dark:text-amber-200",
-                )}
-              >
-                {paymentBalanced ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : null}
-                <span className="leading-snug">
-                  {billingType === "CREDIT"
-                    ? `On credit: ${formatMoney(creditPreview)}`
-                    : paymentBalanced
-                      ? "Payment matches total"
-                      : `${paymentRemainder > 0 ? "Still due" : "Overpaid"}: ${formatMoney(Math.abs(paymentRemainder))}`}
-                </span>
-              </div>
-                </div>
+                <PosCheckoutPaymentSection
+                  grandTotal={grandTotalPreview}
+                  checkoutPaymentType={checkoutPaymentType}
+                  onCheckoutPaymentTypeChange={setCheckoutPaymentType}
+                  paidAmountStr={paidAmountStr}
+                  onPaidAmountStrChange={setPaidAmountStr}
+                  tenderMode={tenderMode}
+                  onTenderModeChange={setTenderMode}
+                  cashPaidStr={cashPaidStr}
+                  onCashPaidStrChange={setCashPaidStr}
+                  bankPaidStr={bankPaidStr}
+                  onBankPaidStrChange={setBankPaidStr}
+                  chequeBankName={chequeBankName}
+                  onChequeBankNameChange={setChequeBankName}
+                  chequeNumber={chequeNumber}
+                  onChequeNumberChange={setChequeNumber}
+                  bankReference={bankReference}
+                  onBankReferenceChange={setBankReference}
+                  paymentTermsPreset={paymentTermsPreset}
+                  onPaymentTermsPresetChange={setPaymentTermsPreset}
+                  customDueDate={customDueDate}
+                  onCustomDueDateChange={setCustomDueDate}
+                  disabled={submitting || otherChargeResult.invalid || grandTotalPreview <= 0}
+                />
               </section>
 
               <section className={checkoutSectionGap}>
@@ -1352,7 +1243,13 @@ export default function PosPage() {
           {viewLoading ? (
             <ViewModalSkeleton rows={3} />
           ) : viewSale ? (
-            <PosSaleDetail sale={viewSale} />
+            <PosSaleDetail
+              sale={viewSale}
+              onSaleUpdated={(updated) => {
+                setViewSale(updated);
+                setSalesRefresh((n) => n + 1);
+              }}
+            />
           ) : null}
           <div className="flex flex-wrap justify-end gap-2 border-t border-[var(--color-border)] pt-4">
             <Button

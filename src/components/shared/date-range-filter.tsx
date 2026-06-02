@@ -136,7 +136,7 @@ export function DateRangeFilter({
           />
           <Button
             type="button"
-            variant="primary"
+            variant="brand"
             onClick={onApply}
             className="h-10 w-full shrink-0 px-5 sm:ml-auto sm:w-auto"
           >

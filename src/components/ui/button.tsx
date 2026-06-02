@@ -4,7 +4,7 @@ import { motion, type HTMLMotionProps } from "framer-motion";
 import { forwardRef, type ReactNode } from "react";
 import { cn } from "@/src/lib/cn";
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+type ButtonVariant = "primary" | "secondary" | "brand" | "soft" | "ghost" | "danger";
 type ButtonSize = "sm" | "md" | "lg";
 
 type ButtonProps = Omit<HTMLMotionProps<"button">, "ref" | "children"> & {
@@ -19,11 +19,17 @@ export type { ButtonProps, ButtonSize, ButtonVariant };
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    "shadow-[var(--shadow-sm)] bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:bg-[var(--color-primary-hover)]",
+    "shadow-[var(--shadow-sm)] bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:bg-[var(--color-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]",
   secondary:
     "border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-foreground)] hover:bg-[var(--color-cream-100)] hover:border-[var(--color-input)]",
-  ghost: "text-[var(--color-nav-idle)] hover:bg-[var(--color-cream-100)] hover:text-[var(--color-nav-idle-hover)]",
-  danger: "bg-[var(--color-danger)] text-white hover:opacity-90",
+  brand:
+    "shadow-[var(--shadow-sm)] border border-[var(--color-btn-secondary-border)] bg-[var(--color-btn-secondary-bg)] text-[var(--color-btn-secondary-fg)] hover:bg-[var(--color-btn-secondary-bg-hover)] hover:border-[color-mix(in_srgb,var(--color-primary)_40%,var(--color-btn-secondary-border))] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]/35",
+  soft:
+    "border border-[color-mix(in_srgb,var(--color-primary)_32%,var(--color-border))] bg-[var(--color-primary-soft)] font-medium text-[var(--color-nav-active-text)] hover:border-[color-mix(in_srgb,var(--color-primary)_48%,var(--color-border))] hover:bg-[color-mix(in_srgb,var(--color-primary-soft)_75%,var(--color-primary)_25%)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]/35",
+  ghost:
+    "text-[var(--color-nav-idle)] hover:bg-[var(--color-cream-100)] hover:text-[var(--color-nav-idle-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]/30",
+  danger:
+    "shadow-[var(--shadow-sm)] bg-[var(--color-danger)] text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-danger)]",
 };
 
 const sizeClasses: Record<ButtonSize, string> = {

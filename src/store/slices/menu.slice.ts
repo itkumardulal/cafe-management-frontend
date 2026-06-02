@@ -4,11 +4,13 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import type { MenuItem } from "@/src/types/auth";
 import { api } from "@/src/services/api";
 import type { MenuState } from "@/src/store/types/menu.state";
+import { logoutThunk } from "./auth.slice";
 
 const initialState: MenuState = {
   items: [],
   loading: false,
   error: null,
+  initialized: false,
 };
 
 export const fetchAuthorizedMenusThunk = createAsyncThunk<
@@ -40,12 +42,20 @@ const menuSlice = createSlice({
       })
       .addCase(fetchAuthorizedMenusThunk.fulfilled, (state, action) => {
         state.loading = false;
+        state.initialized = true;
         state.items = action.payload;
       })
       .addCase(fetchAuthorizedMenusThunk.rejected, (state, action) => {
         state.loading = false;
+        state.initialized = true;
         state.error = action.payload ?? "Failed to load menus";
         state.items = [];
+      })
+      .addCase(logoutThunk.fulfilled, (state) => {
+        state.items = [];
+        state.loading = false;
+        state.error = null;
+        state.initialized = false;
       });
   },
 });

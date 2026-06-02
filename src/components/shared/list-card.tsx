@@ -61,7 +61,7 @@ export function ListCard({
       </div>
 
       {actions ? (
-        <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-[var(--color-border)] pt-3">
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-[var(--color-border)] pt-4 [&_a]:inline-flex [&_a]:shrink-0">
           {actions}
         </div>
       ) : null}

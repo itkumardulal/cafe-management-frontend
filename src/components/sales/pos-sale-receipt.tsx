@@ -1,5 +1,6 @@
 "use client";
 
+import type { SaleDetailResponse } from "@/src/lib/ar-types";
 import { formatDateTime, formatMoney } from "@/src/lib/format-display";
 import { cn } from "@/src/lib/cn";
 
@@ -10,37 +11,8 @@ export type PosSaleReceiptLine = {
   lineTotal: string;
 };
 
-export type PosSaleReceiptData = {
+export type PosSaleReceiptData = SaleDetailResponse & {
   id?: string;
-  receiptNo: string;
-  saleAt: string;
-  createdAt: string;
-  serviceType: "DINE_IN" | "DELIVERY";
-  billingType: "PAID" | "CREDIT";
-  customerName?: string | null;
-  customerPhone?: string | null;
-  customerEmail?: string | null;
-  customerAddress?: string | null;
-  tableId?: string | null;
-  tableName?: string | null;
-  subtotal: string;
-  otherChargeAmount: string;
-  discountAmount: string;
-  discountPercent?: string | null;
-  grandTotal: string;
-  cashPaidAmount: string;
-  bankPaidAmount: string;
-  creditAmount: string;
-  notes?: string | null;
-  createdByName?: string | null;
-  lineCount: number;
-  lines: PosSaleReceiptLine[];
-  cafe?: {
-    cafeName: string;
-    address?: string | null;
-    contactNumber?: string | null;
-    email?: string;
-  } | null;
 };
 
 function serviceLabel(type: PosSaleReceiptData["serviceType"]) {

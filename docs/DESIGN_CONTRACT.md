@@ -12,6 +12,7 @@ Do not change breakpoint values or semantic token names without updating this do
 | Category | CSS variables | Notes |
 |----------|---------------|-------|
 | Brand | `--color-primary`, `--color-primary-hover`, `--color-primary-soft`, `--color-primary-foreground` | Orange cafe identity |
+| Buttons | `--color-btn-secondary-*` | `Button` `brand` for filter/apply actions; `secondary` neutral (edit, pagination); `soft` selected chips |
 | Surfaces | `--color-background`, `--color-surface`, `--color-surface-muted` | Page vs card hierarchy |
 | Text | `--color-foreground`, `--color-muted`, `--color-subtle` | Body, secondary, tertiary |
 | Nav | `--color-nav-idle`, `--color-nav-idle-hover`, `--color-nav-active-text` | Sidebar/drawer |

@@ -22,8 +22,11 @@ export const PERMISSION_PRESETS: Array<{
     description: "Stock & suppliers",
     codes: [
       "DASHBOARD",
+      "INVENTORY",
+      "MENU_ITEMS",
       "RAW_MATERIALS",
       "RAW_MATERIAL_PURCHASES",
+      "SUPPLIER_BILLS",
       "STOCK_REMOVALS",
       "SUPPLIERS",
     ],
@@ -53,7 +56,15 @@ const PERMISSION_GROUPS: Array<{
     id: "inventory",
     label: "Inventory",
     description: "Materials, suppliers, stock",
-    codes: ["RAW_MATERIALS", "SUPPLIERS", "RAW_MATERIAL_PURCHASES", "STOCK_REMOVALS"],
+    codes: [
+      "INVENTORY",
+      "RAW_MATERIALS",
+      "SUPPLIERS",
+      "RAW_MATERIAL_PURCHASES",
+      "SUPPLIER_BILLS",
+      "STOCK_REMOVALS",
+      "MENU_ITEMS",
+    ],
   },
   {
     id: "finance",

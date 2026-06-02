@@ -12,6 +12,12 @@
   --color-primary-soft: #ffedd5;
   --color-primary-foreground: #ffffff;
 
+  /* Secondary actions (Apply filter, Cancel, View) — warm tint, not solid primary */
+  --color-btn-secondary-bg: #fff7ed;
+  --color-btn-secondary-bg-hover: #ffedd5;
+  --color-btn-secondary-fg: #9a3412;
+  --color-btn-secondary-border: #f5c9a8;
+
   --color-background: #f7f5f2;
   --color-surface: #ffffff;
   --color-surface-muted: #fdfaf7;
@@ -83,6 +89,11 @@
     --color-primary-hover: #fb923c;
     --color-primary-soft: #431407;
     --color-primary-foreground: #fff7ed;
+
+    --color-btn-secondary-bg: #292524;
+    --color-btn-secondary-bg-hover: #431407;
+    --color-btn-secondary-fg: #fdba74;
+    --color-btn-secondary-border: #9a3412;
 
     --color-background: #11100f;
     --color-surface: #1c1917;

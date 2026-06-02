@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronLeft, Coffee, LogOut } from "lucide-react";
 import { getMenuIcon } from "@/src/lib/menu-icons";
 import { motion } from "framer-motion";
@@ -11,6 +11,7 @@ import { Card } from "@/src/components/ui/card";
 import { Modal } from "@/src/components/ui/modal";
 import { cn } from "@/src/lib/cn";
 import { logoutThunk } from "@/src/store/slices/auth.slice";
+import { operationsApi } from "@/src/services/operations-api";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 
 type SidebarProps = {
@@ -24,8 +25,16 @@ export function Sidebar({ collapsed = false, onToggle, className }: SidebarProps
   const router = useRouter();
   const dispatch = useAppDispatch();
   const menus = useAppSelector((state) => state.menu.items);
+  const [stockAlertCount, setStockAlertCount] = useState(0);
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+
+  useEffect(() => {
+    void operationsApi
+      .stockAlerts()
+      .then((data) => setStockAlertCount(data.counts.low + data.counts.out))
+      .catch(() => setStockAlertCount(0));
+  }, []);
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -93,7 +102,16 @@ export function Sidebar({ collapsed = false, onToggle, className }: SidebarProps
                 aria-current={active ? "page" : undefined}
               >
                 <Icon size={16} className="shrink-0" aria-hidden />
-                {!collapsed ? <span className="truncate">{menu.name}</span> : null}
+                {!collapsed ? (
+                  <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                    <span className="truncate">{menu.name}</span>
+                    {menu.route === "/inventory" && stockAlertCount > 0 ? (
+                      <span className="shrink-0 rounded-full bg-[var(--color-danger)] px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                        {stockAlertCount > 99 ? "99+" : stockAlertCount}
+                      </span>
+                    ) : null}
+                  </span>
+                ) : null}
               </Link>
             </motion.div>
           );

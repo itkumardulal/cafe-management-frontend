@@ -7,6 +7,7 @@ import {
   purchasePaymentStatusLabel,
   type PurchaseBillingType,
 } from "@/src/lib/money-input";
+import type { PurchasePaymentStatus } from "@/src/lib/ap-types";
 
 export type RmPurchaseReceiptLine = {
   id?: string;
@@ -25,6 +26,9 @@ export type RmPurchaseReceiptData = {
   createdByName?: string | null;
   lineCount: number;
   billingType?: PurchaseBillingType;
+  paymentStatus?: PurchasePaymentStatus;
+  paidAmount?: string;
+  remainingAmount?: string;
   grandTotal: string;
   cashPaidAmount?: string;
   bankPaidAmount?: string;

@@ -14,7 +14,9 @@ import { PageHeader } from "@/src/components/shared/page-header";
 import { PaginatedListSection } from "@/src/components/shared/paginated-list-section";
 import { FormFooter } from "@/src/components/shared/form-footer";
 import { ImageUploadField } from "@/src/components/shared/image-upload-field";
-import { SplitPaymentSection } from "@/src/components/shared/split-payment-section";
+import { PaymentTermsSection } from "@/src/components/purchases/payment-terms-section";
+import { PurchasePaymentTypeSection } from "@/src/components/purchases/purchase-payment-type-section";
+import { PaymentStatusBadge } from "@/src/components/purchases/ap-status-badges";
 import { SortableTableHeader } from "@/src/components/ui/sortable-table-header";
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { ViewModalSkeleton } from "@/src/components/skeletons/view-modal-skeleton";
@@ -36,12 +38,9 @@ import { Select } from "@/src/components/ui/select";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { cn } from "@/src/lib/cn";
 import { formatDateOnly, formatDateTime, formatMoney } from "@/src/lib/format-display";
-import {
-  getPurchasePaymentStatus,
-  parseMoneyInput,
-  purchasePaymentStatusLabel,
-  type PurchaseBillingType,
-} from "@/src/lib/money-input";
+import type { ApBillSummary, CreatePaymentType, PaymentTermsPreset, PurchasePaymentMethod } from "@/src/lib/ap-types";
+import { parseMoneyInput } from "@/src/lib/money-input";
+import Link from "next/link";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
 import { useAppSelector } from "@/src/store/hooks";
@@ -69,63 +68,7 @@ function lineTotal(quantity: string, ratePerUnit: string): number {
   return qty * rate;
 }
 
-type PurchaseRow = {
-  id: string;
-  receiptNo: string;
-  purchaseDate: string;
-  createdAt: string;
-  notes?: string | null;
-  lineCount: number;
-  billingType: PurchaseBillingType;
-  grandTotal: string;
-  cashPaidAmount: string;
-  bankPaidAmount: string;
-  creditAmount: string;
-  bankPaymentScreenshotUrl?: string | null;
-};
-
-function paymentBadgeVariant(
-  status: ReturnType<typeof getPurchasePaymentStatus>,
-): "default" | "success" | "warning" {
-  switch (status) {
-    case "paid":
-      return "success";
-    case "credit":
-      return "warning";
-    case "partial":
-      return "default";
-    case "not_recorded":
-      return "default";
-  }
-}
-
-function PurchasePaymentBadge({
-  billingType,
-  grandTotal,
-  cashPaidAmount,
-  bankPaidAmount,
-  creditAmount,
-}: {
-  billingType: PurchaseBillingType;
-  grandTotal: string;
-  cashPaidAmount: string;
-  bankPaidAmount: string;
-  creditAmount: string;
-}) {
-  const status = getPurchasePaymentStatus({
-    billingType,
-    grandTotal,
-    cashPaidAmount,
-    bankPaidAmount,
-    creditAmount,
-  });
-
-  return (
-    <Badge variant={paymentBadgeVariant(status)} size="sm">
-      {purchasePaymentStatusLabel(status)}
-    </Badge>
-  );
-}
+type PurchaseRow = ApBillSummary;
 
 export default function RawMaterialPurchasesPage() {
   return (
@@ -184,12 +127,19 @@ function RawMaterialPurchasesContent() {
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<Line[]>([emptyLine()]);
-  const [billingType, setBillingType] = useState<PurchaseBillingType>("PAID");
-  const [cashPaidStr, setCashPaidStr] = useState("0");
-  const [bankPaidStr, setBankPaidStr] = useState("0");
+  const [paymentType, setPaymentType] = useState<CreatePaymentType>("FULLY_PAID");
+  const [paymentTermsPreset, setPaymentTermsPreset] = useState<PaymentTermsPreset>("IMMEDIATE");
+  const [customDueDate, setCustomDueDate] = useState("");
+  const [supplierInvoiceNo, setSupplierInvoiceNo] = useState("");
+  const [paidAmountStr, setPaidAmountStr] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<PurchasePaymentMethod>("CASH");
+  const [payReference, setPayReference] = useState("");
+  const [payRemarks, setPayRemarks] = useState("");
   const [bankScreenshotUrl, setBankScreenshotUrl] = useState("");
   const [bankScreenshotUploading, setBankScreenshotUploading] = useState(false);
   const [uploadEntityId, setUploadEntityId] = useState("");
+  const [splitResultOpen, setSplitResultOpen] = useState(false);
+  const [createdBills, setCreatedBills] = useState<{ id: string; receiptNo: string; supplierName?: string | null }[]>([]);
   const [viewOpen, setViewOpen] = useState(false);
   const [viewLoading, setViewLoading] = useState(false);
   const [viewPurchase, setViewPurchase] = useState<RmPurchaseReceiptData | null>(null);
@@ -201,13 +151,11 @@ function RawMaterialPurchasesContent() {
     [lines],
   );
 
-  const bankPaidResult = useMemo(() => parseMoneyInput(bankPaidStr), [bankPaidStr]);
-
   useEffect(() => {
-    if (bankPaidResult.amount <= 0.005) {
+    if (paymentMethod !== "BANK_TRANSFER") {
       setBankScreenshotUrl("");
     }
-  }, [bankPaidResult.amount]);
+  }, [paymentMethod]);
 
   const loadRefs = useCallback(async () => {
     try {
@@ -241,10 +189,15 @@ function RawMaterialPurchasesContent() {
   const openCreate = () => {
     setPurchaseDate(new Date().toISOString().slice(0, 10));
     setNotes("");
+    setSupplierInvoiceNo("");
     setLines([emptyLine()]);
-    setBillingType("PAID");
-    setCashPaidStr("0");
-    setBankPaidStr("0");
+    setPaymentType("FULLY_PAID");
+    setPaymentTermsPreset("IMMEDIATE");
+    setCustomDueDate("");
+    setPaidAmountStr("");
+    setPaymentMethod("CASH");
+    setPayReference("");
+    setPayRemarks("");
     setBankScreenshotUrl("");
     setBankScreenshotUploading(false);
     setUploadEntityId(crypto.randomUUID());
@@ -294,52 +247,46 @@ function RawMaterialPurchasesContent() {
       }
     }
 
-    const cashPaid = parseMoneyInput(cashPaidStr);
-    const bankPaid = parseMoneyInput(bankPaidStr);
-    if (cashPaid.invalid || bankPaid.invalid) {
-      appToast.error("Enter valid payment amounts");
-      return;
-    }
-
     const roundedGrandTotal = Math.round(grandTotal * 100) / 100;
-    const creditPreview =
-      Math.round((roundedGrandTotal - cashPaid.amount - bankPaid.amount) * 100) / 100;
 
-    if (billingType === "PAID") {
-      if (creditPreview > 0.005) {
-        appToast.error("Paid purchases must have no credit balance");
+    if (paymentType === "PARTIALLY_PAID") {
+      const paid = parseMoneyInput(paidAmountStr);
+      if (paid.invalid || paid.amount <= 0 || paid.amount >= roundedGrandTotal) {
+        appToast.error("Enter a valid partial payment amount");
         return;
       }
-      if (Math.abs(cashPaid.amount + bankPaid.amount - roundedGrandTotal) > 0.005) {
-        appToast.error("Cash and bank must add up to the grand total");
-        return;
-      }
-    } else {
-      if (creditPreview <= 0.005) {
-        appToast.error("Credit billing requires a credit balance; use Paid if fully paid");
-        return;
-      }
-      if (cashPaid.amount + bankPaid.amount > roundedGrandTotal + 0.005) {
-        appToast.error("Cash and bank cannot exceed the grand total");
+      if (paymentMethod === "BANK_TRANSFER" && !bankScreenshotUrl.trim()) {
+        appToast.error("Bank transfer proof is required");
         return;
       }
     }
 
-    if (bankPaid.amount > 0.005 && !bankScreenshotUrl.trim()) {
-      appToast.error("Bank transfer proof is required when bank payment is recorded");
+    if (paymentTermsPreset === "CUSTOM" && !customDueDate) {
+      appToast.error("Select a due date");
       return;
     }
 
     setSaving(true);
     try {
-      await operationsApi.rmPurchases.create({
+      const result = await operationsApi.rmPurchases.create({
         purchaseDate,
         notes: notes.trim() || undefined,
-        billingType,
-        cashPaidAmount: cashPaid.amount,
-        bankPaidAmount: bankPaid.amount,
-        bankPaymentScreenshotUrl:
-          bankPaid.amount > 0.005 ? bankScreenshotUrl.trim() : undefined,
+        supplierInvoiceNo: supplierInvoiceNo.trim() || undefined,
+        paymentType,
+        paymentTermsPreset,
+        ...(paymentTermsPreset === "CUSTOM" ? { dueDate: customDueDate } : {}),
+        ...(paymentType === "PARTIALLY_PAID"
+          ? {
+              initialPayment: {
+                amount: parseMoneyInput(paidAmountStr).amount,
+                paymentMethod,
+                referenceNumber: payReference.trim() || undefined,
+                remarks: payRemarks.trim() || undefined,
+                proofAttachmentUrl:
+                  paymentMethod === "BANK_TRANSFER" ? bankScreenshotUrl.trim() : undefined,
+              },
+            }
+          : {}),
         lines: lines.map((l) => ({
           rawMaterialItemId: l.rawMaterialItemId,
           supplierId: l.supplierId,
@@ -347,8 +294,19 @@ function RawMaterialPurchasesContent() {
           ratePerUnit: Number(l.ratePerUnit),
         })),
       });
-      appToast.success("Purchase recorded");
       setOpen(false);
+      if (result.purchases.length > 1) {
+        setCreatedBills(
+          result.purchases.map((b) => ({
+            id: b.id,
+            receiptNo: b.receiptNo,
+            supplierName: b.supplierName,
+          })),
+        );
+        setSplitResultOpen(true);
+      } else {
+        appToast.success("Purchase recorded");
+      }
       await refetch();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to save purchase"));
@@ -374,11 +332,14 @@ function RawMaterialPurchasesContent() {
       notes: detail.notes,
       createdByName: detail.createdByName,
       lineCount: detail.lineCount ?? lines.length,
-      billingType: detail.billingType,
+      billingType: detail.billingType ?? "PAID",
+      paymentStatus: detail.paymentStatus,
+      paidAmount: detail.paidAmount,
+      remainingAmount: detail.remainingAmount,
       grandTotal,
-      cashPaidAmount: detail.cashPaidAmount,
-      bankPaidAmount: detail.bankPaidAmount,
-      creditAmount: detail.creditAmount,
+      cashPaidAmount: detail.cashPaidAmount ?? "0",
+      bankPaidAmount: detail.bankPaidAmount ?? "0",
+      creditAmount: detail.creditAmount ?? "0",
       bankPaymentScreenshotUrl: detail.bankPaymentScreenshotUrl,
       cafe: detail.cafe,
       lines,
@@ -519,15 +480,7 @@ function RawMaterialPurchasesContent() {
                 key={p.id}
                 title={p.receiptNo}
                 subtitle={formatDateOnly(p.purchaseDate)}
-                badge={
-                  <PurchasePaymentBadge
-                    billingType={p.billingType ?? "PAID"}
-                    grandTotal={p.grandTotal}
-                    cashPaidAmount={p.cashPaidAmount ?? "0"}
-                    bankPaidAmount={p.bankPaidAmount ?? "0"}
-                    creditAmount={p.creditAmount ?? "0"}
-                  />
-                }
+                badge={<PaymentStatusBadge status={p.paymentStatus} />}
                 fields={[
                   { label: "Total", value: formatMoney(p.grandTotal) },
                   { label: "Lines", value: String(p.lineCount ?? 0) },
@@ -621,13 +574,7 @@ function RawMaterialPurchasesContent() {
                   {formatMoney(p.grandTotal)}
                 </td>
                 <td className={cn("px-4 py-3.5", tableCenterCellClass)}>
-                  <PurchasePaymentBadge
-                    billingType={p.billingType ?? "PAID"}
-                    grandTotal={p.grandTotal}
-                    cashPaidAmount={p.cashPaidAmount ?? "0"}
-                    bankPaidAmount={p.bankPaidAmount ?? "0"}
-                    creditAmount={p.creditAmount ?? "0"}
-                  />
+                  <PaymentStatusBadge status={p.paymentStatus} />
                 </td>
                 <td className="px-4 py-3.5">
                   <div className={tableActionsCellClass}>
@@ -675,13 +622,9 @@ function RawMaterialPurchasesContent() {
           ) : viewPurchase ? (
             <div className="space-y-5">
               <div className="flex flex-wrap items-center gap-2">
-                <PurchasePaymentBadge
-                  billingType={viewPurchase.billingType ?? "PAID"}
-                  grandTotal={viewPurchase.grandTotal}
-                  cashPaidAmount={viewPurchase.cashPaidAmount ?? "0"}
-                  bankPaidAmount={viewPurchase.bankPaidAmount ?? "0"}
-                  creditAmount={viewPurchase.creditAmount ?? "0"}
-                />
+                {"paymentStatus" in viewPurchase && viewPurchase.paymentStatus ? (
+                  <PaymentStatusBadge status={viewPurchase.paymentStatus} />
+                ) : null}
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -698,13 +641,8 @@ function RawMaterialPurchasesContent() {
                 </DetailInfoCard>
               </div>
 
-              {getPurchasePaymentStatus({
-                billingType: viewPurchase.billingType ?? "PAID",
-                grandTotal: viewPurchase.grandTotal,
-                cashPaidAmount: viewPurchase.cashPaidAmount ?? "0",
-                bankPaidAmount: viewPurchase.bankPaidAmount ?? "0",
-                creditAmount: viewPurchase.creditAmount ?? "0",
-              }) !== "not_recorded" ? (
+              {Number(viewPurchase.paidAmount ?? viewPurchase.cashPaidAmount) > 0 ||
+              Number(viewPurchase.remainingAmount ?? viewPurchase.creditAmount) > 0 ? (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <DetailInfoCard label="Payment">
                     <dl className="mt-2 space-y-1.5 text-sm">
@@ -1120,37 +1058,79 @@ function RawMaterialPurchasesContent() {
             </div>
           </section>
 
-          <SplitPaymentSection
-            grandTotal={Math.round(grandTotal * 100) / 100}
-            billingType={billingType}
-            onBillingTypeChange={setBillingType}
-            cashPaidStr={cashPaidStr}
-            onCashPaidStrChange={setCashPaidStr}
-            bankPaidStr={bankPaidStr}
-            onBankPaidStrChange={setBankPaidStr}
+          <Field id="supplier-invoice" label="Supplier invoice no.">
+            <Input
+              value={supplierInvoiceNo}
+              onChange={(e) => setSupplierInvoiceNo(e.target.value)}
+              placeholder="Optional"
+              disabled={!hasRefs || saving}
+            />
+          </Field>
+
+          <PaymentTermsSection
+            purchaseDate={purchaseDate}
+            preset={paymentTermsPreset}
+            onPresetChange={setPaymentTermsPreset}
+            customDueDate={customDueDate}
+            onCustomDueDateChange={setCustomDueDate}
             disabled={!hasRefs || saving}
-            idPrefix="rm-purchase"
-            showBankProofHint={bankPaidResult.amount > 0.005}
+          />
+
+          <PurchasePaymentTypeSection
+            grandTotal={Math.round(grandTotal * 100) / 100}
+            paymentType={paymentType}
+            onPaymentTypeChange={setPaymentType}
+            paidAmountStr={paidAmountStr}
+            onPaidAmountStrChange={setPaidAmountStr}
+            paymentMethod={paymentMethod}
+            onPaymentMethodChange={setPaymentMethod}
+            referenceNumber={payReference}
+            onReferenceNumberChange={setPayReference}
+            remarks={payRemarks}
+            onRemarksChange={setPayRemarks}
+            disabled={!hasRefs || saving}
             bankProofSlot={
-              <ImageUploadField
-                id="rmPurchaseBankProof"
-                label=""
-                required
-                value={bankScreenshotUrl}
-                onChange={setBankScreenshotUrl}
-                assetType="module"
-                module="raw-material-purchases"
-                entityId={uploadEntityId}
-                dropTitle="Drop screenshot here"
-                recommendedSize="PNG or JPG, max 5MB"
-                previewAlt="Bank transfer proof preview"
-                uploadedLabel="Proof attached"
-                onUploadingChange={setBankScreenshotUploading}
-                className="[&_label]:sr-only"
-              />
+              paymentMethod === "BANK_TRANSFER" ? (
+                <ImageUploadField
+                  id="rmPurchaseBankProof"
+                  label="Bank transfer proof"
+                  required
+                  value={bankScreenshotUrl}
+                  onChange={setBankScreenshotUrl}
+                  assetType="module"
+                  module="raw-material-purchases"
+                  entityId={uploadEntityId}
+                  dropTitle="Drop screenshot here"
+                  recommendedSize="PNG or JPG, max 5MB"
+                  previewAlt="Bank transfer proof preview"
+                  uploadedLabel="Proof attached"
+                  onUploadingChange={setBankScreenshotUploading}
+                />
+              ) : null
             }
           />
         </div>
+      </Modal>
+
+      <Modal
+        open={splitResultOpen}
+        title="Supplier bills created"
+        description="This purchase was split into one bill per supplier."
+        onClose={() => setSplitResultOpen(false)}
+      >
+        <ul className="space-y-2 text-sm">
+          {createdBills.map((b) => (
+            <li key={b.id} className="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                {b.receiptNo}
+                {b.supplierName ? ` — ${b.supplierName}` : ""}
+              </span>
+              <Link href={`/supplier-bills/${b.id}`} className="text-primary text-sm font-medium">
+                View bill
+              </Link>
+            </li>
+          ))}
+        </ul>
       </Modal>
     </>
   );

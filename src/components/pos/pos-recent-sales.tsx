@@ -27,8 +27,10 @@ type SaleRow = {
   saleAt: string;
   serviceType: "DINE_IN" | "DELIVERY";
   billingType: "PAID" | "CREDIT";
+  paymentStatus?: "PAID" | "PARTIAL" | "UNPAID";
   tableName?: string | null;
   grandTotal: string;
+  remainingAmount?: string;
   lineCount: number;
 };
 
@@ -67,6 +69,7 @@ function PosRecentSalesContent({
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [draftServiceFilter, setDraftServiceFilter] = useState<ServiceFilter>("");
   const [draftBillingFilter, setDraftBillingFilter] = useState<BillingFilter>("");
+  const [draftOpenBalance, setDraftOpenBalance] = useState(false);
 
   const {
     items: sales,
@@ -90,35 +93,38 @@ function PosRecentSalesContent({
   } = usePaginatedList<SaleRow>({
     queryKey: "pos-sales",
     fetchFn: (p) => {
-      const { salesServiceType, salesBillingType, ...rest } = p;
+      const { salesServiceType, salesBillingType, salesHasBalance, ...rest } = p;
       return operationsApi.sales.list({
         ...rest,
         serviceType: (salesServiceType as ServiceFilter | undefined) || undefined,
         billingType: (salesBillingType as BillingFilter | undefined) || undefined,
+        hasBalance: salesHasBalance === "true" ? true : undefined,
       });
     },
     defaultSort: { sortBy: "saleAt", sortOrder: "desc" },
-    filterKeys: ["salesServiceType", "salesBillingType"],
+    filterKeys: ["salesServiceType", "salesBillingType", "salesHasBalance"],
     urlConfig: {
       pageKey: "salesPage",
       limitKey: "salesLimit",
       searchKey: "salesSearch",
       sortByKey: "salesSortBy",
       sortOrderKey: "salesSortOrder",
-      filterKeys: ["salesServiceType", "salesBillingType"],
+      filterKeys: ["salesServiceType", "salesBillingType", "salesHasBalance"],
     },
     errorMessage: "Failed to load sales",
   });
 
   const serviceFilter = (params.filters.salesServiceType ?? "") as ServiceFilter;
   const billingFilter = (params.filters.salesBillingType ?? "") as BillingFilter;
+  const openBalanceFilter = params.filters.salesHasBalance === "true";
 
   const applyFilters = () => {
     setFilter("salesServiceType", draftServiceFilter);
     setFilter("salesBillingType", draftBillingFilter);
+    setFilter("salesHasBalance", draftOpenBalance ? "true" : "");
   };
 
-  const hasDrawerFilters = Boolean(serviceFilter || billingFilter);
+  const hasDrawerFilters = Boolean(serviceFilter || billingFilter || openBalanceFilter);
 
   return (
     <div className="space-y-3">
@@ -153,6 +159,13 @@ function PosRecentSalesContent({
                 {f === "" ? "All" : f === "PAID" ? "Paid" : "Credit"}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => setFilter("salesHasBalance", openBalanceFilter ? "" : "true")}
+              className={chipClass(openBalanceFilter)}
+            >
+              Open balance
+            </button>
           </div>
         </div>
       </div>
@@ -168,7 +181,7 @@ function PosRecentSalesContent({
         searchPlaceholder={searchPlaceholder}
         isSearching={isSearching}
         searchResultSummary={searchResultSummary}
-        tableColumns={8}
+        tableColumns={9}
         emptyTitle="No POS Orders Found"
         emptyDescription="Completed sales will appear here."
         emptyIcon={ScanLine}
@@ -190,6 +203,7 @@ function PosRecentSalesContent({
               if (open) {
                 setDraftServiceFilter(serviceFilter);
                 setDraftBillingFilter(billingFilter);
+                setDraftOpenBalance(openBalanceFilter);
               }
             }}
             hasActiveFilters={hasDrawerFilters}
@@ -197,8 +211,10 @@ function PosRecentSalesContent({
             onReset={() => {
               setDraftServiceFilter("");
               setDraftBillingFilter("");
+              setDraftOpenBalance(false);
               setFilter("salesServiceType", "");
               setFilter("salesBillingType", "");
+              setFilter("salesHasBalance", "");
             }}
             title="Filter orders"
           >
@@ -253,6 +269,9 @@ function PosRecentSalesContent({
                   { label: "Service", value: serviceLabel(s.serviceType) },
                   { label: "Table", value: tableCell(s) },
                   { label: "Payment", value: billingLabel(s.billingType) },
+                  ...(Number(s.remainingAmount) > 0.005
+                    ? [{ label: "Due", value: formatMoney(s.remainingAmount!) }]
+                    : []),
                   { label: "Items", value: String(s.lineCount) },
                   { label: "Total", value: formatMoney(s.grandTotal) },
                 ]}
@@ -308,6 +327,7 @@ function PosRecentSalesContent({
             { label: "Service", thClassName: tableCenterColumnClass },
             { label: "Table", thClassName: tableCenterColumnClass },
             { label: "Payment", thClassName: tableCenterColumnClass },
+            { label: "Due", thClassName: tableCenterColumnClass },
             { label: "Items", thClassName: tableCenterColumnClass },
             { label: "Total", thClassName: tableCenterColumnClass },
             { label: "Actions", thClassName: tableActionsColumnClass },
@@ -330,6 +350,9 @@ function PosRecentSalesContent({
               </td>
               <td className={cn("px-4 py-3 text-sm text-muted", tableCenterCellClass)}>
                 {billingLabel(s.billingType)}
+              </td>
+              <td className={cn("px-4 py-3 text-sm font-mono tabular-nums", tableCenterCellClass)}>
+                {Number(s.remainingAmount) > 0.005 ? formatMoney(s.remainingAmount!) : "—"}
               </td>
               <td className={cn("px-4 py-3 text-sm text-muted", tableCenterCellClass)}>{s.lineCount}</td>
               <td className={cn("px-4 py-3 text-sm font-medium text-foreground", tableCenterCellClass)}>

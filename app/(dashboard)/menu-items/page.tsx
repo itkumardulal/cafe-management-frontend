@@ -35,7 +35,9 @@ type MenuItemRow = {
   unitQuantity?: string | null;
   costPerUnit: string;
   sellPricePerUnit: string;
-  quantityOnHand: string;
+  trackStock: boolean;
+  reorderLevel?: string | null;
+  quantityOnHand: string | null;
   notes?: string | null;
 };
 
@@ -49,7 +51,9 @@ const emptyForm = {
   unitQuantity: "",
   costPerUnit: "",
   sellPricePerUnit: "",
+  trackStock: true,
   openingStockDay1: "0",
+  reorderLevel: "",
   notes: "",
 };
 
@@ -151,7 +155,9 @@ function MenuItemsContent() {
       unitQuantity: item.unitQuantity ?? "",
       costPerUnit: item.costPerUnit,
       sellPricePerUnit: item.sellPricePerUnit,
-      openingStockDay1: item.quantityOnHand,
+      trackStock: item.trackStock,
+      openingStockDay1: item.quantityOnHand ?? "0",
+      reorderLevel: item.reorderLevel ?? "",
       notes: item.notes ?? "",
     });
     setOpen(true);
@@ -201,11 +207,16 @@ function MenuItemsContent() {
     };
 
     try {
+      const reorderLevel =
+        form.reorderLevel.trim() === "" ? undefined : Number(form.reorderLevel);
+
       if (editId) {
         await operationsApi.menuItems.update(editId, {
           ...payload,
           costPerUnit,
           sellPricePerUnit,
+          trackStock: form.trackStock,
+          reorderLevel: reorderLevel ?? null,
         });
         appToast.success("Menu item updated");
       } else {
@@ -213,7 +224,11 @@ function MenuItemsContent() {
           ...payload,
           costPerUnit,
           sellPricePerUnit,
-          openingStockDay1: Number(form.openingStockDay1),
+          trackStock: form.trackStock,
+          openingStockDay1: form.trackStock
+            ? Number(form.openingStockDay1 || 0)
+            : undefined,
+          reorderLevel,
         });
         appToast.success("Menu item added");
       }
@@ -353,7 +368,12 @@ function MenuItemsContent() {
                           },
                           { label: "Cost", value: item.costPerUnit },
                           { label: "Sell", value: item.sellPricePerUnit },
-                          { label: "Stock", value: item.quantityOnHand },
+                          {
+                            label: "Stock",
+                            value: item.trackStock
+                              ? (item.quantityOnHand ?? "0")
+                              : "Not tracked",
+                          },
                           ...(item.notes ? [{ label: "Notes", value: item.notes }] : []),
                         ]}
                         actions={
@@ -631,18 +651,45 @@ function MenuItemsContent() {
               </Field>
             </div>
 
-            {!editId ? (
-              <Field id="opening" label="Opening stock" required>
-                <Input
-                  type="number"
-                  min={0}
-                  step="1"
-                  value={form.openingStockDay1}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, openingStockDay1: e.target.value }))
-                  }
-                />
-              </Field>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.trackStock}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, trackStock: e.target.checked }))
+                }
+                className="rounded border-[var(--color-border)]"
+              />
+              Track stock for this item
+            </label>
+
+            {form.trackStock ? (
+              <>
+                {!editId ? (
+                  <Field id="opening" label="Opening stock" hint="Optional, default 0">
+                    <Input
+                      type="number"
+                      min={0}
+                      step="1"
+                      value={form.openingStockDay1}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, openingStockDay1: e.target.value }))
+                      }
+                    />
+                  </Field>
+                ) : null}
+                <Field id="reorder" label="Reorder level" hint="Optional — alerts when at or below">
+                  <Input
+                    type="number"
+                    min={0}
+                    step="1"
+                    value={form.reorderLevel}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, reorderLevel: e.target.value }))
+                    }
+                  />
+                </Field>
+              </>
             ) : null}
           </section>
 

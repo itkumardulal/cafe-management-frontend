@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/src/components/shared/page-header";
 import { Badge } from "@/src/components/ui/badge";
@@ -9,7 +9,9 @@ import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { EmptyState } from "@/src/components/ui/empty-state";
 import { Select } from "@/src/components/ui/select";
+import { formatMoney } from "@/src/lib/format-display";
 import { appToast } from "@/src/lib/toast";
+import { operationsApi } from "@/src/services/operations-api";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
 import {
   fetchCafeOverviewThunk,
@@ -20,6 +22,30 @@ import {
 export default function DashboardPage() {
   const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
+  const [apMetrics, setApMetrics] = useState<{
+    outstandingBillsAmount: string;
+    overdueBillsAmount: string;
+    billsDueThisWeekAmount: string;
+    suppliersWithOutstandingCount: number;
+  } | null>(null);
+  const [stockAlerts, setStockAlerts] = useState<{
+    counts: { low: number; out: number };
+    low: Array<{ id: string; kind: string; name: string; quantityOnHand: string }>;
+  } | null>(null);
+
+  useEffect(() => {
+    if (user?.role === "SUPER_ADMIN") {
+      return;
+    }
+    void operationsApi.dashboard
+      .cafeMetrics()
+      .then(setApMetrics)
+      .catch(() => {});
+    void operationsApi
+      .stockAlerts()
+      .then((data) => setStockAlerts({ counts: data.counts, low: data.low.slice(0, 5) }))
+      .catch(() => {});
+  }, [user?.role]);
   const { selectedCafeId, managedCafes, selectedCafeOverview, loading } = useAppSelector(
     (state) => state.cafe,
   );
@@ -139,24 +165,73 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {["Today Orders", "Revenue", "Active Tables", "Staff On Duty"].map((title, index) => (
+        {(
+          [
+            {
+              title: "Outstanding bills",
+              value: apMetrics ? formatMoney(apMetrics.outstandingBillsAmount) : "—",
+              href: "/supplier-bills?hasOutstanding=true",
+            },
+            {
+              title: "Overdue bills",
+              value: apMetrics ? formatMoney(apMetrics.overdueBillsAmount) : "—",
+              href: "/supplier-bills?billStatus=OVERDUE",
+            },
+            {
+              title: "Suppliers with dues",
+              value: apMetrics ? String(apMetrics.suppliersWithOutstandingCount) : "—",
+              href: "/supplier-bills",
+            },
+            {
+              title: "Due this week",
+              value: apMetrics ? formatMoney(apMetrics.billsDueThisWeekAmount) : "—",
+              href: "/supplier-bills?dueWithinDays=7",
+            },
+          ] as const
+        ).map((item, index) => (
           <motion.div
-            key={title}
+            key={item.title}
             className="h-full"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
           >
-            <Card density="compact" className="flex h-full flex-col space-y-2">
-              <p className="text-xs uppercase tracking-wide text-subtle">{title}</p>
-              <p className="text-2xl font-semibold text-foreground">--</p>
-              <Badge variant="default" size="sm">
-                Live soon
-              </Badge>
-            </Card>
+            <Link href={item.href} className="block h-full">
+              <Card density="compact" className="flex h-full flex-col space-y-2 transition-shadow hover:shadow-md">
+                <p className="text-xs uppercase tracking-wide text-subtle">{item.title}</p>
+                <p className="text-2xl font-semibold text-foreground tabular-nums">{item.value}</p>
+              </Card>
+            </Link>
           </motion.div>
         ))}
       </div>
+
+      {stockAlerts && stockAlerts.counts.low + stockAlerts.counts.out > 0 ? (
+        <Card density="comfortable" className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-foreground">Low stock</h2>
+            <Link href="/inventory?filter=low" className="text-sm text-[var(--color-primary)] hover:underline">
+              View inventory
+            </Link>
+          </div>
+          <p className="text-sm text-muted">
+            {stockAlerts.counts.out} out of stock, {stockAlerts.counts.low} running low
+          </p>
+          <ul className="space-y-1 text-sm">
+            {stockAlerts.low.map((item) => (
+              <li key={`${item.kind}-${item.id}`} className="flex justify-between gap-2">
+                <span>
+                  {item.name}
+                  <span className="ml-1 text-xs text-muted">
+                    ({item.kind === "INVENTORY" ? "Inventory" : "Menu"})
+                  </span>
+                </span>
+                <span className="tabular-nums text-muted">{item.quantityOnHand}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
 
       <Card density="comfortable">
         <p className="text-muted">

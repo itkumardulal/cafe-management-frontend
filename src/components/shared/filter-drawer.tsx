@@ -38,7 +38,7 @@ export function FilterDrawer({
     <>
       <Button
         type="button"
-        variant="secondary"
+        variant="brand"
         size="md"
         className={cn("relative md:hidden", className)}
         onClick={() => onOpenChange(true)}
@@ -68,10 +68,10 @@ export function FilterDrawer({
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">{children}</div>
           <div className="safe-bottom flex shrink-0 flex-col gap-2 border-t border-[var(--color-border)] p-4 sm:flex-row">
-            <Button type="button" variant="secondary" fullWidth onClick={onReset}>
+            <Button type="button" variant="ghost" fullWidth onClick={onReset}>
               {resetLabel}
             </Button>
-            <Button type="button" fullWidth onClick={handleApply}>
+            <Button type="button" variant="brand" fullWidth onClick={handleApply}>
               {applyLabel}
             </Button>
           </div>
