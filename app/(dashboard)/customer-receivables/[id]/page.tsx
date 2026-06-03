@@ -2,79 +2,93 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { HandCoins } from "lucide-react";
 import { CustomerReceivableDetailSkeleton } from "@/src/components/sales/customer-receivable-detail-skeleton";
 import { CustomerReceivableDetailView } from "@/src/components/sales/customer-receivable-detail-view";
-import type { SalePaymentMode } from "@/src/components/sales/record-sale-payment-section";
-import type { PosSaleReceiptData } from "@/src/components/sales/pos-sale-receipt";
 import { EmptyState } from "@/src/components/ui/empty-state";
 import { getApiErrorMessage } from "@/src/lib/api-error";
-import type { SalePaymentMethod } from "@/src/lib/ar-types";
-import { parseMoneyInput, roundMoneyStr } from "@/src/lib/money-input";
+import type {
+  CustomerReceivableDetail,
+  FifoAllocationPreview,
+  SalePaymentMethod,
+} from "@/src/lib/ar-types";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
 
 export default function CustomerReceivableDetailPage() {
   const params = useParams<{ id: string }>();
-  const id = params.id;
+  const customerId = params.id;
 
-  const [sale, setSale] = useState<PosSaleReceiptData | null>(null);
+  const [detail, setDetail] = useState<CustomerReceivableDetail | null>(null);
+  const [insights, setInsights] = useState<Awaited<
+    ReturnType<typeof operationsApi.customers.summary>
+  > | null>(null);
   const [loading, setLoading] = useState(true);
-  const [payMode, setPayMode] = useState<SalePaymentMode>("FULL");
   const [amountStr, setAmountStr] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<SalePaymentMethod>("CASH");
-  const [referenceNumber, setReferenceNumber] = useState("");
-  const [chequeBankName, setChequeBankName] = useState("");
   const [remarks, setRemarks] = useState("");
+  const [preview, setPreview] = useState<FifoAllocationPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await operationsApi.customerReceivables.getOne(id);
-      setSale(data as PosSaleReceiptData);
+      const [d, s] = await Promise.all([
+        operationsApi.customerReceivables.getCustomer(customerId),
+        operationsApi.customers.summary(customerId).catch(() => null),
+      ]);
+      setDetail(d);
+      setInsights(s);
     } catch (error) {
-      setSale(null);
-      appToast.error(getApiErrorMessage(error, "Failed to load receivable"));
+      setDetail(null);
+      appToast.error(getApiErrorMessage(error, "Failed to load customer"));
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [customerId]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const recordPayment = async () => {
-    if (!sale?.id) return;
-    const remaining = Number(sale.remainingAmount ?? sale.creditAmount);
-    const roundedRemaining = Math.round(remaining * 100) / 100;
-    const parsed = parseMoneyInput(amountStr);
-    const amount =
-      payMode === "FULL" ? roundedRemaining : parsed.invalid ? 0 : parsed.amount;
-
-    if (amount <= 0) {
-      appToast.error("Enter a valid payment amount");
+  useEffect(() => {
+    const amount = Number(amountStr);
+    if (!detail || !Number.isFinite(amount) || amount <= 0) {
+      setPreview(null);
       return;
     }
+    const t = setTimeout(() => {
+      setPreviewLoading(true);
+      void operationsApi.customerReceivables
+        .previewPayment({
+          customerId,
+          amount,
+          paymentMethod,
+          remarks: remarks.trim() || undefined,
+        })
+        .then(setPreview)
+        .catch(() => setPreview(null))
+        .finally(() => setPreviewLoading(false));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [amountStr, paymentMethod, remarks, customerId, detail]);
 
+  const recordPayment = async () => {
+    const amount = Number(amountStr);
+    if (!detail || !Number.isFinite(amount) || amount <= 0) return;
     setSaving(true);
     try {
-      await operationsApi.sales.recordPayment(sale.id, {
+      const result = await operationsApi.customerReceivables.recordPayment({
+        customerId,
         amount,
         paymentMethod,
-        referenceNumber: referenceNumber.trim() || undefined,
-        chequeBankName: paymentMethod === "CHEQUE" ? chequeBankName.trim() : undefined,
         remarks: remarks.trim() || undefined,
       });
-      const updated = await operationsApi.sales.getOne(sale.id);
-      setSale(updated as PosSaleReceiptData);
-      appToast.success("Payment recorded");
+      appToast.success(`Payment ${result.receiptNo} recorded`);
       setAmountStr("");
       setRemarks("");
-      setReferenceNumber("");
-      setChequeBankName("");
-      setPayMode("FULL");
+      setPreview(null);
+      await load();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to record payment"));
     } finally {
@@ -86,52 +100,35 @@ export default function CustomerReceivableDetailPage() {
     return <CustomerReceivableDetailSkeleton />;
   }
 
-  if (!sale) {
+  if (!detail) {
     return (
-      <section className="page-shell page-content">
-        <EmptyState
-          variant="empty"
-          title="Receivable not found"
-          description="This sale may have been removed or you may not have access."
-          icon={HandCoins}
-          action={{
-            label: "Back to receivables",
-            onClick: () => {
-              window.location.href = "/customer-receivables";
-            },
-          }}
-        />
-      </section>
+      <EmptyState
+        title="Customer not found"
+        description="This customer may have been removed or you may not have access."
+        action={{
+          label: "Back to receivables",
+          onClick: () => {
+            window.location.href = "/customer-receivables";
+          },
+        }}
+      />
     );
   }
 
   return (
     <CustomerReceivableDetailView
-      sale={sale}
-      paymentForm={{
-        payMode,
-        onPayModeChange: (m) => {
-          setPayMode(m);
-          const remaining = Number(sale.remainingAmount ?? sale.creditAmount);
-          if (m === "FULL") {
-            setAmountStr(roundMoneyStr(remaining));
-          } else {
-            setAmountStr("");
-          }
-        },
-        amountStr,
-        onAmountStrChange: setAmountStr,
-        paymentMethod,
-        onPaymentMethodChange: setPaymentMethod,
-        referenceNumber,
-        onReferenceNumberChange: setReferenceNumber,
-        chequeBankName,
-        onChequeBankNameChange: setChequeBankName,
-        remarks,
-        onRemarksChange: setRemarks,
-        saving,
-        onSubmit: () => void recordPayment(),
-      }}
+      detail={detail}
+      insights={insights}
+      amountStr={amountStr}
+      onAmountStrChange={setAmountStr}
+      paymentMethod={paymentMethod}
+      onPaymentMethodChange={setPaymentMethod}
+      remarks={remarks}
+      onRemarksChange={setRemarks}
+      preview={preview}
+      previewLoading={previewLoading}
+      saving={saving}
+      onSubmit={() => void recordPayment()}
     />
   );
 }

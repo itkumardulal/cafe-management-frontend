@@ -35,6 +35,7 @@ type MenuItemRow = {
   unitQuantity?: string | null;
   costPerUnit: string;
   sellPricePerUnit: string;
+  openingStockDay1: string;
   trackStock: boolean;
   reorderLevel?: string | null;
   quantityOnHand: string | null;
@@ -51,8 +52,9 @@ const emptyForm = {
   unitQuantity: "",
   costPerUnit: "",
   sellPricePerUnit: "",
-  trackStock: true,
-  openingStockDay1: "0",
+  trackStock: false,
+  openingStockDay1: "",
+  stockAdjustmentQty: "",
   reorderLevel: "",
   notes: "",
 };
@@ -156,7 +158,8 @@ function MenuItemsContent() {
       costPerUnit: item.costPerUnit,
       sellPricePerUnit: item.sellPricePerUnit,
       trackStock: item.trackStock,
-      openingStockDay1: item.quantityOnHand ?? "0",
+      openingStockDay1: item.openingStockDay1 ?? item.quantityOnHand ?? "",
+      stockAdjustmentQty: "",
       reorderLevel: item.reorderLevel ?? "",
       notes: item.notes ?? "",
     });
@@ -218,6 +221,16 @@ function MenuItemsContent() {
           trackStock: form.trackStock,
           reorderLevel: reorderLevel ?? null,
         });
+        if (
+          form.trackStock &&
+          form.stockAdjustmentQty.trim() !== "" &&
+          Number(form.stockAdjustmentQty) !== 0
+        ) {
+          await operationsApi.menuItems.stockAdjustment(editId, {
+            quantity: Number(form.stockAdjustmentQty),
+            notes: "Stock updated from menu item form",
+          });
+        }
         appToast.success("Menu item updated");
       } else {
         await operationsApi.menuItems.create({
@@ -225,9 +238,10 @@ function MenuItemsContent() {
           costPerUnit,
           sellPricePerUnit,
           trackStock: form.trackStock,
-          openingStockDay1: form.trackStock
-            ? Number(form.openingStockDay1 || 0)
-            : undefined,
+          openingStockDay1:
+            form.trackStock && form.openingStockDay1.trim() !== ""
+              ? Number(form.openingStockDay1)
+              : undefined,
           reorderLevel,
         });
         appToast.success("Menu item added");
@@ -663,33 +677,90 @@ function MenuItemsContent() {
               Track stock for this item
             </label>
 
-            {form.trackStock ? (
-              <>
-                {!editId ? (
-                  <Field id="opening" label="Opening stock" hint="Optional, default 0">
-                    <Input
-                      type="number"
-                      min={0}
-                      step="1"
-                      value={form.openingStockDay1}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, openingStockDay1: e.target.value }))
-                      }
-                    />
-                  </Field>
-                ) : null}
-                <Field id="reorder" label="Reorder level" hint="Optional — alerts when at or below">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {!editId ? (
+                <Field
+                  id="opening"
+                  label="Opening stock"
+                  hint={
+                    form.trackStock
+                      ? "Optional — leave empty to start from 0"
+                      : "Optional — used only when stock tracking is enabled"
+                  }
+                >
                   <Input
                     type="number"
                     min={0}
                     step="1"
-                    value={form.reorderLevel}
+                    value={form.openingStockDay1}
                     onChange={(e) =>
-                      setForm((f) => ({ ...f, reorderLevel: e.target.value }))
+                      setForm((f) => ({ ...f, openingStockDay1: e.target.value }))
                     }
+                    disabled={!form.trackStock}
+                    placeholder="Optional"
                   />
                 </Field>
-              </>
+              ) : (
+                <Field
+                  id="openingView"
+                  label="Opening stock"
+                  hint={
+                    form.trackStock
+                      ? "Initial configured stock"
+                      : "Stock tracking is disabled for this item"
+                  }
+                >
+                  <Input
+                    type="number"
+                    value={form.openingStockDay1}
+                    disabled
+                    placeholder="0"
+                  />
+                </Field>
+              )}
+              <Field
+                id="reorder"
+                label="Reorder level"
+                hint={
+                  form.trackStock
+                    ? "Optional — alerts when at or below"
+                    : "Optional — enabled when stock tracking is on"
+                }
+              >
+                <Input
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={form.reorderLevel}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, reorderLevel: e.target.value }))
+                  }
+                  disabled={!form.trackStock}
+                  placeholder="Optional"
+                />
+              </Field>
+            </div>
+            {editId ? (
+              <Field
+                id="stockAdjustment"
+                label="Stock quantity update"
+                hint={
+                  form.trackStock
+                    ? "Optional — use + for add, - for reduce (e.g. 10 or -3)"
+                    : "Enable stock tracking to update quantity"
+                }
+              >
+                <Input
+                  type="number"
+                  step="1"
+                  value={form.stockAdjustmentQty}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, stockAdjustmentQty: e.target.value }))
+                  }
+                  disabled={!form.trackStock}
+                  placeholder="e.g. 10 or -3"
+                />
+              </Field>
             ) : null}
           </section>
 

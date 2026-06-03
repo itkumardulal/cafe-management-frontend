@@ -56,6 +56,8 @@ export type PurchasePaymentRow = {
   paymentDate: string;
   createdAt: string;
   createdByName?: string | null;
+  settlementBatchId?: string | null;
+  settlementReceiptNo?: string | null;
 };
 
 export type ApBillDetail = ApBillSummary & {
@@ -75,4 +77,58 @@ export type ApBillDetail = ApBillSummary & {
     lineTotal: string;
   }>;
   payments: PurchasePaymentRow[];
+};
+
+export type BillSettlementSupplierRow = {
+  id: string;
+  name: string;
+  phone?: string | null;
+  address?: string | null;
+  outstandingAmount: string;
+  totalPurchases: string;
+  totalPaid: string;
+  openBillsCount: number;
+  billsCount: number;
+  lastPurchaseAt: string | null;
+};
+
+export type BillSettlementSupplierDetail = {
+  supplier: {
+    id: string;
+    name: string;
+    phone?: string | null;
+    contactPerson?: string | null;
+    email?: string | null;
+    address?: string | null;
+    notes?: string | null;
+    totalPurchases: string;
+    totalPaid: string;
+    outstandingAmount: string;
+    openBillsCount: number;
+    lastPurchaseAt: string | null;
+  };
+  purchaseHistory: Array<{
+    id: string;
+    receiptNo: string;
+    purchaseDate: string;
+    dueDate: string | null;
+    grandTotal: string;
+    paidAmount: string;
+    remainingAmount: string;
+    paymentStatus: PurchasePaymentStatus;
+    billStatus: SupplierBillStatus;
+    lines: Array<{
+      id: string;
+      name: string;
+      unit: string;
+      quantity: string;
+      lineTotal: string;
+    }>;
+  }>;
+  paymentHistory: Array<
+    PurchasePaymentRow & {
+      purchaseId: string;
+      purchaseReceiptNo: string;
+    }
+  >;
 };

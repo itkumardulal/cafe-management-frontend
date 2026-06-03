@@ -2,31 +2,33 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { Receipt } from "lucide-react";
-import { BillStatusBadge, PaymentStatusBadge } from "@/src/components/purchases/ap-status-badges";
 import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
 import { MobileSortSelect } from "@/src/components/shared/mobile-sort-select";
 import { PageHeader } from "@/src/components/shared/page-header";
 import { PaginatedListSection } from "@/src/components/shared/paginated-list-section";
-import { PaginationSkeleton } from "@/src/components/skeletons/pagination-skeleton";
 import { TableSkeleton } from "@/src/components/skeletons/table-skeleton";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
-import { ResponsiveTable, tableActionsCellClass, tableActionsColumnClass, tableCenterCellClass, tableCenterColumnClass } from "@/src/components/ui/table";
-import { SortableTableHeader } from "@/src/components/ui/sortable-table-header";
+import {
+  ResponsiveTable,
+  tableActionsCellClass,
+  tableActionsColumnClass,
+  tableCenterCellClass,
+  tableCenterColumnClass,
+} from "@/src/components/ui/table";
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
-import type { ApBillSummary } from "@/src/lib/ap-types";
-import { formatMoney, formatDateOnly } from "@/src/lib/format-display";
+import type { BillSettlementSupplierRow } from "@/src/lib/ap-types";
+import { formatDateOnly, formatMoney } from "@/src/lib/format-display";
 import { cn } from "@/src/lib/cn";
 import { operationsApi } from "@/src/services/operations-api";
 
-const FILTER_KEYS = ["supplierId", "billStatus", "paymentStatus"] as const;
+const FILTER_KEYS = ["hasOutstanding", "fullySettled", "activeVendors"] as const;
 
 export default function SupplierBillsPage() {
   return (
     <section className="page-shell page-content space-y-4">
-      <Suspense fallback={<TableSkeleton columns={10} />}>
+      <Suspense fallback={<TableSkeleton columns={8} />}>
         <SupplierBillsContent />
       </Suspense>
     </section>
@@ -34,12 +36,21 @@ export default function SupplierBillsPage() {
 }
 
 function SupplierBillsContent() {
-  const searchParams = useSearchParams();
   const [aging, setAging] = useState<{
-    totals: { current: number; days1_30: number; days31_60: number; days61_90: number; days90Plus: number; totalOutstanding: number };
+    totals: {
+      current: number;
+      days1_30: number;
+      days31_60: number;
+      days61_90: number;
+      days90Plus: number;
+      totalOutstanding: number;
+    };
   } | null>(null);
 
-  const defaultSort = useMemo(() => ({ sortBy: "purchaseDate", sortOrder: "desc" as const }), []);
+  const defaultSort = useMemo(
+    () => ({ sortBy: "outstandingAmount", sortOrder: "desc" as const }),
+    [],
+  );
 
   const {
     items,
@@ -55,48 +66,37 @@ function SupplierBillsContent() {
     searchResultSummary,
     setPage,
     setPageSize,
-    toggleSort,
     setSort,
     params,
     setFilters,
-    refetch,
-  } = usePaginatedList<ApBillSummary>({
-    queryKey: "supplier-bills",
-    fetchFn: (p) => {
-      const dueWithinRaw = searchParams.get("dueWithinDays");
-      const dueWithinDays =
-        dueWithinRaw && Number.isFinite(Number(dueWithinRaw)) ? Number(dueWithinRaw) : undefined;
-
-      return operationsApi.supplierBills.list({
+  } = usePaginatedList<BillSettlementSupplierRow>({
+    queryKey: "bill-settlement",
+    fetchFn: (p) =>
+      operationsApi.billSettlement.list({
         page: p.page,
         limit: p.limit,
         search: p.search,
-        sortBy: p.sortBy,
+        sortBy: p.sortBy as "outstandingAmount" | "lastPurchaseAt" | "name",
         sortOrder: p.sortOrder,
-        supplierId: typeof p.supplierId === "string" ? p.supplierId : undefined,
-        billStatus: typeof p.billStatus === "string" ? p.billStatus : undefined,
-        paymentStatus: typeof p.paymentStatus === "string" ? p.paymentStatus : undefined,
-        fromDate: typeof p.fromDate === "string" ? p.fromDate : undefined,
-        toDate: typeof p.toDate === "string" ? p.toDate : undefined,
-        dueWithinDays,
-        hasOutstanding: searchParams.get("hasOutstanding") === "true" ? "true" : undefined,
-      });
-    },
+        hasOutstanding: p.hasOutstanding === "true",
+        fullySettled: p.fullySettled === "true",
+        activeVendors: p.activeVendors === "true",
+      }),
     defaultSort,
     filterKeys: [...FILTER_KEYS],
-    errorMessage: "Failed to load supplier bills",
-    searchPlaceholder: "Search receipt, supplier, or invoice…",
+    errorMessage: "Failed to load bill settlement",
+    searchPlaceholder: "Search supplier name or phone…",
   });
 
   useEffect(() => {
-    void operationsApi.supplierBills.agingSummary().then(setAging).catch(() => {});
+    void operationsApi.billSettlement.agingSummary().then(setAging).catch(() => {});
   }, []);
 
   return (
     <>
       <PageHeader
-        title="Supplier bills"
-        description="Track supplier dues, record payments, and monitor overdue balances."
+        title="Bill settlement"
+        description="Track supplier dues and settle outstanding purchase bills by vendor."
       />
 
       {aging ? (
@@ -120,9 +120,9 @@ function SupplierBillsContent() {
       <div className="flex flex-wrap gap-2">
         {[
           { label: "All", clear: true },
-          { label: "Open", billStatus: "OPEN" },
-          { label: "Overdue", billStatus: "OVERDUE" },
-          { label: "Unpaid", paymentStatus: "UNPAID" },
+          { label: "Has outstanding", hasOutstanding: true },
+          { label: "Fully settled", fullySettled: true },
+          { label: "Active vendors", activeVendors: true },
         ].map((f) => (
           <Button
             key={f.label}
@@ -130,22 +130,27 @@ function SupplierBillsContent() {
             size="sm"
             variant={
               f.clear
-                ? !params.filters.billStatus && !params.filters.paymentStatus
+                ? !params.filters.hasOutstanding &&
+                  !params.filters.fullySettled &&
+                  !params.filters.activeVendors
                   ? "soft"
                   : "secondary"
-                : params.filters.billStatus === f.billStatus ||
-                    params.filters.paymentStatus === f.paymentStatus
+                : (f.hasOutstanding && params.filters.hasOutstanding) ||
+                    (f.fullySettled && params.filters.fullySettled) ||
+                    (f.activeVendors && params.filters.activeVendors)
                   ? "soft"
                   : "secondary"
             }
             onClick={() => {
               if (f.clear) {
                 setFilters({});
-              } else if (f.billStatus) {
-                setFilters({ billStatus: f.billStatus });
-              } else if (f.paymentStatus) {
-                setFilters({ paymentStatus: f.paymentStatus });
+                return;
               }
+              setFilters({
+                hasOutstanding: f.hasOutstanding ? "true" : "",
+                fullySettled: f.fullySettled ? "true" : "",
+                activeVendors: f.activeVendors ? "true" : "",
+              });
             }}
           >
             {f.label}
@@ -164,10 +169,14 @@ function SupplierBillsContent() {
         searchPlaceholder={searchPlaceholder}
         isSearching={isSearching}
         searchResultSummary={searchResultSummary}
-        tableColumns={10}
-        emptyTitle="No supplier bills"
-        emptyDescription="Record a raw material purchase to create supplier bills."
+        tableColumns={8}
+        emptyTitle="No vendor settlement records"
+        emptyDescription="Record raw material purchases to start vendor settlement tracking."
         emptyIcon={Receipt}
+        onClearFilters={() => {
+          clearSearch();
+          setFilters({});
+        }}
         currentPage={meta.page}
         totalPages={meta.totalPages}
         totalRecords={meta.total}
@@ -177,9 +186,10 @@ function SupplierBillsContent() {
         mobileSort={
           <MobileSortSelect
             options={[
-              { label: "Purchase date (newest)", sortBy: "purchaseDate", sortOrder: "desc" },
-              { label: "Due date", sortBy: "dueDate", sortOrder: "asc" },
-              { label: "Remaining (high)", sortBy: "remainingAmount", sortOrder: "desc" },
+              { label: "Outstanding (high)", sortBy: "outstandingAmount", sortOrder: "desc" },
+              { label: "Outstanding (low)", sortBy: "outstandingAmount", sortOrder: "asc" },
+              { label: "Last purchase", sortBy: "lastPurchaseAt", sortOrder: "desc" },
+              { label: "Supplier name", sortBy: "name", sortOrder: "asc" },
             ]}
             currentSortBy={params.sortBy}
             currentSortOrder={params.sortOrder}
@@ -188,25 +198,19 @@ function SupplierBillsContent() {
         }
         mobileCards={
           <ListCardStack>
-            {items.map((b) => (
+            {items.map((s) => (
               <ListCard
-                key={b.id}
-                title={b.receiptNo}
-                subtitle={b.supplierName ?? "—"}
-                badge={
-                  <div className="flex flex-wrap gap-1">
-                    <BillStatusBadge status={b.billStatus} />
-                    <PaymentStatusBadge status={b.paymentStatus} />
-                  </div>
-                }
+                key={s.id}
+                title={s.name}
+                subtitle={s.phone ?? "—"}
                 fields={[
-                  { label: "Total", value: formatMoney(b.grandTotal) },
-                  { label: "Remaining", value: formatMoney(b.remainingAmount) },
-                  { label: "Due", value: b.dueDate ? formatDateOnly(b.dueDate) : "—" },
+                  { label: "Outstanding", value: formatMoney(s.outstandingAmount) },
+                  { label: "Total purchases", value: formatMoney(s.totalPurchases) },
+                  { label: "Open bills", value: String(s.openBillsCount) },
                 ]}
                 actions={
                   <Link
-                    href={`/supplier-bills/${b.id}`}
+                    href={`/bill-settlement/${s.id}`}
                     className="inline-flex items-center justify-center rounded-md border border-(--color-border) bg-surface px-3 py-1.5 text-sm font-medium hover:bg-surface-muted"
                   >
                     View
@@ -220,35 +224,46 @@ function SupplierBillsContent() {
         <Card density="compact" className="overflow-hidden p-0">
           <ResponsiveTable
             headers={[
-              { label: "Purchase no", thClassName: tableCenterColumnClass },
               { label: "Supplier" },
-              { label: "Purchase date" },
-              { label: "Due date" },
-              { label: "Total", thClassName: tableCenterColumnClass },
-              { label: "Paid", thClassName: tableCenterColumnClass },
-              { label: "Remaining", thClassName: tableCenterColumnClass },
-              { label: "Payment", thClassName: tableCenterColumnClass },
-              { label: "Status", thClassName: tableCenterColumnClass },
+              { label: "Phone" },
+              { label: "Last purchase" },
+              { label: "Open bills", thClassName: tableCenterColumnClass },
+              { label: "Total purchases", thClassName: tableCenterColumnClass },
+              { label: "Total paid", thClassName: tableCenterColumnClass },
+              { label: "Outstanding", thClassName: tableCenterColumnClass },
               { label: "Actions", thClassName: tableActionsColumnClass },
             ]}
-            ariaLabel="Supplier bills"
+            ariaLabel="Bill settlement vendors"
             className="min-w-0 border-0 shadow-none [&_table]:min-w-[64rem]"
           >
-            {items.map((b) => (
-              <tr key={b.id} className="border-t border-(--color-border)">
-                <td className={cn("px-4 py-3 text-sm font-medium", tableCenterCellClass)}>{b.receiptNo}</td>
-                <td className="px-4 py-3 text-sm">{b.supplierName ?? "—"}</td>
-                <td className="px-4 py-3 text-sm text-muted">{formatDateOnly(b.purchaseDate)}</td>
-                <td className="px-4 py-3 text-sm text-muted">{b.dueDate ? formatDateOnly(b.dueDate) : "—"}</td>
-                <td className={cn("px-4 py-3 text-sm tabular-nums", tableCenterCellClass)}>{formatMoney(b.grandTotal)}</td>
-                <td className={cn("px-4 py-3 text-sm tabular-nums", tableCenterCellClass)}>{formatMoney(b.paidAmount)}</td>
-                <td className={cn("px-4 py-3 text-sm tabular-nums font-medium", tableCenterCellClass)}>{formatMoney(b.remainingAmount)}</td>
-                <td className={cn("px-4 py-3", tableCenterCellClass)}><PaymentStatusBadge status={b.paymentStatus} /></td>
-                <td className={cn("px-4 py-3", tableCenterCellClass)}><BillStatusBadge status={b.billStatus} /></td>
+            {items.map((s) => (
+              <tr key={s.id} className="border-t border-(--color-border)">
+                <td className="px-4 py-3 text-sm font-medium">{s.name}</td>
+                <td className="px-4 py-3 text-sm text-muted">{s.phone ?? "—"}</td>
+                <td className="px-4 py-3 text-sm text-muted">
+                  {s.lastPurchaseAt ? formatDateOnly(s.lastPurchaseAt) : "—"}
+                </td>
+                <td className={cn("px-4 py-3 text-sm tabular-nums", tableCenterCellClass)}>
+                  {s.openBillsCount}
+                </td>
+                <td className={cn("px-4 py-3 text-sm tabular-nums", tableCenterCellClass)}>
+                  {formatMoney(s.totalPurchases)}
+                </td>
+                <td className={cn("px-4 py-3 text-sm tabular-nums", tableCenterCellClass)}>
+                  {formatMoney(s.totalPaid)}
+                </td>
+                <td
+                  className={cn(
+                    "px-4 py-3 text-sm tabular-nums font-medium",
+                    tableCenterCellClass,
+                  )}
+                >
+                  {formatMoney(s.outstandingAmount)}
+                </td>
                 <td className="px-4 py-3">
                   <div className={tableActionsCellClass}>
                     <Link
-                      href={`/supplier-bills/${b.id}`}
+                      href={`/bill-settlement/${s.id}`}
                       className="inline-flex items-center justify-center rounded-md border border-(--color-border) bg-surface px-3 py-1.5 text-sm font-medium hover:bg-surface-muted"
                     >
                       View

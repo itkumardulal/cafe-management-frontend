@@ -14,7 +14,6 @@ import { PageHeader } from "@/src/components/shared/page-header";
 import { PaginatedListSection } from "@/src/components/shared/paginated-list-section";
 import { FormFooter } from "@/src/components/shared/form-footer";
 import { ImageUploadField } from "@/src/components/shared/image-upload-field";
-import { PaymentTermsSection } from "@/src/components/purchases/payment-terms-section";
 import { PurchasePaymentTypeSection } from "@/src/components/purchases/purchase-payment-type-section";
 import { PaymentStatusBadge } from "@/src/components/purchases/ap-status-badges";
 import { SortableTableHeader } from "@/src/components/ui/sortable-table-header";
@@ -38,7 +37,7 @@ import { Select } from "@/src/components/ui/select";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { cn } from "@/src/lib/cn";
 import { formatDateOnly, formatDateTime, formatMoney } from "@/src/lib/format-display";
-import type { ApBillSummary, CreatePaymentType, PaymentTermsPreset, PurchasePaymentMethod } from "@/src/lib/ap-types";
+import type { ApBillSummary, CreatePaymentType, PurchasePaymentMethod } from "@/src/lib/ap-types";
 import { parseMoneyInput } from "@/src/lib/money-input";
 import Link from "next/link";
 import { appToast } from "@/src/lib/toast";
@@ -128,8 +127,6 @@ function RawMaterialPurchasesContent() {
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<Line[]>([emptyLine()]);
   const [paymentType, setPaymentType] = useState<CreatePaymentType>("FULLY_PAID");
-  const [paymentTermsPreset, setPaymentTermsPreset] = useState<PaymentTermsPreset>("IMMEDIATE");
-  const [customDueDate, setCustomDueDate] = useState("");
   const [supplierInvoiceNo, setSupplierInvoiceNo] = useState("");
   const [paidAmountStr, setPaidAmountStr] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PurchasePaymentMethod>("CASH");
@@ -139,7 +136,9 @@ function RawMaterialPurchasesContent() {
   const [bankScreenshotUploading, setBankScreenshotUploading] = useState(false);
   const [uploadEntityId, setUploadEntityId] = useState("");
   const [splitResultOpen, setSplitResultOpen] = useState(false);
-  const [createdBills, setCreatedBills] = useState<{ id: string; receiptNo: string; supplierName?: string | null }[]>([]);
+  const [createdBills, setCreatedBills] = useState<
+    { id: string; supplierId?: string | null; receiptNo: string; supplierName?: string | null }[]
+  >([]);
   const [viewOpen, setViewOpen] = useState(false);
   const [viewLoading, setViewLoading] = useState(false);
   const [viewPurchase, setViewPurchase] = useState<RmPurchaseReceiptData | null>(null);
@@ -163,8 +162,12 @@ function RawMaterialPurchasesContent() {
         operationsApi.rawMaterials.list({ limit: 100 }),
         operationsApi.suppliers.list({ limit: 100 }),
       ]);
-      setMaterials(m.items.map((i) => ({ id: i.id, name: i.name })));
-      setSuppliers(s.items.map((i) => ({ id: i.id, name: i.name })));
+      setMaterials(
+        m.items.map((i: { id: string; name: string }) => ({ id: i.id, name: i.name })),
+      );
+      setSuppliers(
+        s.items.map((i: { id: string; name: string }) => ({ id: i.id, name: i.name })),
+      );
     } catch {
       appToast.error("Failed to load materials or suppliers");
     }
@@ -192,8 +195,6 @@ function RawMaterialPurchasesContent() {
     setSupplierInvoiceNo("");
     setLines([emptyLine()]);
     setPaymentType("FULLY_PAID");
-    setPaymentTermsPreset("IMMEDIATE");
-    setCustomDueDate("");
     setPaidAmountStr("");
     setPaymentMethod("CASH");
     setPayReference("");
@@ -261,11 +262,6 @@ function RawMaterialPurchasesContent() {
       }
     }
 
-    if (paymentTermsPreset === "CUSTOM" && !customDueDate) {
-      appToast.error("Select a due date");
-      return;
-    }
-
     setSaving(true);
     try {
       const result = await operationsApi.rmPurchases.create({
@@ -273,8 +269,7 @@ function RawMaterialPurchasesContent() {
         notes: notes.trim() || undefined,
         supplierInvoiceNo: supplierInvoiceNo.trim() || undefined,
         paymentType,
-        paymentTermsPreset,
-        ...(paymentTermsPreset === "CUSTOM" ? { dueDate: customDueDate } : {}),
+        paymentTermsPreset: "IMMEDIATE",
         ...(paymentType === "PARTIALLY_PAID"
           ? {
               initialPayment: {
@@ -297,8 +292,9 @@ function RawMaterialPurchasesContent() {
       setOpen(false);
       if (result.purchases.length > 1) {
         setCreatedBills(
-          result.purchases.map((b) => ({
+          result.purchases.map((b: { id: string; supplierId?: string | null; receiptNo: string; supplierName?: string | null }) => ({
             id: b.id,
+            supplierId: b.supplierId,
             receiptNo: b.receiptNo,
             supplierName: b.supplierName,
           })),
@@ -324,7 +320,13 @@ function RawMaterialPurchasesContent() {
     const lines = detail.lines ?? [];
     const grandTotal =
       detail.grandTotal ??
-      String(lines.reduce((sum, line) => sum + Number(line.lineTotal || 0), 0));
+      String(
+        lines.reduce(
+          (sum: number, line: { lineTotal?: string | number | null }) =>
+            sum + Number(line.lineTotal || 0),
+          0,
+        ),
+      );
     return {
       receiptNo: detail.receiptNo,
       purchaseDate: detail.purchaseDate,
@@ -1067,15 +1069,6 @@ function RawMaterialPurchasesContent() {
             />
           </Field>
 
-          <PaymentTermsSection
-            purchaseDate={purchaseDate}
-            preset={paymentTermsPreset}
-            onPresetChange={setPaymentTermsPreset}
-            customDueDate={customDueDate}
-            onCustomDueDateChange={setCustomDueDate}
-            disabled={!hasRefs || saving}
-          />
-
           <PurchasePaymentTypeSection
             grandTotal={Math.round(grandTotal * 100) / 100}
             paymentType={paymentType}
@@ -1114,7 +1107,7 @@ function RawMaterialPurchasesContent() {
 
       <Modal
         open={splitResultOpen}
-        title="Supplier bills created"
+        title="Bill settlements created"
         description="This purchase was split into one bill per supplier."
         onClose={() => setSplitResultOpen(false)}
       >
@@ -1125,7 +1118,10 @@ function RawMaterialPurchasesContent() {
                 {b.receiptNo}
                 {b.supplierName ? ` — ${b.supplierName}` : ""}
               </span>
-              <Link href={`/supplier-bills/${b.id}`} className="text-primary text-sm font-medium">
+              <Link
+                href={`/bill-settlement/${b.supplierId ?? b.id}`}
+                className="text-primary text-sm font-medium"
+              >
                 View bill
               </Link>
             </li>

@@ -24,17 +24,22 @@ export function Sidebar({ collapsed = false, onToggle, className }: SidebarProps
   const pathname = usePathname();
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const user = useAppSelector((state) => state.auth.user);
   const menus = useAppSelector((state) => state.menu.items);
   const [stockAlertCount, setStockAlertCount] = useState(0);
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
   useEffect(() => {
+    if (!user?.role || user.role === "SUPER_ADMIN") {
+      setStockAlertCount(0);
+      return;
+    }
     void operationsApi
       .stockAlerts()
       .then((data) => setStockAlertCount(data.counts.low + data.counts.out))
       .catch(() => setStockAlertCount(0));
-  }, []);
+  }, [user?.role]);
 
   const handleLogout = async () => {
     setLoggingOut(true);

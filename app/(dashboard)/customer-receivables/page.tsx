@@ -1,13 +1,13 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { HandCoins } from "lucide-react";
 import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
+import { MobileSortSelect } from "@/src/components/shared/mobile-sort-select";
 import { PageHeader } from "@/src/components/shared/page-header";
 import { PaginatedListSection } from "@/src/components/shared/paginated-list-section";
 import { TableSkeleton } from "@/src/components/skeletons/table-skeleton";
-import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import {
@@ -18,30 +18,24 @@ import {
   tableCenterColumnClass,
 } from "@/src/components/ui/table";
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
-import {
-  saleBillStatusLabel,
-  salePaymentStatusLabel,
-} from "@/src/lib/ar-display";
+import type { CustomerReceivableListRow } from "@/src/lib/ar-types";
 import { cn } from "@/src/lib/cn";
 import { formatDateOnly, formatMoney } from "@/src/lib/format-display";
 import { operationsApi } from "@/src/services/operations-api";
 
-type ReceivableRow = {
-  id: string;
-  receiptNo: string;
-  saleAt: string;
-  customerName?: string | null;
-  customerPhone?: string | null;
-  grandTotal: string;
-  paidAmount: string;
-  remainingAmount: string;
-  paymentStatus: "PAID" | "PARTIAL" | "UNPAID";
-  billStatus: "OPEN" | "OVERDUE" | "CLOSED";
-  dueDate?: string | null;
-  lineCount: number;
-};
+const FILTER_KEYS = ["hasOutstanding", "fullySettled", "activeCustomers"] as const;
 
-function ReceivablesContent() {
+export default function CustomerReceivablesPage() {
+  return (
+    <section className="page-shell page-content space-y-4">
+      <Suspense fallback={<TableSkeleton columns={7} />}>
+        <CustomerReceivablesContent />
+      </Suspense>
+    </section>
+  );
+}
+
+function CustomerReceivablesContent() {
   const [aging, setAging] = useState<{
     totals: {
       current: number;
@@ -52,6 +46,11 @@ function ReceivablesContent() {
       totalOutstanding: number;
     };
   } | null>(null);
+
+  const defaultSort = useMemo(
+    () => ({ sortBy: "outstandingAmount", sortOrder: "desc" as const }),
+    [],
+  );
 
   const {
     items,
@@ -67,46 +66,116 @@ function ReceivablesContent() {
     searchResultSummary,
     setPage,
     setPageSize,
+    toggleSort,
+    setSort,
+    params,
+    setFilters,
     clearFilters,
-  } = usePaginatedList<ReceivableRow>({
+  } = usePaginatedList<CustomerReceivableListRow>({
     queryKey: "customer-receivables",
     fetchFn: (p) =>
       operationsApi.customerReceivables.list({
         page: p.page,
         limit: p.limit,
         search: p.search,
+        sortBy: (p.sortBy as "outstandingAmount" | "lastVisitAt" | "name") ?? "outstandingAmount",
+        sortOrder: (p.sortOrder as "asc" | "desc") ?? "desc",
+        hasOutstanding: p.hasOutstanding === "true" ? true : undefined,
+        fullySettled: p.fullySettled === "true" ? true : undefined,
+        activeCustomers: p.activeCustomers === "true" ? true : undefined,
       }),
-    defaultSort: { sortBy: "saleAt", sortOrder: "desc" },
-    errorMessage: "Failed to load receivables",
-    searchPlaceholder: "Search receipt, customer, phone…",
+    defaultSort,
+    filterKeys: [...FILTER_KEYS],
+    errorMessage: "Failed to load customer receivables",
+    searchPlaceholder: "Search customer name or phone…",
   });
 
   useEffect(() => {
     void operationsApi.customerReceivables.agingSummary().then(setAging).catch(() => {});
   }, []);
 
+  const setFilter = (key: string, value: boolean) => {
+    setFilters({ [key]: value ? "true" : "" });
+  };
+
+  const sortOptions = [
+    { label: "Outstanding (high)", sortBy: "outstandingAmount", sortOrder: "desc" as const },
+    { label: "Outstanding (low)", sortBy: "outstandingAmount", sortOrder: "asc" as const },
+    { label: "Last visit (recent)", sortBy: "lastVisitAt", sortOrder: "desc" as const },
+    { label: "Name (A–Z)", sortBy: "name", sortOrder: "asc" as const },
+  ] as const;
+
   return (
     <>
       <PageHeader
         title="Customer receivables"
-        description="Outstanding customer credit from POS sales. Record payments to settle balances."
+        description="Customer accounts, credit bills, and FIFO settlement."
       />
 
       {aging ? (
-        <Card className="p-4">
-          <p className="text-sm font-medium text-foreground">Total outstanding</p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums text-[var(--color-primary)]">
-            {formatMoney(aging.totals.totalOutstanding)}
-          </p>
-          <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted sm:grid-cols-5">
-            <div>Current: {formatMoney(aging.totals.current)}</div>
-            <div>1–30d: {formatMoney(aging.totals.days1_30)}</div>
-            <div>31–60d: {formatMoney(aging.totals.days31_60)}</div>
-            <div>61–90d: {formatMoney(aging.totals.days61_90)}</div>
-            <div>90+d: {formatMoney(aging.totals.days90Plus)}</div>
-          </div>
-        </Card>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          {[
+            ["Current", aging.totals.current],
+            ["1–30 days", aging.totals.days1_30],
+            ["31–60 days", aging.totals.days31_60],
+            ["61–90 days", aging.totals.days61_90],
+            ["90+ days", aging.totals.days90Plus],
+            ["Total due", aging.totals.totalOutstanding],
+          ].map(([label, amount]) => (
+            <Card key={label as string} density="compact" className="text-center">
+              <p className="text-xs text-muted">{label}</p>
+              <p className="font-mono text-sm font-semibold tabular-nums">
+                {formatMoney(amount as number)}
+              </p>
+            </Card>
+          ))}
+        </div>
       ) : null}
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant={params.filters.hasOutstanding === "true" ? "primary" : "secondary"}
+          onClick={() =>
+            setFilter("hasOutstanding", params.filters.hasOutstanding !== "true")
+          }
+        >
+          Has outstanding
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={params.filters.fullySettled === "true" ? "primary" : "secondary"}
+          onClick={() =>
+            setFilter("fullySettled", params.filters.fullySettled !== "true")
+          }
+        >
+          Fully settled
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={params.filters.activeCustomers === "true" ? "primary" : "secondary"}
+          onClick={() =>
+            setFilter("activeCustomers", params.filters.activeCustomers !== "true")
+          }
+        >
+          Active customers
+        </Button>
+        {hasActiveFilters ? (
+          <Button type="button" size="sm" variant="ghost" onClick={clearFilters}>
+            Clear filters
+          </Button>
+        ) : null}
+      </div>
+
+      <MobileSortSelect
+        options={[...sortOptions]}
+        currentSortBy={params.sortBy}
+        currentSortOrder={params.sortOrder}
+        onSort={(sortBy, sortOrder) => setSort(sortBy, sortOrder)}
+      />
 
       <PaginatedListSection
         loading={loading}
@@ -116,13 +185,9 @@ function ReceivablesContent() {
         searchValue={searchInput}
         onSearchChange={setSearch}
         onSearchClear={clearSearch}
-        searchPlaceholder={searchPlaceholder}
         isSearching={isSearching}
+        searchPlaceholder={searchPlaceholder}
         searchResultSummary={searchResultSummary}
-        tableColumns={8}
-        emptyTitle="No open receivables"
-        emptyDescription="Sales with a credit balance will appear here."
-        emptyIcon={HandCoins}
         onClearFilters={clearFilters}
         currentPage={meta.page}
         totalPages={meta.totalPages}
@@ -130,22 +195,35 @@ function ReceivablesContent() {
         pageSize={meta.limit}
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
+        emptyTitle="No customers found"
+        emptyDescription="Try adjusting search or filters."
+        emptyIcon={HandCoins}
+        tableColumns={8}
         mobileCards={
           <ListCardStack>
             {items.map((row) => (
               <ListCard
                 key={row.id}
-                title={row.receiptNo}
-                subtitle={row.customerName ?? row.customerPhone ?? "Walk-in"}
+                title={row.name}
+                subtitle={<span className="font-mono tabular-nums">{row.phoneNumber}</span>}
+                badge={
+                  <span className="font-mono font-semibold tabular-nums text-amber-800 dark:text-amber-300">
+                    {formatMoney(row.outstandingAmount)}
+                  </span>
+                }
                 fields={[
-                  { label: "Due", value: formatMoney(row.remainingAmount) },
-                  { label: "Due date", value: row.dueDate ? formatDateOnly(row.dueDate) : "—" },
-                  { label: "Status", value: salePaymentStatusLabel(row.paymentStatus) },
+                  { label: "Purchases", value: formatMoney(row.totalPurchases) },
+                  { label: "Paid", value: formatMoney(row.totalPaid) },
+                  { label: "Open bills", value: row.creditBillsCount },
+                  {
+                    label: "Last visit",
+                    value: row.lastVisitAt ? formatDateOnly(row.lastVisitAt) : "—",
+                  },
                 ]}
                 actions={
                   <Link href={`/customer-receivables/${row.id}`}>
-                    <Button size="sm" variant="secondary">
-                      View
+                    <Button type="button" size="sm" variant="secondary">
+                      View customer
                     </Button>
                   </Link>
                 }
@@ -155,63 +233,44 @@ function ReceivablesContent() {
         }
       >
         <ResponsiveTable
+          className="hidden md:block"
           headers={[
-            "Receipt",
             "Customer",
-            { label: "Sale date", thClassName: tableCenterColumnClass },
-            { label: "Due date", thClassName: tableCenterColumnClass },
+            "Phone",
             { label: "Outstanding", thClassName: tableCenterColumnClass },
-            { label: "Status", thClassName: tableCenterColumnClass },
+            { label: "Purchases", thClassName: tableCenterColumnClass },
+            { label: "Paid", thClassName: tableCenterColumnClass },
+            { label: "Open bills", thClassName: tableCenterColumnClass },
+            "Last visit",
             { label: "Actions", thClassName: tableActionsColumnClass },
           ]}
-          ariaLabel="Customer receivables"
         >
           {items.map((row) => (
-            <tr key={row.id} className="border-t border-[var(--color-border)]">
-              <td className="px-4 py-3 font-mono text-sm font-medium">{row.receiptNo}</td>
-              <td className="px-4 py-3 text-sm">
-                <p>{row.customerName ?? "—"}</p>
-                {row.customerPhone ? (
-                  <p className="text-xs text-muted">{row.customerPhone}</p>
-                ) : null}
+            <tr key={row.id}>
+              <td className="font-medium">{row.name}</td>
+              <td className="font-mono text-sm tabular-nums">{row.phoneNumber}</td>
+              <td className={cn(tableCenterCellClass, "font-mono font-semibold tabular-nums")}>
+                {formatMoney(row.outstandingAmount)}
               </td>
-              <td className={cn("px-4 py-3 text-sm text-muted", tableCenterCellClass)}>
-                {formatDateOnly(row.saleAt)}
+              <td className={cn(tableCenterCellClass, "font-mono tabular-nums")}>
+                {formatMoney(row.totalPurchases)}
               </td>
-              <td className={cn("px-4 py-3 text-sm text-muted", tableCenterCellClass)}>
-                {row.dueDate ? formatDateOnly(row.dueDate) : "—"}
+              <td className={cn(tableCenterCellClass, "font-mono tabular-nums")}>
+                {formatMoney(row.totalPaid)}
               </td>
-              <td className={cn("px-4 py-3 font-mono text-sm font-semibold tabular-nums", tableCenterCellClass)}>
-                {formatMoney(row.remainingAmount)}
-              </td>
-              <td className={cn("px-4 py-3", tableCenterCellClass)}>
-                <Badge variant={row.billStatus === "OVERDUE" ? "danger" : "warning"}>
-                  {saleBillStatusLabel(row.billStatus)}
-                </Badge>
-              </td>
-              <td className="px-4 py-3">
-                <div className={tableActionsCellClass}>
-                  <Link href={`/customer-receivables/${row.id}`}>
-                    <Button size="sm" variant="secondary">
-                      View
-                    </Button>
-                  </Link>
-                </div>
+              <td className={tableCenterCellClass}>{row.creditBillsCount}</td>
+              <td>{row.lastVisitAt ? formatDateOnly(row.lastVisitAt) : "—"}</td>
+              <td className={tableActionsCellClass}>
+                <Link href={`/customer-receivables/${row.id}`}>
+                  <Button type="button" size="sm" variant="secondary">
+                    View
+                  </Button>
+                </Link>
               </td>
             </tr>
           ))}
         </ResponsiveTable>
       </PaginatedListSection>
     </>
-  );
-}
-
-export default function CustomerReceivablesPage() {
-  return (
-    <section className="page-shell page-content space-y-4">
-      <Suspense fallback={<TableSkeleton columns={8} />}>
-        <ReceivablesContent />
-      </Suspense>
-    </section>
   );
 }

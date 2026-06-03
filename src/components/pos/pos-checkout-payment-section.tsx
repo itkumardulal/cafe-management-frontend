@@ -4,10 +4,8 @@ import { AlertCircle, Banknote, Building2, CheckCircle2, Split } from "lucide-re
 import { useEffect, useMemo } from "react";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
-import { Select } from "@/src/components/ui/select";
 import { cn } from "@/src/lib/cn";
-import type { CheckoutPaymentType, PaymentTermsPreset, SalePaymentMethod } from "@/src/lib/ar-types";
-import { SALE_PAYMENT_TERMS_OPTIONS } from "@/src/lib/ar-display";
+import type { CheckoutPaymentType, SalePaymentMethod } from "@/src/lib/ar-types";
 import { formatMoney } from "@/src/lib/format-display";
 import { parseMoneyInput, roundMoneyStr } from "@/src/lib/money-input";
 
@@ -43,11 +41,8 @@ type Props = {
   onChequeNumberChange: (v: string) => void;
   bankReference: string;
   onBankReferenceChange: (v: string) => void;
-  paymentTermsPreset: PaymentTermsPreset;
-  onPaymentTermsPresetChange: (v: PaymentTermsPreset) => void;
-  customDueDate: string;
-  onCustomDueDateChange: (v: string) => void;
   disabled?: boolean;
+  allowCredit?: boolean;
 };
 
 export function buildInitialPaymentsFromCheckout(params: {
@@ -66,13 +61,12 @@ export function buildInitialPaymentsFromCheckout(params: {
   referenceNumber?: string;
   chequeBankName?: string;
 }> {
-  const { checkoutPaymentType, grandTotal, paidAmount, tenderMode } = params;
+  const { checkoutPaymentType, paidAmount, tenderMode } = params;
   if (checkoutPaymentType === "CREDIT" || paidAmount < 0.005) {
     return [];
   }
 
-  const amount =
-    checkoutPaymentType === "FULLY_PAID" ? grandTotal : paidAmount;
+  const amount = paidAmount;
 
   if (tenderMode === "SPLIT") {
     const rows: Array<{
@@ -133,11 +127,8 @@ export function PosCheckoutPaymentSection({
   onChequeNumberChange,
   bankReference,
   onBankReferenceChange,
-  paymentTermsPreset,
-  onPaymentTermsPresetChange,
-  customDueDate,
-  onCustomDueDateChange,
   disabled,
+  allowCredit = true,
 }: Props) {
   const paidResult = parseMoneyInput(paidAmountStr);
   const cashResult = parseMoneyInput(cashPaidStr);
@@ -145,7 +136,14 @@ export function PosCheckoutPaymentSection({
 
   const paidNow =
     checkoutPaymentType === "FULLY_PAID"
-      ? grandTotal
+      ? tenderMode === "CASH"
+        ? cashResult.invalid
+          ? 0
+          : cashResult.amount
+        : tenderMode === "SPLIT"
+          ? (cashResult.invalid ? 0 : cashResult.amount) +
+            (bankResult.invalid ? 0 : bankResult.amount)
+          : grandTotal
       : checkoutPaymentType === "CREDIT"
         ? 0
         : paidResult.invalid
@@ -159,11 +157,18 @@ export function PosCheckoutPaymentSection({
     if (checkoutPaymentType === "FULLY_PAID") {
       onPaidAmountStrChange(roundMoneyStr(grandTotal));
       if (tenderMode === "CASH") {
-        onCashPaidStrChange(roundMoneyStr(grandTotal));
+        const currentCash = parseMoneyInput(cashPaidStr);
+        const currentCashAmount = currentCash.invalid ? 0 : currentCash.amount;
+        if (currentCashAmount < 0.005 && grandTotal > 0.005) {
+          onCashPaidStrChange(roundMoneyStr(grandTotal));
+        }
         onBankPaidStrChange("0");
       } else if (tenderMode === "BANK") {
         onCashPaidStrChange("0");
         onBankPaidStrChange(roundMoneyStr(grandTotal));
+      } else if (tenderMode === "CHEQUE") {
+        onCashPaidStrChange("0");
+        onBankPaidStrChange("0");
       }
     } else if (checkoutPaymentType === "CREDIT") {
       onPaidAmountStrChange("0");
@@ -198,12 +203,20 @@ export function PosCheckoutPaymentSection({
     checkoutPaymentType !== "PARTIALLY_PAID" ||
     (!paidResult.invalid && paidNow > 0 && paidNow < grandTotal - 0.005);
 
+  const fullPaidValid =
+    checkoutPaymentType !== "FULLY_PAID" || paidNow >= grandTotal - 0.005;
+
   const paymentBalanced =
     checkoutPaymentType === "FULLY_PAID"
-      ? paidNow >= grandTotal - 0.005
+      ? fullPaidValid
       : checkoutPaymentType === "CREDIT"
         ? paidNow < 0.005
         : partialValid;
+
+  const changePreview =
+    checkoutPaymentType === "FULLY_PAID"
+      ? Math.max(0, Math.round((paidNow - grandTotal) * 100) / 100)
+      : 0;
 
   const statusOk = paymentBalanced && tenderBalanced && chequeValid;
 
@@ -217,18 +230,24 @@ export function PosCheckoutPaymentSection({
       disabled && "pointer-events-none opacity-60",
     );
 
+  const paymentTypeOptions = (
+    [
+      ["FULLY_PAID", "Paid now"],
+      ...(allowCredit
+        ? ([
+            ["PARTIALLY_PAID", "Partial"],
+            ["CREDIT", "On credit"],
+          ] as const)
+        : []),
+    ] as const
+  ) satisfies ReadonlyArray<readonly [CheckoutPaymentType, string]>;
+
   return (
     <div className="space-y-3">
       <div>
         <p className="mb-1 text-xs text-muted">Payment type</p>
         <div className="flex gap-1 rounded-lg bg-[var(--color-cream-100)] p-1">
-          {(
-            [
-              ["FULLY_PAID", "Paid now"],
-              ["PARTIALLY_PAID", "Partial"],
-              ["CREDIT", "On credit"],
-            ] as const
-          ).map(([value, label]) => (
+          {paymentTypeOptions.map(([value, label]) => (
             <button
               key={value}
               type="button"
@@ -242,7 +261,7 @@ export function PosCheckoutPaymentSection({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-cream-50)]/50 p-3 text-sm">
+      <div className="grid grid-cols-2 gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-cream-50)]/50 p-3 text-sm sm:grid-cols-4">
         <div>
           <p className="text-xs text-muted">Total</p>
           <p className="font-mono font-semibold tabular-nums">{formatMoney(grandTotal)}</p>
@@ -259,6 +278,14 @@ export function PosCheckoutPaymentSection({
             {formatMoney(creditPreview)}
           </p>
         </div>
+        {checkoutPaymentType === "FULLY_PAID" ? (
+          <div>
+            <p className="text-xs text-muted">Change</p>
+            <p className="font-mono font-semibold tabular-nums text-sky-700 dark:text-sky-300">
+              {formatMoney(changePreview)}
+            </p>
+          </div>
+        ) : null}
       </div>
 
       {checkoutPaymentType === "PARTIALLY_PAID" ? (
@@ -273,7 +300,7 @@ export function PosCheckoutPaymentSection({
         </Field>
       ) : null}
 
-      {checkoutPaymentType !== "CREDIT" && paidNow > 0.005 ? (
+      {checkoutPaymentType !== "CREDIT" && grandTotal > 0.005 ? (
         <>
           <div>
             <p className="mb-1 text-xs text-muted">Payment method</p>
@@ -299,6 +326,18 @@ export function PosCheckoutPaymentSection({
               ))}
             </div>
           </div>
+
+          {tenderMode === "CASH" ? (
+            <Field id="pos-cash-received" label="Cash received" required>
+              <Input
+                value={cashPaidStr}
+                onChange={(e) => onCashPaidStrChange(e.target.value)}
+                inputMode="decimal"
+                disabled={disabled}
+                className="h-10 font-mono tabular-nums"
+              />
+            </Field>
+          ) : null}
 
           {tenderMode === "SPLIT" ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -365,33 +404,6 @@ export function PosCheckoutPaymentSection({
         </>
       ) : null}
 
-      {hasCredit ? (
-        <div className="space-y-2 rounded-lg border border-[var(--color-border)] p-3">
-          <p className="text-xs font-medium text-foreground">Payment terms</p>
-          <Select
-            value={paymentTermsPreset}
-            onChange={(e) => onPaymentTermsPresetChange(e.target.value as PaymentTermsPreset)}
-            disabled={disabled}
-          >
-            {SALE_PAYMENT_TERMS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </Select>
-          {paymentTermsPreset === "CUSTOM" ? (
-            <Field id="pos-due-date" label="Due date" required>
-              <Input
-                type="date"
-                value={customDueDate}
-                onChange={(e) => onCustomDueDateChange(e.target.value)}
-                disabled={disabled}
-              />
-            </Field>
-          ) : null}
-        </div>
-      ) : null}
-
       {grandTotal > 0 ? (
         <div className="space-y-1">
           <div className="flex h-2 overflow-hidden rounded-full bg-[var(--color-cream-200)]">
@@ -423,6 +435,8 @@ export function PosCheckoutPaymentSection({
               : "Payment matches total"
             : !chequeValid
               ? "Enter bank name and cheque number"
+            : !fullPaidValid
+              ? "Collected amount cannot be less than total"
               : !partialValid
                 ? "Partial payment must be greater than zero and less than total"
                 : !tenderBalanced
@@ -450,7 +464,13 @@ export function useCheckoutPaymentValidation(params: {
 
   const paidNow =
     params.checkoutPaymentType === "FULLY_PAID"
-      ? params.grandTotal
+      ? params.tenderMode === "CASH"
+        ? cashResult.invalid
+          ? 0
+          : cashResult.amount
+        : params.tenderMode === "SPLIT"
+          ? (cashResult.invalid ? 0 : cashResult.amount) + (bankResult.invalid ? 0 : bankResult.amount)
+          : params.grandTotal
       : params.checkoutPaymentType === "CREDIT"
         ? 0
         : paidResult.invalid

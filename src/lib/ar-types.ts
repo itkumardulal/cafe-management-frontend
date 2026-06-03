@@ -4,7 +4,14 @@ export type SalePaymentStatus = "PAID" | "PARTIAL" | "UNPAID";
 
 export type SaleBillStatus = "OPEN" | "OVERDUE" | "CLOSED";
 
-export type SalePaymentMethod = "CASH" | "BANK_TRANSFER" | "CHEQUE";
+export type SalePaymentMethod =
+  | "CASH"
+  | "BANK_TRANSFER"
+  | "ESEWA"
+  | "KHALTI"
+  | "CHEQUE";
+
+export type CustomerType = "WALK_IN" | "REGISTERED";
 
 export type PaymentTermsPreset =
   | "IMMEDIATE"
@@ -59,6 +66,7 @@ export type SaleDetailResponse = {
   bankPaidAmount: string;
   creditAmount: string;
   paidAmount: string;
+  changeAmount: string;
   remainingAmount: string;
   paymentStatus: SalePaymentStatus;
   billStatus: SaleBillStatus;
@@ -83,4 +91,69 @@ export type SaleDetailResponse = {
     unitPrice: string;
     lineTotal: string;
   }>;
+};
+
+export type CustomerReceivableListRow = {
+  id: string;
+  name: string;
+  phoneNumber: string;
+  address?: string | null;
+  outstandingAmount: string;
+  totalPurchases: string;
+  totalPaid: string;
+  creditBillsCount: number;
+  lastVisitAt: string | null;
+};
+
+export type CustomerReceivableDetail = {
+  customer: {
+    id: string;
+    name: string;
+    phoneNumber: string;
+    email?: string | null;
+    address?: string | null;
+    notes?: string | null;
+    outstandingAmount: string;
+    totalPurchases: string;
+    totalPaid: string;
+    creditBillsCount: number;
+    lastVisitAt: string | null;
+  };
+  purchaseHistory: Array<{
+    id: string;
+    receiptNo: string;
+    saleAt: string;
+    grandTotal: string;
+    paidAmount: string;
+    remainingAmount: string;
+    paymentStatus: SalePaymentStatus;
+    billStatus: SaleBillStatus;
+    lines: Array<{ name: string; quantity: string; lineTotal: string }>;
+  }>;
+  paymentHistory: Array<{
+    id: string;
+    kind: "CRP" | "SPAY";
+    receiptNo: string;
+    amount: string;
+    paymentMethod: string;
+    remarks: string | null;
+    paidAt: string;
+    createdByName: string | null;
+    allocations?: Array<{ receiptNo: string; amount: string }>;
+  }>;
+};
+
+export type CustomerSearchHit = {
+  id: string;
+  name: string;
+  phoneNumber: string;
+  outstandingAmount: string;
+};
+
+export type FifoAllocationPreview = {
+  customerId: string;
+  paymentAmount: string;
+  totalOutstanding: string;
+  remainingOutstanding: string;
+  allocations: Array<{ saleId: string; receiptNo: string; amount: string }>;
 };

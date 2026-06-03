@@ -49,6 +49,8 @@ export function PosSaleDetail({ sale, onSaleUpdated }: PosSaleDetailProps) {
   const remaining = Number(sale.remainingAmount ?? sale.creditAmount);
   const hasBalance = Number.isFinite(remaining) && remaining > 0.005;
   const otherCharge = Number(sale.otherChargeAmount);
+  const amountReceived =
+    Number(sale.cashPaidAmount ?? 0) + Number(sale.bankPaidAmount ?? 0);
 
   const recordPayment = async () => {
     if (!sale.id) return;
@@ -210,11 +212,25 @@ export function PosSaleDetail({ sale, onSaleUpdated }: PosSaleDetailProps) {
         <DetailInfoCard label="Payment summary">
           <dl className="mt-2 space-y-1.5 text-sm">
             <div className="flex justify-between gap-2 text-muted">
-              <dt>Paid</dt>
+              <dt>Amount received</dt>
               <dd className="font-mono tabular-nums text-emerald-700">
+                {formatMoney(amountReceived)}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-2 text-muted">
+              <dt>Applied to bill</dt>
+              <dd className="font-mono tabular-nums">
                 {formatMoney(sale.paidAmount ?? sale.grandTotal)}
               </dd>
             </div>
+            {Number(sale.changeAmount ?? 0) > 0 ? (
+              <div className="flex justify-between gap-2 text-muted">
+                <dt>Change returned</dt>
+                <dd className="font-mono tabular-nums text-sky-700">
+                  {formatMoney(sale.changeAmount)}
+                </dd>
+              </div>
+            ) : null}
             <div className="flex justify-between gap-2 font-medium">
               <dt>On credit</dt>
               <dd className="font-mono tabular-nums text-amber-800">

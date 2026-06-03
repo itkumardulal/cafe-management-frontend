@@ -299,6 +299,9 @@ function InventoryContent() {
           <option value="out">Out of stock</option>
         </Select>
       </div>
+      <p className="text-xs text-muted">
+        Alerts include inventory items and menu items only when stock tracking is enabled and opening stock is greater than 0.
+      </p>
 
       <PaginatedListSection
         loading={loading}

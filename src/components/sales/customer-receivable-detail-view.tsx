@@ -1,429 +1,445 @@
 "use client";
 
+import { Fragment, useState } from "react";
+import Link from "next/link";
 import {
-  AlertTriangle,
   ArrowLeft,
-  CalendarClock,
-  CheckCircle2,
+  ChevronDown,
   ChevronRight,
-  FileText,
-  Hash,
+  CircleCheckBig,
+  HandCoins,
+  History,
+  MapPin,
   Phone,
   Receipt,
-  ShoppingBag,
   User,
-  UtensilsCrossed,
 } from "lucide-react";
-import Link from "next/link";
-import type { ReactNode } from "react";
 import {
-  RecordSalePaymentSection,
-  type SalePaymentMode,
-} from "@/src/components/sales/record-sale-payment-section";
-import { SaleBillStatusBadge, SalePaymentStatusBadge } from "@/src/components/sales/ar-status-badges";
-import type { PosSaleReceiptData } from "@/src/components/sales/pos-sale-receipt";
-import { Badge } from "@/src/components/ui/badge";
+  SaleBillStatusBadge,
+  SalePaymentStatusBadge,
+} from "@/src/components/sales/ar-status-badges";
+import { Button } from "@/src/components/ui/button";
+import { Card } from "@/src/components/ui/card";
+import { Field } from "@/src/components/ui/field";
+import { Input } from "@/src/components/ui/input";
+import { Select } from "@/src/components/ui/select";
+import {
+  ResponsiveTable,
+  tableCenterCellClass,
+  tableCenterColumnClass,
+} from "@/src/components/ui/table";
+import type {
+  CustomerReceivableDetail,
+  FifoAllocationPreview,
+  SalePaymentMethod,
+} from "@/src/lib/ar-types";
+import {
+  SALE_PAYMENT_METHOD_OPTIONS,
+  formatSalePaymentMethod,
+} from "@/src/lib/ar-display";
 import { cn } from "@/src/lib/cn";
-import type { SalePaymentMethod } from "@/src/lib/ar-types";
-import { formatSalePaymentMethod } from "@/src/lib/ar-display";
 import { formatDateOnly, formatDateTime, formatMoney } from "@/src/lib/format-display";
+import { parseMoneyInput } from "@/src/lib/money-input";
 
-type PaymentFormProps = {
-  payMode: SalePaymentMode;
-  onPayModeChange: (m: SalePaymentMode) => void;
+type Props = {
+  detail: CustomerReceivableDetail;
+  insights?: {
+    totalVisits: number;
+    averageBillAmount: string;
+    lastPurchaseDate: string | null;
+    mostPurchasedItems: Array<{ name: string; totalQuantity: string }>;
+  } | null;
   amountStr: string;
   onAmountStrChange: (v: string) => void;
   paymentMethod: SalePaymentMethod;
   onPaymentMethodChange: (m: SalePaymentMethod) => void;
-  referenceNumber: string;
-  onReferenceNumberChange: (v: string) => void;
-  chequeBankName: string;
-  onChequeBankNameChange: (v: string) => void;
   remarks: string;
   onRemarksChange: (v: string) => void;
+  preview: FifoAllocationPreview | null;
+  previewLoading: boolean;
   saving: boolean;
   onSubmit: () => void;
 };
 
-type Props = {
-  sale: PosSaleReceiptData;
-  paymentForm: PaymentFormProps;
-};
+export function CustomerReceivableDetailView({
+  detail,
+  insights,
+  amountStr,
+  onAmountStrChange,
+  paymentMethod,
+  onPaymentMethodChange,
+  remarks,
+  onRemarksChange,
+  preview,
+  previewLoading,
+  saving,
+  onSubmit,
+}: Props) {
+  const { customer, purchaseHistory, paymentHistory } = detail;
+  const outstanding = Number(customer.outstandingAmount);
+  const [expandedBill, setExpandedBill] = useState<string | null>(null);
 
-function serviceLabel(type: PosSaleReceiptData["serviceType"]) {
-  return type === "DELIVERY" ? "Delivery" : "Dine in";
-}
-
-function MetaRow({ icon: Icon, label, value }: { icon: typeof Hash; label: string; value: string }) {
-  return (
-    <div className="flex gap-3">
-      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface-muted)] text-[var(--color-muted)]">
-        <Icon className="size-4" strokeWidth={1.75} aria-hidden />
-      </div>
-      <div className="min-w-0">
-        <p className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-subtle)]">{label}</p>
-        <p className="break-words text-sm font-medium text-[var(--color-foreground)]">{value}</p>
-      </div>
-    </div>
-  );
-}
-
-function SidebarCard({
-  title,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  icon: typeof User;
-  children: ReactNode;
-}) {
-  return (
-    <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-sm)]">
-      <div className="flex items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-surface-muted)]/50 px-4 py-3">
-        <Icon className="size-4 text-[var(--color-muted)]" strokeWidth={1.75} aria-hidden />
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)]">{title}</h2>
-      </div>
-      <div className="p-4">{children}</div>
-    </div>
-  );
-}
-
-export function CustomerReceivableDetailView({ sale, paymentForm }: Props) {
-  const total = Number(sale.grandTotal);
-  const paid = Number(sale.paidAmount ?? 0);
-  const remaining = Number(sale.remainingAmount ?? sale.creditAmount ?? 0);
-  const paidPercent = total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : 0;
-  const isClosed = remaining < 0.005;
-  const isOverdue = sale.billStatus === "OVERDUE";
-  const otherCharge = Number(sale.otherChargeAmount);
-  const discount = Number(sale.discountAmount);
-  const payments = sale.payments ?? [];
-  const customerTitle =
-    sale.customerName?.trim() ||
-    sale.customerPhone?.trim() ||
-    "Walk-in customer";
+  const parsed = parseMoneyInput(amountStr);
+  const paymentAmount = parsed.invalid ? 0 : parsed.amount;
+  const postPaymentOutstanding = Math.max(0, outstanding - paymentAmount);
+  const canPay =
+    outstanding > 0.005 &&
+    !parsed.invalid &&
+    parsed.amount > 0 &&
+    parsed.amount <= outstanding + 0.005;
+  const mobilePresetAmounts = [
+    Math.min(outstanding, 500),
+    Math.min(outstanding, 1000),
+    outstanding,
+  ].filter((v, i, arr) => v > 0 && arr.indexOf(v) === i);
 
   return (
-    <div className="page-shell page-content pb-10">
-      <nav aria-label="Breadcrumb" className="mb-4 flex flex-wrap items-center gap-1.5 text-sm">
+    <div className="page-shell page-content space-y-6 pb-24 lg:pb-10">
+      <nav className="flex items-center gap-2 text-sm text-muted">
         <Link
           href="/customer-receivables"
-          className="inline-flex items-center gap-1 text-[var(--color-muted)] transition-colors hover:text-[var(--color-primary)]"
+          className="inline-flex items-center gap-1 hover:text-[var(--color-primary)]"
         >
-          <ArrowLeft className="size-4" aria-hidden />
+          <ArrowLeft className="h-4 w-4" />
           Customer receivables
         </Link>
-        <ChevronRight className="size-3.5 text-[var(--color-subtle)]" aria-hidden />
-        <span className="font-medium text-[var(--color-foreground)]">{sale.receiptNo}</span>
+        <ChevronRight className="h-3 w-3" />
+        <span className="font-medium text-foreground">{customer.name}</span>
       </nav>
 
-      <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-sm)]">
-        <div className="border-b border-[var(--color-border)] bg-[var(--color-surface-muted)]/40 px-4 py-4 sm:px-6 sm:py-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <Card className="border-[var(--color-border)] p-4 sm:p-6">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex gap-3 min-w-0">
+            <div className="mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
+              <User className="h-5 w-5" />
+            </div>
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-subtle)]">
-                POS sale · Credit
+              <h1 className="truncate text-xl font-semibold">{customer.name}</h1>
+              <p className="mt-0.5 flex items-center gap-1 text-sm text-muted font-mono tabular-nums">
+                <Phone className="h-3.5 w-3.5" />
+                {customer.phoneNumber}
               </p>
-              <h1 className="mt-0.5 text-2xl font-semibold tracking-tight text-[var(--color-foreground)] sm:text-3xl">
-                {sale.receiptNo}
-              </h1>
-              <p className="mt-1 text-sm text-[var(--color-muted)]">{customerTitle}</p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <SalePaymentStatusBadge status={sale.paymentStatus} />
-                <SaleBillStatusBadge status={sale.billStatus} />
-                <Badge variant="default" size="sm">
-                  {serviceLabel(sale.serviceType)}
-                </Badge>
-                {sale.serviceType === "DINE_IN" && sale.tableName ? (
-                  <Badge variant="default" size="sm">
-                    Table {sale.tableName}
-                  </Badge>
-                ) : null}
-              </div>
-            </div>
-            <div className="shrink-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-right">
-              <p className="text-[10px] uppercase tracking-wider text-[var(--color-subtle)]">Sale date</p>
-              <p className="text-sm font-medium">{formatDateTime(sale.saleAt)}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid gap-6 p-4 sm:grid-cols-[1fr_auto] sm:items-end sm:p-6">
-          <div>
-            <p className="text-xs font-medium text-[var(--color-muted)]">
-              {isClosed ? "Balance due" : "Amount due"}
-            </p>
-            <p
-              className={cn(
-                "mt-1 text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl",
-                isClosed ? "text-[var(--color-success)]" : "text-[var(--color-foreground)]",
-              )}
-            >
-              {isClosed ? formatMoney(0) : formatMoney(remaining)}
-            </p>
-            <div className="mt-4">
-              <div className="mb-1.5 flex justify-between text-xs text-[var(--color-muted)]">
-                <span>
-                  Collected {formatMoney(paid)} of {formatMoney(total)}
-                </span>
-                <span className="font-medium tabular-nums">{paidPercent}%</span>
-              </div>
-              <div className="h-2.5 overflow-hidden rounded-full bg-[var(--color-border)]">
-                <div
-                  className={cn(
-                    "h-full rounded-full transition-all duration-500",
-                    isClosed ? "bg-[var(--color-success)]" : "bg-[var(--color-primary)]",
-                  )}
-                  style={{ width: `${paidPercent}%` }}
-                />
-              </div>
-            </div>
-          </div>
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-1 sm:text-right">
-            <div>
-              <dt className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-subtle)]">
-                Invoice total
-              </dt>
-              <dd className="font-semibold tabular-nums">{formatMoney(total)}</dd>
-            </div>
-            <div>
-              <dt className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-subtle)]">
-                Collected
-              </dt>
-              <dd className="font-semibold tabular-nums text-[var(--color-success)]">{formatMoney(paid)}</dd>
-            </div>
-          </dl>
-        </div>
-
-        {isOverdue && !isClosed ? (
-          <div className="flex items-start gap-3 border-t border-[var(--color-danger)]/20 bg-[var(--color-danger)]/5 px-4 py-3 sm:px-6">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[var(--color-danger)]" aria-hidden />
-            <p className="text-sm text-[var(--color-foreground)]">
-              This receivable is <span className="font-semibold">overdue</span>
-              {sale.dueDate ? ` (due ${formatDateOnly(sale.dueDate)})` : ""}. Record a payment to reduce the balance.
-            </p>
-          </div>
-        ) : null}
-
-        {isClosed ? (
-          <div className="flex items-center gap-3 border-t border-[var(--color-success)]/20 bg-[var(--color-success)]/5 px-4 py-4 sm:px-6">
-            <CheckCircle2 className="size-5 shrink-0 text-[var(--color-success)]" aria-hidden />
-            <div>
-              <p className="text-sm font-medium text-[var(--color-foreground)]">Fully collected</p>
-              <p className="text-xs text-[var(--color-muted)]">
-                {sale.lastPaymentDate
-                  ? `Last payment on ${formatDateOnly(sale.lastPaymentDate)}`
-                  : "No further payment required"}
-              </p>
-            </div>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-3 lg:items-start">
-        <div className="space-y-6 lg:col-span-2">
-          {!isClosed && sale.id ? (
-            <RecordSalePaymentSection
-              className="border-t-0 pt-0"
-              remainingBalance={remaining}
-              mode={paymentForm.payMode}
-              onModeChange={paymentForm.onPayModeChange}
-              amountStr={paymentForm.amountStr}
-              onAmountStrChange={paymentForm.onAmountStrChange}
-              paymentMethod={paymentForm.paymentMethod}
-              onPaymentMethodChange={paymentForm.onPaymentMethodChange}
-              referenceNumber={paymentForm.referenceNumber}
-              onReferenceNumberChange={paymentForm.onReferenceNumberChange}
-              chequeBankName={paymentForm.chequeBankName}
-              onChequeBankNameChange={paymentForm.onChequeBankNameChange}
-              remarks={paymentForm.remarks}
-              onRemarksChange={paymentForm.onRemarksChange}
-              saving={paymentForm.saving}
-              onSubmit={paymentForm.onSubmit}
-            />
-          ) : null}
-
-          <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-sm)]">
-            <div className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] px-4 py-3 sm:px-5">
-              <h2 className="text-sm font-semibold text-[var(--color-foreground)]">Payment history</h2>
-              <span className="rounded-full bg-[var(--color-surface-muted)] px-2.5 py-0.5 text-xs font-medium text-[var(--color-muted)]">
-                {payments.length} {payments.length === 1 ? "payment" : "payments"}
-              </span>
-            </div>
-
-            {payments.length === 0 ? (
-              <div className="px-4 py-12 text-center sm:px-5">
-                <Receipt className="mx-auto size-8 text-[var(--color-subtle)]" aria-hidden />
-                <p className="mt-3 text-sm font-medium text-[var(--color-foreground)]">No payments yet</p>
-                <p className="mt-1 text-xs text-[var(--color-muted)]">
-                  Payments you record will appear here with receipt numbers.
+              {customer.address ? (
+                <p className="mt-1 flex items-start gap-1 text-sm text-muted">
+                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span className="line-clamp-2">{customer.address}</span>
                 </p>
-              </div>
-            ) : (
-              <>
-                <ul className="divide-y divide-[var(--color-border)] md:hidden">
-                  {payments.map((p) => (
-                    <li key={p.id} className="px-4 py-3.5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold tabular-nums">{p.receiptNo}</p>
-                          <p className="mt-0.5 text-xs text-[var(--color-muted)]">
-                            {formatDateOnly(p.paymentDate)} · {formatSalePaymentMethod(p.paymentMethod)}
-                          </p>
-                        </div>
-                        <p className="text-sm font-semibold tabular-nums text-[var(--color-success)]">
-                          {formatMoney(p.amount)}
-                        </p>
-                      </div>
-                      {(p.referenceNumber || p.chequeBankName || p.remarks) && (
-                        <p className="mt-2 text-xs leading-relaxed text-[var(--color-muted)]">
-                          {[p.chequeBankName, p.referenceNumber, p.remarks].filter(Boolean).join(" · ")}
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-                <div className="hidden overflow-x-auto md:block">
-                  <table className="w-full min-w-[32rem] text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-[var(--color-border)] bg-[var(--color-surface-muted)]/40 text-xs uppercase tracking-wide text-[var(--color-muted)]">
-                        <th className="px-4 py-2.5 font-medium">Receipt</th>
-                        <th className="px-4 py-2.5 font-medium">Date</th>
-                        <th className="px-4 py-2.5 font-medium text-right">Amount</th>
-                        <th className="px-4 py-2.5 font-medium">Method</th>
-                        <th className="px-4 py-2.5 font-medium">Details</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {payments.map((p) => (
-                        <tr
-                          key={p.id}
-                          className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-surface-muted)]/50"
-                        >
-                          <td className="px-4 py-3 font-medium tabular-nums">{p.receiptNo}</td>
-                          <td className="whitespace-nowrap px-4 py-3 text-[var(--color-muted)]">
-                            {formatDateOnly(p.paymentDate)}
-                          </td>
-                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-[var(--color-success)]">
-                            {formatMoney(p.amount)}
-                          </td>
-                          <td className="px-4 py-3">{formatSalePaymentMethod(p.paymentMethod)}</td>
-                          <td
-                            className="max-w-[14rem] truncate px-4 py-3 text-[var(--color-muted)]"
-                            title={[p.chequeBankName, p.referenceNumber, p.remarks].filter(Boolean).join(" · ") || undefined}
-                          >
-                            {[p.chequeBankName, p.referenceNumber, p.remarks].filter(Boolean).join(" · ") || "—"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-sm)]">
-            <div className="flex items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-surface-muted)]/50 px-4 py-3">
-              <ShoppingBag className="size-4 text-[var(--color-muted)]" aria-hidden />
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)]">
-                Line items ({sale.lines.length})
-              </h2>
+              ) : null}
             </div>
-            <ul className="divide-y divide-[var(--color-border)]">
-              {sale.lines.map((line) => (
-                <li key={line.id} className="flex items-start justify-between gap-4 px-4 py-3.5">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-[var(--color-foreground)]">{line.menuItemName}</p>
-                    <p className="mt-0.5 text-xs text-[var(--color-muted)]">
-                      {formatMoney(line.quantity)} × {formatMoney(line.unitPrice)}
-                    </p>
-                  </div>
-                  <p className="shrink-0 text-sm font-semibold tabular-nums">{formatMoney(line.lineTotal)}</p>
+          </div>
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-cream-50)] px-4 py-3 text-right">
+            <p className="text-[11px] uppercase tracking-wide text-muted">Outstanding amount</p>
+            <p className="font-mono text-2xl font-bold tabular-nums text-amber-800 dark:text-amber-300 leading-tight">
+              {formatMoney(customer.outstandingAmount)}
+            </p>
+          </div>
+        </div>
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Stat label="Total purchases" value={formatMoney(customer.totalPurchases)} />
+          <Stat label="Total paid" value={formatMoney(customer.totalPaid)} />
+          <Stat label="Open bills" value={String(customer.creditBillsCount)} />
+          <Stat
+            label="Last visit"
+            value={customer.lastVisitAt ? formatDateOnly(customer.lastVisitAt) : "—"}
+          />
+        </div>
+      </Card>
+
+      {insights ? (
+        <Card density="compact" className="p-4 border-[var(--color-border)]">
+          <h2 className="mb-3 text-sm font-semibold">Customer insights</h2>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Stat label="Total visits" value={String(insights.totalVisits)} />
+            <Stat label="Avg bill" value={formatMoney(insights.averageBillAmount)} />
+            <Stat
+              label="Last purchase"
+              value={
+                insights.lastPurchaseDate
+                  ? formatDateOnly(insights.lastPurchaseDate)
+                  : "—"
+              }
+            />
+          </div>
+          {insights.mostPurchasedItems.length > 0 ? (
+            <ul className="mt-3 space-y-1 text-sm text-muted">
+              {insights.mostPurchasedItems.map((item) => (
+                <li key={item.name}>
+                  {item.name} × {item.totalQuantity}
                 </li>
               ))}
             </ul>
-            <div className="space-y-2 border-t border-[var(--color-border)] bg-[var(--color-surface-muted)]/30 px-4 py-3 text-sm">
-              <div className="flex justify-between gap-2 text-[var(--color-muted)]">
-                <span>Subtotal</span>
-                <span className="tabular-nums">{formatMoney(sale.subtotal)}</span>
-              </div>
-              {otherCharge > 0 ? (
-                <div className="flex justify-between gap-2 text-[var(--color-muted)]">
-                  <span>Extra charges</span>
-                  <span className="tabular-nums">{formatMoney(sale.otherChargeAmount)}</span>
-                </div>
-              ) : null}
-              {discount > 0 ? (
-                <div className="flex justify-between gap-2 text-[var(--color-muted)]">
-                  <span>Discount</span>
-                  <span className="tabular-nums">−{formatMoney(sale.discountAmount)}</span>
-                </div>
-              ) : null}
-              <div className="flex justify-between gap-2 border-t border-[var(--color-border)] pt-2 font-semibold text-[var(--color-foreground)]">
-                <span>Grand total</span>
-                <span className="tabular-nums text-[var(--color-primary)]">{formatMoney(sale.grandTotal)}</span>
-              </div>
-            </div>
-          </div>
+          ) : null}
+        </Card>
+      ) : null}
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+        <div className="space-y-6">
+          <section className="space-y-3">
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <Receipt className="h-4 w-4" />
+              Purchase history
+            </h2>
+            {purchaseHistory.length === 0 ? (
+              <Card className="p-6 text-sm text-muted border-[var(--color-border)]">
+                No purchase history found for this customer yet.
+              </Card>
+            ) : (
+              <ResponsiveTable
+                headers={[
+                  "Bill",
+                  "Date",
+                  { label: "Total", thClassName: tableCenterColumnClass },
+                  { label: "Paid", thClassName: tableCenterColumnClass },
+                  { label: "Due", thClassName: tableCenterColumnClass },
+                  "Status",
+                  "",
+                ]}
+              >
+                {purchaseHistory.map((bill) => (
+                  <Fragment key={bill.id}>
+                    <tr>
+                      <td className="font-mono text-sm">{bill.receiptNo}</td>
+                      <td>{formatDateTime(bill.saleAt)}</td>
+                      <td className={cn(tableCenterCellClass, "font-mono tabular-nums")}>
+                        {formatMoney(bill.grandTotal)}
+                      </td>
+                      <td className={cn(tableCenterCellClass, "font-mono tabular-nums")}>
+                        {formatMoney(bill.paidAmount)}
+                      </td>
+                      <td className={cn(tableCenterCellClass, "font-mono tabular-nums")}>
+                        {formatMoney(bill.remainingAmount)}
+                      </td>
+                      <td>
+                        <div className="flex flex-wrap gap-1">
+                          <SalePaymentStatusBadge status={bill.paymentStatus} />
+                          <SaleBillStatusBadge status={bill.billStatus} />
+                        </div>
+                      </td>
+                      <td>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            setExpandedBill(expandedBill === bill.id ? null : bill.id)
+                          }
+                        >
+                          <ChevronDown
+                            className={cn(
+                              "h-4 w-4 transition-transform",
+                              expandedBill === bill.id && "rotate-180",
+                            )}
+                          />
+                        </Button>
+                      </td>
+                    </tr>
+                    {expandedBill === bill.id ? (
+                      <tr>
+                        <td colSpan={7} className="bg-[var(--color-cream-50)]/80">
+                          <ul className="space-y-1 py-2 text-sm">
+                            {bill.lines.map((line, i) => (
+                              <li key={i} className="flex justify-between gap-4">
+                                <span>
+                                  {line.name} × {line.quantity}
+                                </span>
+                                <span className="font-mono tabular-nums">
+                                  {formatMoney(line.lineTotal)}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                ))}
+              </ResponsiveTable>
+            )}
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <History className="h-4 w-4" />
+              Payment history
+            </h2>
+            {paymentHistory.length === 0 ? (
+              <Card className="p-6 text-sm text-muted border-[var(--color-border)]">
+                No payments recorded yet.
+              </Card>
+            ) : (
+              <ul className="space-y-2">
+                {paymentHistory.map((p) => (
+                  <li
+                    key={p.id}
+                    className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-sm"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-mono font-medium">{p.receiptNo}</span>
+                      <span className="font-mono font-semibold tabular-nums">
+                        {formatMoney(p.amount)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted">
+                      {formatDateTime(p.paidAt)} · {formatSalePaymentMethod(p.paymentMethod)}
+                      {p.kind === "CRP" ? " · FIFO settlement" : ""}
+                    </p>
+                    {p.allocations && p.allocations.length > 0 ? (
+                      <ul className="mt-2 space-y-0.5 border-t border-[var(--color-border)] pt-2 text-xs text-muted">
+                        {p.allocations.map((a, i) => (
+                          <li key={i}>
+                            {a.receiptNo}: {formatMoney(a.amount)}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         </div>
 
-        <aside className="space-y-4 lg:sticky lg:top-4">
-          <SidebarCard title="Customer" icon={User}>
-            {sale.customerName ? (
-              <p className="text-base font-semibold text-[var(--color-foreground)]">{sale.customerName}</p>
-            ) : (
-              <p className="text-sm text-[var(--color-muted)]">No name on file</p>
-            )}
-            {sale.customerPhone ? (
-              <p className="mt-2 flex items-center gap-2 text-sm text-[var(--color-muted)]">
-                <Phone className="size-3.5 shrink-0" aria-hidden />
-                {sale.customerPhone}
-              </p>
-            ) : null}
-            {sale.customerAddress ? (
-              <p className="mt-2 text-sm leading-relaxed text-[var(--color-muted)]">{sale.customerAddress}</p>
-            ) : null}
-            {!sale.customerName && !sale.customerPhone && !sale.customerAddress ? (
-              <p className="text-[11px] leading-relaxed text-[var(--color-subtle)]">
-                Customer details were not captured at checkout.
-              </p>
-            ) : null}
-          </SidebarCard>
+        {outstanding > 0.005 ? (
+          <section
+            id="receivable-payment-panel"
+            className="order-first h-fit rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-sm)] xl:order-none xl:sticky xl:top-4"
+          >
+            <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
+              <HandCoins className="h-4 w-4" />
+              Record payment (FIFO)
+            </h2>
 
-          <SidebarCard title="Sale details" icon={FileText}>
-            <div className="space-y-4">
-              <MetaRow label="Service" value={serviceLabel(sale.serviceType)} icon={UtensilsCrossed} />
-              {sale.tableName ? (
-                <MetaRow label="Table" value={sale.tableName} icon={UtensilsCrossed} />
-              ) : null}
-              <MetaRow label="Sale date" value={formatDateTime(sale.saleAt)} icon={CalendarClock} />
-              <MetaRow
-                label="Due date"
-                value={sale.dueDate ? formatDateOnly(sale.dueDate) : "—"}
-                icon={CalendarClock}
-              />
-              {sale.lastPaymentDate ? (
-                <MetaRow
-                  label="Last payment"
-                  value={formatDateOnly(sale.lastPaymentDate)}
-                  icon={CalendarClock}
-                />
-              ) : null}
-              <MetaRow label="Recorded" value={formatDateTime(sale.createdAt)} icon={Hash} />
-              {sale.createdByName ? (
-                <MetaRow label="Cashier" value={sale.createdByName} icon={User} />
+            <div className="mb-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-cream-50)] px-3 py-2.5">
+              <p className="text-xs uppercase tracking-wide text-muted">Outstanding now</p>
+              <p className="font-mono text-xl font-bold tabular-nums text-amber-800 dark:text-amber-300">
+                {formatMoney(customer.outstandingAmount)}
+              </p>
+              {paymentAmount > 0 && !parsed.invalid ? (
+                <p className="mt-1 text-xs text-muted">
+                  After payment:{" "}
+                  <span className="font-mono tabular-nums text-foreground">
+                    {formatMoney(postPaymentOutstanding)}
+                  </span>
+                </p>
               ) : null}
             </div>
-          </SidebarCard>
 
-          {sale.notes?.trim() ? (
-            <SidebarCard title="Notes" icon={FileText}>
-              <p className="text-sm leading-relaxed text-[var(--color-foreground)]">{sale.notes.trim()}</p>
-            </SidebarCard>
-          ) : null}
-        </aside>
+            <div className="space-y-3">
+              <Field id="crp-payment-amount" label="Payment amount" required>
+                <Input
+                  value={amountStr}
+                  onChange={(e) => onAmountStrChange(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="0.00"
+                />
+              </Field>
+              <div className="flex flex-wrap gap-1.5">
+                {mobilePresetAmounts.map((amt) => (
+                  <Button
+                    key={amt}
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="h-8 px-2.5 text-xs"
+                    onClick={() => onAmountStrChange(String(amt))}
+                  >
+                    {amt === outstanding ? "Settle full" : formatMoney(amt)}
+                  </Button>
+                ))}
+              </div>
+              <Field id="crp-payment-method" label="Payment method" required>
+                <Select
+                  value={paymentMethod}
+                  onChange={(e) =>
+                    onPaymentMethodChange(e.target.value as SalePaymentMethod)
+                  }
+                >
+                  {SALE_PAYMENT_METHOD_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field id="crp-payment-remarks" label="Remarks">
+                <Input value={remarks} onChange={(e) => onRemarksChange(e.target.value)} />
+              </Field>
+
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-cream-50)]/50 p-3">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
+                  Allocation preview
+                </p>
+                {previewLoading ? (
+                  <p className="text-sm text-muted">Calculating…</p>
+                ) : preview && preview.allocations.length > 0 ? (
+                  <ul className="space-y-1.5">
+                    {preview.allocations.map((a) => (
+                      <li
+                        key={a.saleId}
+                        className="flex items-center justify-between text-sm font-mono tabular-nums"
+                      >
+                        <span>{a.receiptNo}</span>
+                        <span>{formatMoney(a.amount)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted">Enter an amount to preview allocation.</p>
+                )}
+              </div>
+
+              <Button
+                type="button"
+                className="w-full"
+                disabled={!canPay || saving}
+                onClick={onSubmit}
+              >
+                {saving ? "Recording…" : "Confirm payment"}
+              </Button>
+              {canPay ? (
+                <p className="flex items-center gap-1 text-xs text-muted">
+                  <CircleCheckBig className="h-3.5 w-3.5 text-emerald-600" />
+                  Payment will settle oldest unpaid bills first.
+                </p>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
       </div>
+
+      {outstanding > 0.005 ? (
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--color-border)] bg-[var(--color-surface)]/95 px-4 py-3 backdrop-blur safe-bottom xl:hidden">
+          <div className="mx-auto flex max-w-[900px] items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-wide text-muted">Outstanding</p>
+              <p className="font-mono text-base font-semibold tabular-nums text-amber-800 dark:text-amber-300">
+                {formatMoney(customer.outstandingAmount)}
+              </p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              className="h-10 px-4"
+              onClick={() =>
+                document
+                  .getElementById("receivable-payment-panel")
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" })
+              }
+            >
+              Record payment
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5">
+      <p className="text-[11px] uppercase tracking-wide text-muted">{label}</p>
+      <p className="font-medium tabular-nums text-foreground">{value}</p>
     </div>
   );
 }

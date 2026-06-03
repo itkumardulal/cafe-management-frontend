@@ -58,6 +58,7 @@ export const operationsApi = {
           unitQuantity?: string | null;
           costPerUnit: string;
           sellPricePerUnit: string;
+          openingStockDay1: string;
           quantityOnHand: string | null;
           trackStock: boolean;
           reorderLevel?: string | null;
@@ -304,19 +305,26 @@ export const operationsApi = {
       },
     ) => mutate("post", `/raw-material-purchases/${id}/payments`, data),
   },
-  supplierBills: {
-    list: (params?: ListQueryParams & {
-      supplierId?: string;
-      paymentStatus?: string;
-      billStatus?: string;
-      fromDate?: string;
-      toDate?: string;
-      dueFrom?: string;
-      dueTo?: string;
-      dueWithinDays?: number;
-      hasOutstanding?: string;
+  billSettlement: {
+    list: (params?: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      hasOutstanding?: boolean;
+      fullySettled?: boolean;
+      activeVendors?: boolean;
+      sortBy?: "outstandingAmount" | "lastPurchaseAt" | "name";
+      sortOrder?: "asc" | "desc";
     }) =>
-      getData<Paginated<import("@/src/lib/ap-types").ApBillSummary>>("/supplier-bills", params),
+      getData<Paginated<import("@/src/lib/ap-types").BillSettlementSupplierRow>>(
+        "/bill-settlement",
+        {
+          ...params,
+          hasOutstanding: params?.hasOutstanding ? "true" : undefined,
+          fullySettled: params?.fullySettled ? "true" : undefined,
+          activeVendors: params?.activeVendors ? "true" : undefined,
+        },
+      ),
     agingSummary: () =>
       getData<{
         items: Array<{
@@ -337,7 +345,39 @@ export const operationsApi = {
           days90Plus: number;
           totalOutstanding: number;
         };
-      }>("/supplier-bills/metrics/summary"),
+      }>("/bill-settlement/metrics/summary"),
+    getSupplier: (supplierId: string) =>
+      getData<import("@/src/lib/ap-types").BillSettlementSupplierDetail>(`/bill-settlement/${supplierId}`),
+    previewPayment: (data: {
+      supplierId: string;
+      amount: number;
+      paymentMethod: import("@/src/lib/ap-types").PurchasePaymentMethod;
+      remarks?: string;
+    }) =>
+      mutate<{
+        supplierId: string;
+        supplierName: string;
+        paymentAmount: string;
+        totalOutstanding: string;
+        remainingOutstanding: string;
+        allocations: Array<{ purchaseId: string; receiptNo: string; amount: string }>;
+      }>("post", "/bill-settlement/payments/preview", data),
+    recordPayment: (data: {
+      supplierId: string;
+      amount: number;
+      paymentMethod: import("@/src/lib/ap-types").PurchasePaymentMethod;
+      remarks?: string;
+    }) =>
+      mutate<{
+        settlementBatchId: string;
+        settlementReceiptNo: string;
+        supplierId: string;
+        supplierName: string;
+        amount: string;
+        paymentMethod: import("@/src/lib/ap-types").PurchasePaymentMethod;
+        remarks?: string | null;
+        allocations: Array<{ purchaseId: string; receiptNo: string; amount: string }>;
+      }>("post", "/bill-settlement/payments", data),
   },
   supplierReports: {
     outstanding: () =>
@@ -374,6 +414,19 @@ export const operationsApi = {
         billsDueThisWeekAmount: string;
         suppliersWithOutstandingCount: number;
       }>("/dashboard/cafe-metrics"),
+    customerReceivables: () =>
+      getData<{
+        totalOutstanding: string;
+        customersWithCreditCount: number;
+        overdueCreditsAmount: string;
+        creditsDueThisWeekAmount: string;
+        topCreditCustomers: Array<{
+          id: string;
+          name: string;
+          phoneNumber: string;
+          outstandingAmount: string;
+        }>;
+      }>("/dashboard/customer-receivables"),
   },
   expenseItems: {
     list: (params?: ListQueryParams) =>
@@ -542,6 +595,7 @@ export const operationsApi = {
           bankPaidAmount: string;
           creditAmount: string;
           paidAmount: string;
+          changeAmount: string;
           remainingAmount: string;
           paymentStatus: "PAID" | "PARTIAL" | "UNPAID";
           billStatus: "OPEN" | "OVERDUE" | "CLOSED";
@@ -561,10 +615,11 @@ export const operationsApi = {
     create: (data: {
       saleAt?: string;
       serviceType: "DINE_IN" | "DELIVERY";
+      customerId?: string;
       checkoutPaymentType: "FULLY_PAID" | "PARTIALLY_PAID" | "CREDIT";
       initialPayments?: Array<{
         amount: number;
-        paymentMethod: "CASH" | "BANK_TRANSFER" | "CHEQUE";
+        paymentMethod: "CASH" | "BANK_TRANSFER" | "ESEWA" | "KHALTI" | "CHEQUE";
         referenceNumber?: string;
         chequeBankName?: string;
         remarks?: string;
@@ -588,7 +643,7 @@ export const operationsApi = {
       saleId: string,
       data: {
         amount: number;
-        paymentMethod: "CASH" | "BANK_TRANSFER" | "CHEQUE";
+        paymentMethod: "CASH" | "BANK_TRANSFER" | "ESEWA" | "KHALTI" | "CHEQUE";
         referenceNumber?: string;
         chequeBankName?: string;
         remarks?: string;
@@ -596,31 +651,54 @@ export const operationsApi = {
       },
     ) => mutate<import("@/src/lib/ar-types").SalePaymentRow>("post", `/sales/${saleId}/payments`, data),
   },
+  customers: {
+    search: (params?: { q?: string; limit?: number }) =>
+      getData<{ items: import("@/src/lib/ar-types").CustomerSearchHit[] }>(
+        "/customers/search",
+        params,
+      ),
+    create: (data: {
+      name: string;
+      phoneNumber: string;
+      address?: string;
+      email?: string;
+      notes?: string;
+    }) =>
+      mutate<import("@/src/lib/ar-types").CustomerSearchHit>("post", "/customers", data),
+    summary: (id: string) =>
+      getData<{
+        totalVisits: number;
+        averageBillAmount: string;
+        lastPurchaseDate: string | null;
+        mostPurchasedItems: Array<{
+          menuItemId: string;
+          name: string;
+          totalQuantity: string;
+        }>;
+      }>(`/customers/${id}/summary`),
+  },
   customerReceivables: {
     list: (params?: {
       page?: number;
       limit?: number;
       search?: string;
-      customerId?: string;
-      paymentStatus?: "PAID" | "PARTIAL" | "UNPAID";
-      billStatus?: "OPEN" | "OVERDUE" | "CLOSED";
+      hasOutstanding?: boolean;
+      fullySettled?: boolean;
+      activeCustomers?: boolean;
+      sortBy?: "outstandingAmount" | "lastVisitAt" | "name";
+      sortOrder?: "asc" | "desc";
     }) =>
-      getData<
-        Paginated<{
-          id: string;
-          receiptNo: string;
-          saleAt: string;
-          customerName?: string | null;
-          customerPhone?: string | null;
-          grandTotal: string;
-          paidAmount: string;
-          remainingAmount: string;
-          paymentStatus: "PAID" | "PARTIAL" | "UNPAID";
-          billStatus: "OPEN" | "OVERDUE" | "CLOSED";
-          dueDate?: string | null;
-          lineCount: number;
-        }>
-      >("/customer-receivables", params),
+      getData<Paginated<import("@/src/lib/ar-types").CustomerReceivableListRow>>(
+        "/customer-receivables",
+        {
+          ...params,
+          hasOutstanding:
+            params?.hasOutstanding === true ? "true" : undefined,
+          fullySettled: params?.fullySettled === true ? "true" : undefined,
+          activeCustomers:
+            params?.activeCustomers === true ? "true" : undefined,
+        },
+      ),
     agingSummary: () =>
       getData<{
         totals: {
@@ -632,7 +710,74 @@ export const operationsApi = {
           totalOutstanding: number;
         };
       }>("/customer-receivables/metrics/summary"),
-    getOne: (id: string) =>
-      getData<import("@/src/lib/ar-types").SaleDetailResponse>(`/customer-receivables/${id}`),
+    getCustomer: (customerId: string) =>
+      getData<import("@/src/lib/ar-types").CustomerReceivableDetail>(
+        `/customer-receivables/${customerId}`,
+      ),
+    previewPayment: (data: {
+      customerId: string;
+      amount: number;
+      paymentMethod: import("@/src/lib/ar-types").SalePaymentMethod;
+      remarks?: string;
+    }) =>
+      mutate<import("@/src/lib/ar-types").FifoAllocationPreview>(
+        "post",
+        "/customer-receivables/payments/preview",
+        data,
+      ),
+    recordPayment: (data: {
+      customerId: string;
+      amount: number;
+      paymentMethod: import("@/src/lib/ar-types").SalePaymentMethod;
+      remarks?: string;
+    }) =>
+      mutate<{
+        id: string;
+        receiptNo: string;
+        amount: string;
+        allocations: Array<{ saleId: string; receiptNo: string; amount: string }>;
+      }>("post", "/customer-receivables/payments", data),
+  },
+  supplierBills: {
+    list: (params?: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      hasOutstanding?: boolean;
+      fullySettled?: boolean;
+      activeVendors?: boolean;
+      sortBy?: "outstandingAmount" | "lastPurchaseAt" | "name";
+      sortOrder?: "asc" | "desc";
+    }) =>
+      getData<Paginated<import("@/src/lib/ap-types").BillSettlementSupplierRow>>(
+        "/bill-settlement",
+        {
+          ...params,
+          hasOutstanding: params?.hasOutstanding ? "true" : undefined,
+          fullySettled: params?.fullySettled ? "true" : undefined,
+          activeVendors: params?.activeVendors ? "true" : undefined,
+        },
+      ),
+    agingSummary: () =>
+      getData<{
+        items: Array<{
+          supplierId: string;
+          supplierName: string;
+          current: number;
+          days1_30: number;
+          days31_60: number;
+          days61_90: number;
+          days90Plus: number;
+          totalOutstanding: number;
+        }>;
+        totals: {
+          current: number;
+          days1_30: number;
+          days31_60: number;
+          days61_90: number;
+          days90Plus: number;
+          totalOutstanding: number;
+        };
+      }>("/bill-settlement/metrics/summary"),
   },
 };

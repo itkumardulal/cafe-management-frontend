@@ -18,7 +18,17 @@ import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import { appToast } from "@/src/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
-import { loginThunk, logoutThunk } from "@/src/store/slices/auth.slice";
+import { loginThunk, logoutThunk, type LoginRejectPayload } from "@/src/store/slices/auth.slice";
+
+const LOGIN_LOCK_KEY = "auth:login-lock-until";
+const DEFAULT_LOCK_MS = 15 * 60 * 1000;
+
+function formatLockCountdown(ms: number): string {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
 
 function LoginForm() {
   const dispatch = useAppDispatch();
@@ -27,8 +37,12 @@ function LoginForm() {
   const loading = useAppSelector((state) => state.auth.loading);
   const [showPassword, setShowPassword] = useState(false);
   const [apiError, setApiError] = useState("");
+  const [lockUntilMs, setLockUntilMs] = useState(0);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const activated = searchParams.get("activated") === "1";
   const emailFromQuery = searchParams.get("email") ?? "";
+  const lockRemainingMs = Math.max(0, lockUntilMs - nowMs);
+  const isLocked = lockRemainingMs > 0;
 
   const {
     register,
@@ -57,7 +71,48 @@ function LoginForm() {
     }
   }, [activated, dispatch]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(LOGIN_LOCK_KEY);
+    const parsed = stored ? Number.parseInt(stored, 10) : NaN;
+    if (Number.isFinite(parsed) && parsed > Date.now()) {
+      setLockUntilMs(parsed);
+      setApiError(`Too many login attempts. Try again in ${formatLockCountdown(parsed - Date.now())}.`);
+    } else {
+      window.localStorage.removeItem(LOGIN_LOCK_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isLocked) return;
+    const timer = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [isLocked]);
+
+  useEffect(() => {
+    if (!isLocked && lockUntilMs > 0 && typeof window !== "undefined") {
+      window.localStorage.removeItem(LOGIN_LOCK_KEY);
+      setApiError("");
+      setLockUntilMs(0);
+    }
+  }, [isLocked, lockUntilMs]);
+
+  useEffect(() => {
+    if (isLocked) {
+      setApiError(`Too many login attempts. Try again in ${formatLockCountdown(lockRemainingMs)}.`);
+    }
+  }, [isLocked, lockRemainingMs]);
+
   const onSubmit = async (values: LoginSchemaType) => {
+    if (isLocked) {
+      const msg = `Sign in is temporarily locked. Try again in ${formatLockCountdown(lockRemainingMs)}.`;
+      setApiError(msg);
+      appToast.error(msg);
+      return;
+    }
+
     setApiError("");
     const result = await dispatch(
       loginThunk({
@@ -73,8 +128,23 @@ function LoginForm() {
       );
       return;
     }
-    appToast.error("Failed to login");
-    setApiError("Unable to login. Please verify your credentials.");
+    const payload = result.payload as LoginRejectPayload | undefined;
+    if (payload?.status === 429) {
+      const lockMs = (payload.retryAfterSeconds ?? 900) * 1000;
+      const until = Date.now() + lockMs;
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(LOGIN_LOCK_KEY, String(until));
+      }
+      setLockUntilMs(until);
+      setNowMs(Date.now());
+      const throttledMessage = `Too many requests. Sign in disabled for ${Math.ceil(lockMs / 60000)} minutes.`;
+      appToast.error(throttledMessage);
+      setApiError(throttledMessage);
+      return;
+    }
+
+    appToast.error(payload?.message || "Failed to login");
+    setApiError(payload?.message || "Unable to login. Please verify your credentials.");
   };
 
   const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -112,6 +182,7 @@ function LoginForm() {
             autoComplete="username"
             hasError={Boolean(errors.email)}
             aria-invalid={Boolean(errors.email)}
+            disabled={isLocked}
           />
         </Field>
 
@@ -125,6 +196,7 @@ function LoginForm() {
               aria-invalid={Boolean(errors.password)}
               aria-describedby={errors.password ? "password-error" : undefined}
               className="pr-12"
+              disabled={isLocked}
             />
             <button
               type="button"
@@ -132,6 +204,7 @@ function LoginForm() {
               onClick={() => setShowPassword((prev) => !prev)}
               aria-label={showPassword ? "Hide password" : "Show password"}
               aria-pressed={showPassword}
+              disabled={isLocked}
             >
               {showPassword ? (
                 <EyeOff size={16} className="pointer-events-none" aria-hidden />
@@ -175,8 +248,9 @@ function LoginForm() {
           loading={loading}
           fullWidth
           aria-label="Sign in to your account"
+          disabled={isLocked}
         >
-          {loading ? "Signing in..." : "Sign in"}
+          {loading ? "Signing in..." : isLocked ? `Locked (${formatLockCountdown(lockRemainingMs)})` : "Sign in"}
         </Button>
       </form>
     </AuthPageShell>

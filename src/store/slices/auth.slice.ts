@@ -1,5 +1,6 @@
 "use client";
 
+import axios from "axios";
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import type { AuthUser } from "@/src/types/auth";
 import { api } from "@/src/services/api";
@@ -12,14 +13,45 @@ const initialState: AuthState = {
   error: null,
 };
 
-export const loginThunk = createAsyncThunk<AuthUser, LoginPayload, { rejectValue: string }>(
+export type LoginRejectPayload = {
+  message: string;
+  status?: number;
+  retryAfterSeconds?: number;
+};
+
+export const loginThunk = createAsyncThunk<
+  AuthUser,
+  LoginPayload,
+  { rejectValue: LoginRejectPayload }
+>(
   "auth/login",
   async (payload, { rejectWithValue }) => {
     try {
       const response = await api.post("/auth/login", payload);
       return response.data.data as AuthUser;
-    } catch {
-      return rejectWithValue("Login failed");
+    } catch (error) {
+      if (!axios.isAxiosError(error)) {
+        return rejectWithValue({ message: "Login failed" });
+      }
+
+      const messageRaw = error.response?.data?.message;
+      const message =
+        typeof messageRaw === "string"
+          ? messageRaw
+          : Array.isArray(messageRaw) && messageRaw.length > 0
+            ? messageRaw.join(", ")
+            : "Login failed";
+      const retryAfterRaw = error.response?.headers?.["retry-after"];
+      const retryAfterParsed =
+        typeof retryAfterRaw === "string" ? Number.parseInt(retryAfterRaw, 10) : NaN;
+      const retryAfterSeconds =
+        Number.isFinite(retryAfterParsed) && retryAfterParsed > 0 ? retryAfterParsed : undefined;
+
+      return rejectWithValue({
+        message,
+        status: error.response?.status,
+        retryAfterSeconds,
+      });
     }
   },
 );
@@ -80,7 +112,7 @@ const authSlice = createSlice({
       })
       .addCase(loginThunk.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload ?? "Login failed";
+        state.error = action.payload?.message ?? "Login failed";
         state.user = null;
       })
       .addCase(meThunk.fulfilled, (state, action) => {

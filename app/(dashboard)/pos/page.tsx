@@ -21,7 +21,7 @@ import {
   useCheckoutPaymentValidation,
 } from "@/src/components/pos/pos-checkout-payment-section";
 import { PosSaleDetail } from "@/src/components/sales/pos-sale-detail";
-import type { CheckoutPaymentType, PaymentTermsPreset } from "@/src/lib/ar-types";
+import type { CheckoutPaymentType } from "@/src/lib/ar-types";
 import { ViewModalSkeleton } from "@/src/components/skeletons/view-modal-skeleton";
 import {
   PosSaleReceipt,
@@ -185,13 +185,11 @@ function MenuItemCard({
           <span className="text-sm font-bold tabular-nums text-[var(--color-primary)]">
             {formatMoney(item.sellPricePerUnit)}
           </span>
-          <span className="text-[10px] tabular-nums text-muted">
-            {outOfStock
-              ? "Out of stock"
-              : item.trackStock
-                ? `${item.quantityOnHand} left`
-                : "In stock"}
-          </span>
+          {item.trackStock ? (
+            <span className="text-[10px] tabular-nums text-muted">
+              {outOfStock ? "Out of stock" : `${item.quantityOnHand} left`}
+            </span>
+          ) : null}
         </div>
       </div>
     </button>
@@ -261,8 +259,6 @@ export default function PosPage() {
   const [chequeBankName, setChequeBankName] = useState("");
   const [chequeNumber, setChequeNumber] = useState("");
   const [bankReference, setBankReference] = useState("");
-  const [paymentTermsPreset, setPaymentTermsPreset] = useState<PaymentTermsPreset>("NET_7");
-  const [customDueDate, setCustomDueDate] = useState("");
   const [tableId, setTableId] = useState("");
   const [tableOptions, setTableOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [tablesLoading, setTablesLoading] = useState(true);
@@ -380,22 +376,30 @@ export default function PosPage() {
     Math.round((preDiscountTotal - discountPreview) * 100) / 100,
   );
 
-  useEffect(() => {
-    if (checkoutPaymentType === "FULLY_PAID" && tenderMode === "CASH") {
-      setCashPaidStr(String(grandTotalPreview));
-      setBankPaidStr("0");
-    }
-  }, [grandTotalPreview, checkoutPaymentType, tenderMode]);
-
   const cashPaidResult = useMemo(() => parseMoneyInput(cashPaidStr), [cashPaidStr]);
   const bankPaidResult = useMemo(() => parseMoneyInput(bankPaidStr), [bankPaidStr]);
 
   const paidNowPreview = useMemo(() => {
-    if (checkoutPaymentType === "FULLY_PAID") return grandTotalPreview;
+    if (checkoutPaymentType === "FULLY_PAID") {
+      if (tenderMode === "CASH") return cashPaidResult.invalid ? 0 : cashPaidResult.amount;
+      if (tenderMode === "BANK") return grandTotalPreview;
+      if (tenderMode === "CHEQUE") return grandTotalPreview;
+      return (cashPaidResult.invalid ? 0 : cashPaidResult.amount) +
+        (bankPaidResult.invalid ? 0 : bankPaidResult.amount);
+    }
     if (checkoutPaymentType === "CREDIT") return 0;
     const p = parseMoneyInput(paidAmountStr);
     return p.invalid ? 0 : p.amount;
-  }, [checkoutPaymentType, grandTotalPreview, paidAmountStr]);
+  }, [
+    checkoutPaymentType,
+    tenderMode,
+    cashPaidResult.invalid,
+    cashPaidResult.amount,
+    bankPaidResult.invalid,
+    bankPaidResult.amount,
+    grandTotalPreview,
+    paidAmountStr,
+  ]);
 
   const creditPreview = useMemo(
     () => Math.max(0, Math.round((grandTotalPreview - paidNowPreview) * 100) / 100),
@@ -502,15 +506,6 @@ export default function PosPage() {
 
     if (phone && !name) return "Customer name is required when phone is provided";
 
-    if (serviceType === "DINE_IN") {
-      if (tablesLoading) return "Loading tables…";
-      if (tablesError) return "Could not load tables — try again";
-      if (tableOptions.length === 0) {
-        return "No tables configured — add tables in the Tables menu";
-      }
-      if (!tableId) return "Select a table for dine-in orders";
-    }
-
     if (serviceType === "DELIVERY") {
       if (!name || !phone || !address) {
         return "Delivery requires customer name, phone, and delivery address";
@@ -523,12 +518,6 @@ export default function PosPage() {
     ) {
       if (!phone || !name || !address) {
         return "Credit sales require customer name, phone, and address";
-      }
-      if (!paymentTermsPreset) {
-        return "Select payment terms for credit balance";
-      }
-      if (paymentTermsPreset === "CUSTOM" && !customDueDate.trim()) {
-        return "Select a due date";
       }
     }
 
@@ -557,8 +546,6 @@ export default function PosPage() {
     setChequeBankName("");
     setChequeNumber("");
     setBankReference("");
-    setPaymentTermsPreset("NET_7");
-    setCustomDueDate("");
     setTableId("");
   };
 
@@ -572,13 +559,13 @@ export default function PosPage() {
     try {
       const paidResult = parseMoneyInput(paidAmountStr);
       const paidAmount =
-        checkoutPaymentType === "FULLY_PAID"
-          ? grandTotalPreview
-          : checkoutPaymentType === "CREDIT"
+        checkoutPaymentType === "CREDIT"
             ? 0
-            : paidResult.invalid
-              ? 0
-              : paidResult.amount;
+            : checkoutPaymentType === "FULLY_PAID"
+              ? paidNowPreview
+              : paidResult.invalid
+                ? 0
+                : paidResult.amount;
 
       const initialPayments = buildInitialPaymentsFromCheckout({
         checkoutPaymentType,
@@ -596,12 +583,6 @@ export default function PosPage() {
         serviceType,
         checkoutPaymentType,
         ...(initialPayments.length > 0 ? { initialPayments } : {}),
-        ...(creditPreview > 0.005
-          ? {
-              paymentTermsPreset,
-              ...(paymentTermsPreset === "CUSTOM" ? { customDueDate } : {}),
-            }
-          : {}),
         ...(serviceType === "DINE_IN" && tableId ? { tableId } : {}),
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
@@ -1092,6 +1073,30 @@ export default function PosPage() {
               </section>
 
               <section className={checkoutSectionGap}>
+                <h3 className={checkoutSectionTitle}>Payment</h3>
+                <PosCheckoutPaymentSection
+                  grandTotal={grandTotalPreview}
+                  checkoutPaymentType={checkoutPaymentType}
+                  onCheckoutPaymentTypeChange={setCheckoutPaymentType}
+                  paidAmountStr={paidAmountStr}
+                  onPaidAmountStrChange={setPaidAmountStr}
+                  tenderMode={tenderMode}
+                  onTenderModeChange={setTenderMode}
+                  cashPaidStr={cashPaidStr}
+                  onCashPaidStrChange={setCashPaidStr}
+                  bankPaidStr={bankPaidStr}
+                  onBankPaidStrChange={setBankPaidStr}
+                  chequeBankName={chequeBankName}
+                  onChequeBankNameChange={setChequeBankName}
+                  chequeNumber={chequeNumber}
+                  onChequeNumberChange={setChequeNumber}
+                  bankReference={bankReference}
+                  onBankReferenceChange={setBankReference}
+                  disabled={submitting || otherChargeResult.invalid || grandTotalPreview <= 0}
+                />
+              </section>
+
+              <section className={checkoutSectionGap}>
                 <CollapsibleBlock
                   title="Customer details"
                   open={customerOpen}
@@ -1126,34 +1131,6 @@ export default function PosPage() {
                     />
                   </div>
                 </CollapsibleBlock>
-              </section>
-
-              <section className={checkoutSectionGap}>
-                <h3 className={checkoutSectionTitle}>Payment</h3>
-                <PosCheckoutPaymentSection
-                  grandTotal={grandTotalPreview}
-                  checkoutPaymentType={checkoutPaymentType}
-                  onCheckoutPaymentTypeChange={setCheckoutPaymentType}
-                  paidAmountStr={paidAmountStr}
-                  onPaidAmountStrChange={setPaidAmountStr}
-                  tenderMode={tenderMode}
-                  onTenderModeChange={setTenderMode}
-                  cashPaidStr={cashPaidStr}
-                  onCashPaidStrChange={setCashPaidStr}
-                  bankPaidStr={bankPaidStr}
-                  onBankPaidStrChange={setBankPaidStr}
-                  chequeBankName={chequeBankName}
-                  onChequeBankNameChange={setChequeBankName}
-                  chequeNumber={chequeNumber}
-                  onChequeNumberChange={setChequeNumber}
-                  bankReference={bankReference}
-                  onBankReferenceChange={setBankReference}
-                  paymentTermsPreset={paymentTermsPreset}
-                  onPaymentTermsPresetChange={setPaymentTermsPreset}
-                  customDueDate={customDueDate}
-                  onCustomDueDateChange={setCustomDueDate}
-                  disabled={submitting || otherChargeResult.invalid || grandTotalPreview <= 0}
-                />
               </section>
 
               <section className={checkoutSectionGap}>

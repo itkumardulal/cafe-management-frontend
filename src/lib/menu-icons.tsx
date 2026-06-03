@@ -2,6 +2,8 @@ import {
   Calculator,
   ChartColumn,
   Coffee,
+  HandCoins,
+  ScanLine,
   FolderTree,
   LayoutDashboard,
   LayoutGrid,
@@ -44,6 +46,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   tags: Tags,
   wallet: Wallet,
   "package-minus": PackageMinus,
+  "hand-coins": HandCoins,
+  "scan-line": ScanLine,
 };
 
 export function getMenuIcon(icon?: string | null): LucideIcon {

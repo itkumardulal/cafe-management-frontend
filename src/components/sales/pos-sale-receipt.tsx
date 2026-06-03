@@ -36,6 +36,8 @@ export function PosSaleReceipt({ sale, cafeName, className, id }: PosSaleReceipt
 
   const creditNum = Number(sale.creditAmount);
   const hasCredit = Number.isFinite(creditNum) && creditNum > 0.005;
+  const amountReceived =
+    Number(sale.cashPaidAmount ?? 0) + Number(sale.bankPaidAmount ?? 0);
 
   return (
     <article
@@ -180,6 +182,18 @@ export function PosSaleReceipt({ sale, cafeName, className, id }: PosSaleReceipt
           <div className="flex justify-between font-semibold text-stone-900">
             <span>Credit due</span>
             <span className="font-mono tabular-nums">{formatMoney(sale.creditAmount)}</span>
+          </div>
+        ) : null}
+        {amountReceived > 0 ? (
+          <div className="flex justify-between font-semibold text-stone-900">
+            <span>Amount received</span>
+            <span className="font-mono tabular-nums">{formatMoney(amountReceived)}</span>
+          </div>
+        ) : null}
+        {Number(sale.changeAmount ?? 0) > 0 ? (
+          <div className="flex justify-between font-semibold text-stone-900">
+            <span>Change returned</span>
+            <span className="font-mono tabular-nums">{formatMoney(sale.changeAmount)}</span>
           </div>
         ) : null}
         {Number(sale.cashPaidAmount) > 0 && Number(sale.bankPaidAmount) > 0 ? (

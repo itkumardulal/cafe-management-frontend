@@ -13,7 +13,7 @@ import {
   StickyNote,
 } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { BillStatusBadge, PaymentStatusBadge } from "@/src/components/purchases/ap-status-badges";
 import {
   RecordBillPaymentSection,
@@ -107,17 +107,18 @@ export function SupplierBillDetailView({
   const paidPercent = total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : 0;
   const isClosed = remaining < 0.005;
   const isOverdue = bill.billStatus === "OVERDUE";
+  const [mobileTab, setMobileTab] = useState<"payments" | "items">("payments");
 
   return (
     <div className="page-shell page-content pb-10">
       {/* Breadcrumb */}
       <nav aria-label="Breadcrumb" className="mb-4 flex flex-wrap items-center gap-1.5 text-sm">
         <Link
-          href="/supplier-bills"
+          href="/bill-settlement"
           className="inline-flex items-center gap-1 text-[var(--color-muted)] transition-colors hover:text-[var(--color-primary)]"
         >
           <ArrowLeft className="size-4" aria-hidden />
-          Supplier bills
+          Bill settlement
         </Link>
         <ChevronRight className="size-3.5 text-[var(--color-subtle)]" aria-hidden />
         <span className="font-medium text-[var(--color-foreground)]">{bill.receiptNo}</span>
@@ -222,27 +223,64 @@ export function SupplierBillDetailView({
         {/* Main column */}
         <div className="space-y-6 lg:col-span-2">
           {!isClosed ? (
-            <RecordBillPaymentSection
-              className="border-t-0 pt-0"
-              remainingBalance={remaining}
-              mode={paymentForm.payMode}
-              onModeChange={paymentForm.onPayModeChange}
-              amountStr={paymentForm.payAmount}
-              onAmountStrChange={paymentForm.onPayAmountChange}
-              paymentMethod={paymentForm.payMethod}
-              onPaymentMethodChange={paymentForm.onPayMethodChange}
-              referenceNumber={paymentForm.payRef}
-              onReferenceNumberChange={paymentForm.onPayRefChange}
-              remarks={paymentForm.payRemarks}
-              onRemarksChange={paymentForm.onPayRemarksChange}
-              saving={paymentForm.saving}
-              onSubmit={paymentForm.onSubmit}
-              bankProofSlot={paymentForm.bankProofSlot}
-            />
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    paymentForm.onPayModeChange("PARTIAL");
+                    paymentForm.onPayAmountChange((remaining / 2).toFixed(2));
+                  }}
+                >
+                  Pay 50%
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    paymentForm.onPayModeChange("PARTIAL");
+                    paymentForm.onPayAmountChange((remaining / 4).toFixed(2));
+                  }}
+                >
+                  Pay 25%
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="soft"
+                  onClick={() => {
+                    paymentForm.onPayModeChange("FULL");
+                    paymentForm.onPayAmountChange(String(remaining));
+                  }}
+                >
+                  Pay full
+                </Button>
+              </div>
+              <RecordBillPaymentSection
+                className="border-t-0 pt-0"
+                remainingBalance={remaining}
+                mode={paymentForm.payMode}
+                onModeChange={paymentForm.onPayModeChange}
+                amountStr={paymentForm.payAmount}
+                onAmountStrChange={paymentForm.onPayAmountChange}
+                paymentMethod={paymentForm.payMethod}
+                onPaymentMethodChange={paymentForm.onPayMethodChange}
+                referenceNumber={paymentForm.payRef}
+                onReferenceNumberChange={paymentForm.onPayRefChange}
+                remarks={paymentForm.payRemarks}
+                onRemarksChange={paymentForm.onPayRemarksChange}
+                saving={paymentForm.saving}
+                onSubmit={paymentForm.onSubmit}
+                bankProofSlot={paymentForm.bankProofSlot}
+              />
+            </div>
           ) : null}
 
           {/* Payment history */}
-          <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-sm)]">
+          <div className={cn("overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-sm)]", mobileTab === "items" ? "hidden md:block" : "")}>
             <div className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] px-4 py-3 sm:px-5">
               <h2 className="text-sm font-semibold text-[var(--color-foreground)]">Payment history</h2>
               <span className="rounded-full bg-[var(--color-surface-muted)] px-2.5 py-0.5 text-xs font-medium text-[var(--color-muted)]">
@@ -321,7 +359,7 @@ export function SupplierBillDetailView({
           </div>
 
           {/* Line items */}
-          <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-sm)]">
+          <div className={cn("overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-sm)]", mobileTab === "payments" ? "hidden md:block" : "")}>
             <div className="flex items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-surface-muted)]/50 px-4 py-3">
               <Package className="size-4 text-[var(--color-muted)]" aria-hidden />
               <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)]">
@@ -411,6 +449,33 @@ export function SupplierBillDetailView({
           </SidebarCard>
         </aside>
       </div>
+      <div className="mt-4 flex gap-2 md:hidden">
+        <Button
+          type="button"
+          size="sm"
+          variant={mobileTab === "payments" ? "soft" : "secondary"}
+          className="flex-1"
+          onClick={() => setMobileTab("payments")}
+        >
+          Payment history
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={mobileTab === "items" ? "soft" : "secondary"}
+          className="flex-1"
+          onClick={() => setMobileTab("items")}
+        >
+          Line items
+        </Button>
+      </div>
+      {!isClosed ? (
+        <div className="sticky bottom-0 mt-4 border-t border-[var(--color-border)] bg-[var(--color-surface)]/95 p-3 backdrop-blur md:hidden">
+          <Button type="button" className="w-full" loading={paymentForm.saving} onClick={paymentForm.onSubmit}>
+            Record payment
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

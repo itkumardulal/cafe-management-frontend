@@ -51,6 +51,8 @@ export function saleBillStatusVariant(
 export const SALE_PAYMENT_METHOD_OPTIONS = [
   { value: "CASH" as const, label: "Cash" },
   { value: "BANK_TRANSFER" as const, label: "Bank transfer" },
+  { value: "ESEWA" as const, label: "eSewa" },
+  { value: "KHALTI" as const, label: "Khalti" },
   { value: "CHEQUE" as const, label: "Cheque" },
 ] as const;
 
