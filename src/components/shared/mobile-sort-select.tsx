@@ -33,6 +33,7 @@ export function MobileSortSelect({
         Sort by
       </label>
       <Select
+        searchable={false}
         id="mobile-sort"
         appearance="field"
         value={currentValue}

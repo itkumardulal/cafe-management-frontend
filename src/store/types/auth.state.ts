@@ -10,5 +10,6 @@ export interface AuthState {
   user: AuthUser | null;
   loading: boolean;
   initialized: boolean;
+  sessionExpired: boolean;
   error: string | null;
 }

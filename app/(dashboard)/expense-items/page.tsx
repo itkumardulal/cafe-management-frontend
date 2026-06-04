@@ -441,6 +441,7 @@ function ExpenseItemsContent() {
                 hint="This salary category will be linked to the selected staff member"
               >
                 <Select
+                  searchable
                   value={form.salaryStaffUserId}
                   onChange={(e) => {
                     const nextStaffId = e.target.value;

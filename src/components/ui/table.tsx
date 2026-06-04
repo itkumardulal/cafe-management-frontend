@@ -21,6 +21,7 @@ export function ResponsiveTable({
   ariaLabel,
   density = "comfortable",
   variant = "card",
+  horizontalScroll = true,
 }: {
   headers: TableHeader[];
   children: ReactNode;
@@ -29,6 +30,8 @@ export function ResponsiveTable({
   density?: "compact" | "comfortable";
   /** `embedded` removes outer card chrome for use inside modals/detail panels. */
   variant?: "card" | "embedded";
+  /** When false, table fits container width without a horizontal scrollbar. */
+  horizontalScroll?: boolean;
 }) {
   const cellPad = density === "comfortable" ? "px-4 py-3" : "px-3 py-2.5";
   const isEmbedded = variant === "embedded";
@@ -40,7 +43,7 @@ export function ResponsiveTable({
         className,
       )}
     >
-      <div className="max-w-full overflow-x-auto">
+      <div className={cn("max-w-full", horizontalScroll ? "overflow-x-auto" : "overflow-x-hidden")}>
         <table
           className={cn(
             "w-full text-left text-sm [&_tbody_tr]:transition-colors [&_tbody_td]:align-middle",

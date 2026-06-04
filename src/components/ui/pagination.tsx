@@ -58,6 +58,7 @@ export function Pagination({
           <label className="flex items-center gap-2.5">
             <span className="whitespace-nowrap text-sm text-[var(--color-muted)]">Rows per page</span>
             <Select
+              searchable={false}
               appearance="button"
               fullWidth={false}
               size="sm"
@@ -174,6 +175,7 @@ export function Pagination({
       <div className="mt-3 hidden items-center justify-between gap-3 border-t border-[var(--color-border)] pt-3 sm:flex md:hidden">
         <span className="text-sm text-[var(--color-muted)]">Rows per page</span>
         <Select
+          searchable={false}
           appearance="button"
           fullWidth={false}
           size="sm"

@@ -13,7 +13,8 @@ import {
   Truck,
   UtensilsCrossed,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import {
   buildInitialPaymentsFromCheckout,
@@ -45,6 +46,11 @@ import { formatDateTime, formatMoney } from "@/src/lib/format-display";
 import { normalizePhone } from "@/src/lib/phone-normalize";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
+import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
+import {
+  fetchDiningTableOptionsThunk,
+  fetchSellableCatalogThunk,
+} from "@/src/store/slices/reference-data.slice";
 
 type CatalogItem = {
   id: string;
@@ -243,9 +249,22 @@ function CollapsibleBlock({
   );
 }
 
-export default function PosPage() {
-  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
-  const [catalogLoading, setCatalogLoading] = useState(true);
+function PosPageContent() {
+  const dispatch = useAppDispatch();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const diningSessionIdParam = searchParams.get("sessionId");
+  const billingFromSession = Boolean(diningSessionIdParam);
+
+  const catalog = useAppSelector((state) => state.referenceData.sellableCatalog) as CatalogItem[];
+  const sellableCatalogStatus = useAppSelector((state) => state.referenceData.sellableCatalogStatus);
+  const catalogLoading = sellableCatalogStatus === "loading" && catalog.length === 0;
+  const tableOptions = useAppSelector((state) => state.referenceData.diningTableOptions);
+  const diningTableOptionsStatus = useAppSelector(
+    (state) => state.referenceData.diningTableOptionsStatus,
+  );
+  const tablesLoading = diningTableOptionsStatus === "loading" && tableOptions.length === 0;
+  const tablesError = diningTableOptionsStatus === "error";
   const [salesRefresh, setSalesRefresh] = useState(0);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [search, setSearch] = useState("");
@@ -260,9 +279,6 @@ export default function PosPage() {
   const [chequeNumber, setChequeNumber] = useState("");
   const [bankReference, setBankReference] = useState("");
   const [tableId, setTableId] = useState("");
-  const [tableOptions, setTableOptions] = useState<Array<{ id: string; name: string }>>([]);
-  const [tablesLoading, setTablesLoading] = useState(true);
-  const [tablesError, setTablesError] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
@@ -274,6 +290,8 @@ export default function PosPage() {
   const [bankPaidStr, setBankPaidStr] = useState("0");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [billingLoading, setBillingLoading] = useState(billingFromSession);
+  const [sessionTableNames, setSessionTableNames] = useState<string[]>([]);
 
   const [viewOpen, setViewOpen] = useState(false);
   const [viewSale, setViewSale] = useState<PosSaleReceiptData | null>(null);
@@ -417,36 +435,68 @@ export default function PosPage() {
     chequeNumber,
   });
 
-  const loadCatalog = useCallback(async () => {
-    setCatalogLoading(true);
-    try {
-      const data = await operationsApi.sales.sellableCatalog();
-      setCatalog(data);
-    } catch (error) {
-      appToast.error(getApiErrorMessage(error, "Failed to load menu"));
-    } finally {
-      setCatalogLoading(false);
-    }
-  }, []);
-
-  const loadTableOptions = useCallback(async () => {
-    setTablesLoading(true);
-    setTablesError(false);
-    try {
-      const data = await operationsApi.diningTables.options();
-      setTableOptions(data);
-    } catch {
-      setTableOptions([]);
-      setTablesError(true);
-    } finally {
-      setTablesLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    void loadCatalog();
-    void loadTableOptions();
-  }, [loadCatalog, loadTableOptions]);
+    if (sellableCatalogStatus === "idle") {
+      void dispatch(fetchSellableCatalogThunk());
+    }
+    if (!billingFromSession && diningTableOptionsStatus === "idle") {
+      void dispatch(fetchDiningTableOptionsThunk());
+    }
+  }, [
+    billingFromSession,
+    dispatch,
+    diningTableOptionsStatus,
+    sellableCatalogStatus,
+  ]);
+
+  const hydrateFromBillingHandoff = useCallback(async (sessionId: string) => {
+    setBillingLoading(true);
+    try {
+      const handoff = await operationsApi.tableOrders.billingHandoff(sessionId);
+      setServiceType("DINE_IN");
+      setTableId(handoff.primaryTableId);
+      setSessionTableNames(handoff.tableNames);
+      setCart(
+        handoff.lines.map((l) => {
+          const catalogItem = catalog.find((c) => c.id === l.menuItemId);
+          const maxQty = catalogItem?.trackStock
+            ? Number(catalogItem.quantityOnHand ?? 0)
+            : 999_999;
+          return {
+            key: l.menuItemId,
+            menuItemId: l.menuItemId,
+            name: l.name,
+            unitPrice: l.unitPrice,
+            qty: l.quantity,
+            maxQty: maxQty > 0 ? maxQty : 999_999,
+          };
+        }),
+      );
+    } catch (error) {
+      appToast.error(getApiErrorMessage(error, "Failed to load table order for billing"));
+      router.replace("/table-orders");
+    } finally {
+      setBillingLoading(false);
+    }
+  }, [catalog, router]);
+
+  const billingHandoffLoaded = useRef(false);
+  useEffect(() => {
+    if (!diningSessionIdParam || catalogLoading || billingHandoffLoaded.current) return;
+    billingHandoffLoaded.current = true;
+    void hydrateFromBillingHandoff(diningSessionIdParam);
+  }, [diningSessionIdParam, catalogLoading, hydrateFromBillingHandoff]);
+
+  const handleCancelBilling = async () => {
+    if (!diningSessionIdParam) return;
+    try {
+      await operationsApi.tableOrders.cancelBilling(diningSessionIdParam);
+      appToast.success("Billing cancelled — order resumed on Table Menu");
+      router.replace("/table-orders");
+    } catch (error) {
+      appToast.error(getApiErrorMessage(error, "Failed to cancel billing"));
+    }
+  };
 
   const addToCart = (item: CatalogItem) => {
     const maxQty = item.trackStock ? Number(item.quantityOnHand ?? 0) : 999_999;
@@ -584,6 +634,7 @@ export default function PosPage() {
         checkoutPaymentType,
         ...(initialPayments.length > 0 ? { initialPayments } : {}),
         ...(serviceType === "DINE_IN" && tableId ? { tableId } : {}),
+        ...(diningSessionIdParam ? { diningSessionId: diningSessionIdParam } : {}),
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         customerEmail: customerEmail.trim() || undefined,
@@ -605,9 +656,13 @@ export default function PosPage() {
       const creditMsg =
         creditPreview > 0.005 ? ` · Credit due: ${formatMoney(creditPreview)}` : "";
       appToast.success(`Sale ${result.receiptNo} recorded${creditMsg}`);
+      if (billingFromSession) {
+        router.replace("/table-orders");
+        return;
+      }
       setSuccessSale({ id: result.id, receiptNo: result.receiptNo });
       resetCheckout();
-      void loadCatalog();
+      void dispatch(fetchSellableCatalogThunk({ force: true }));
       setSalesRefresh((n) => n + 1);
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to complete sale"));
@@ -666,11 +721,38 @@ export default function PosPage() {
         cart.length > 0 && "max-lg:pb-36",
       )}
     >
+      {billingFromSession ? (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sky-400/40 bg-sky-50/80 px-3 py-2 dark:bg-sky-950/30">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground">
+              Billing table order
+              {sessionTableNames.length > 0
+                ? ` — ${sessionTableNames.join(" + ")}`
+                : ""}
+            </p>
+            <p className="text-xs text-muted">
+              Table assignment is locked · adjust items and payment below
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={billingLoading || submitting}
+            onClick={() => void handleCancelBilling()}
+          >
+            Cancel billing
+          </Button>
+        </div>
+      ) : null}
+
       <div className="mb-2 flex shrink-0 flex-wrap items-start justify-between gap-2 sm:items-center">
         <div className="min-w-0">
           <h1 className="text-base font-semibold tracking-tight text-foreground sm:text-lg">POS</h1>
           <p className="mt-0.5 text-xs text-muted">
-            Menu and checkout on one screen · scroll for recent sales
+            {billingFromSession
+              ? "Complete payment for the table order"
+              : "Menu and checkout on one screen · scroll for recent sales"}
           </p>
         </div>
         {successSale ? (
@@ -777,37 +859,49 @@ export default function PosPage() {
               <section className={checkoutSectionGap}>
                 <h3 className={checkoutSectionTitle}>How is this order?</h3>
                 <div className="space-y-2">
-                  <div>
-                    <p className="mb-1 text-xs text-muted">Service</p>
-                    <div className="flex gap-1 rounded-lg bg-[var(--color-cream-100)] p-1">
-                      <button
-                        type="button"
-                        className={segmentClass(serviceType === "DINE_IN")}
-                        onClick={() => {
-                          setServiceType("DINE_IN");
-                          void loadTableOptions();
-                        }}
-                      >
-                        <UtensilsCrossed className="h-4 w-4" />
-                        Dine in
-                      </button>
-                      <button
-                        type="button"
-                        className={segmentClass(serviceType === "DELIVERY")}
-                        onClick={() => {
-                          setServiceType("DELIVERY");
-                          setTableId("");
-                        }}
-                      >
-                        <Truck className="h-4 w-4" />
-                        Delivery
-                      </button>
+                  {!billingFromSession ? (
+                    <div>
+                      <p className="mb-1 text-xs text-muted">Service</p>
+                      <div className="flex gap-1 rounded-lg bg-[var(--color-cream-100)] p-1">
+                        <button
+                          type="button"
+                          className={segmentClass(serviceType === "DINE_IN")}
+                          onClick={() => {
+                            setServiceType("DINE_IN");
+                            void dispatch(fetchDiningTableOptionsThunk({ force: true }));
+                          }}
+                        >
+                          <UtensilsCrossed className="h-4 w-4" />
+                          Dine in
+                        </button>
+                        <button
+                          type="button"
+                          className={segmentClass(serviceType === "DELIVERY")}
+                          onClick={() => {
+                            setServiceType("DELIVERY");
+                            setTableId("");
+                          }}
+                        >
+                          <Truck className="h-4 w-4" />
+                          Delivery
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  {serviceType === "DINE_IN" ? (
+                  ) : null}
+                  {serviceType === "DINE_IN" || billingFromSession ? (
                     <div>
                       <p className="mb-1 text-xs text-muted">Table</p>
-                      {tablesLoading ? (
+                      {billingFromSession ? (
+                        billingLoading ? (
+                          <p className="text-xs text-muted">Loading table…</p>
+                        ) : (
+                          <p className="rounded-md border border-[var(--color-border)] bg-[var(--color-cream-50)] px-2.5 py-2 text-sm font-medium">
+                            {sessionTableNames.length > 0
+                              ? sessionTableNames.join(", ")
+                              : tableOptions.find((t) => t.id === tableId)?.name ?? "—"}
+                          </p>
+                        )
+                      ) : tablesLoading ? (
                         <p className="text-xs text-muted">Loading tables…</p>
                       ) : tablesError ? (
                         <div className="space-y-1">
@@ -815,7 +909,7 @@ export default function PosPage() {
                           <button
                             type="button"
                             className="text-xs font-medium text-[var(--color-primary)] underline-offset-2 hover:underline"
-                            onClick={() => void loadTableOptions()}
+                            onClick={() => void dispatch(fetchDiningTableOptionsThunk({ force: true }))}
                           >
                             Try again
                           </button>
@@ -826,6 +920,7 @@ export default function PosPage() {
                         </p>
                       ) : (
                         <Select
+                          searchable
                           value={tableId}
                           onChange={(e) => setTableId(e.target.value)}
                         >
@@ -1259,5 +1354,13 @@ export default function PosPage() {
           )
         : null}
     </section>
+  );
+}
+
+export default function PosPage() {
+  return (
+    <Suspense fallback={<section className="page-shell page-content p-6 text-sm text-muted">Loading POS…</section>}>
+      <PosPageContent />
+    </Suspense>
   );
 }

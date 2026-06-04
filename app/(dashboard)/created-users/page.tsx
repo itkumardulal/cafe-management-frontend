@@ -15,7 +15,8 @@ import { fetchCreatedUsersThunk } from "@/src/store/slices/user.slice";
 export default function CreatedUsersPage() {
   const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
-  const { createdUsers, loading } = useAppSelector((state) => state.user);
+  const { createdUsers, createdUsersStatus } = useAppSelector((state) => state.user);
+  const loading = createdUsersStatus === "loading" && createdUsers.length === 0;
 
   useEffect(() => {
     if (user?.role === "SUPER_ADMIN") {

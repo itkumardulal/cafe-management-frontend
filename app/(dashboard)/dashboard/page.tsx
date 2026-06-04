@@ -13,63 +13,41 @@ import { Select } from "@/src/components/ui/select";
 import { formatMoney } from "@/src/lib/format-display";
 import { DEFAULT_PAGE_SIZE, getStoredPageSize, setStoredPageSize, type PageSizeOption } from "@/src/lib/pagination-storage";
 import { appToast } from "@/src/lib/toast";
-import { operationsApi } from "@/src/services/operations-api";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
 import {
   fetchCafeOverviewThunk,
   fetchManagedCafesThunk,
   setCafe,
 } from "@/src/store/slices/cafe.slice";
+import {
+  fetchCafeAdminDashboardThunk,
+  fetchStockAlertsThunk,
+} from "@/src/store/slices/dashboard.slice";
 
 export default function DashboardPage() {
   const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
   const [cafePageSize, setCafePageSize] = useState<PageSizeOption>(DEFAULT_PAGE_SIZE);
   const [cafePage, setCafePage] = useState(1);
-  const [apMetrics, setApMetrics] = useState<{
-    outstandingBillsAmount: string;
-    overdueBillsAmount: string;
-    billsDueThisWeekAmount: string;
-    suppliersWithOutstandingCount: number;
-  } | null>(null);
-  const [arMetrics, setArMetrics] = useState<{
-    totalOutstanding: string;
-    customersWithCreditCount: number;
-    overdueCreditsAmount: string;
-    topCreditCustomers: Array<{
-      id: string;
-      name: string;
-      phoneNumber: string;
-      outstandingAmount: string;
-    }>;
-  } | null>(null);
-  const [stockAlerts, setStockAlerts] = useState<{
-    counts: { low: number; out: number };
-    low: Array<{ id: string; kind: string; name: string; quantityOnHand: string }>;
-  } | null>(null);
+  const { apMetrics, arMetrics, stockAlerts } = useAppSelector((state) => state.dashboard);
 
   useEffect(() => {
     if (!user?.role || user.role === "SUPER_ADMIN") {
       return;
     }
-    void operationsApi.dashboard
-      .cafeMetrics()
-      .then(setApMetrics)
-      .catch(() => {});
-    void operationsApi.dashboard
-      .customerReceivables()
-      .then(setArMetrics)
-      .catch(() => {});
-    void operationsApi
-      .stockAlerts()
-      .then((data: { counts: { low: number; out: number }; low: Array<{ id: string; kind: string; name: string; quantityOnHand: string }> }) =>
-        setStockAlerts({ counts: data.counts, low: data.low.slice(0, 5) }),
-      )
-      .catch(() => {});
-  }, [user?.role]);
-  const { selectedCafeId, managedCafes, selectedCafeOverview, loading } = useAppSelector(
-    (state) => state.cafe,
-  );
+    void dispatch(fetchCafeAdminDashboardThunk());
+    void dispatch(fetchStockAlertsThunk());
+  }, [dispatch, user?.role]);
+  const {
+    selectedCafeId,
+    managedCafes,
+    selectedCafeOverview,
+    managedCafesStatus,
+    overviewStatus,
+  } = useAppSelector((state) => state.cafe);
+  const loading =
+    (managedCafesStatus === "loading" && managedCafes.length === 0) ||
+    (overviewStatus === "loading" && selectedCafeOverview === null);
   const totalCafePages = Math.max(1, Math.ceil(managedCafes.length / cafePageSize));
   const pagedManagedCafes = useMemo(() => {
     const start = (cafePage - 1) * cafePageSize;
@@ -145,6 +123,7 @@ export default function DashboardPage() {
                 Select cafe
               </label>
               <Select
+                searchable
                 id="cafe-switcher"
                 value={selectedCafeId ?? ""}
                 onChange={(event) => dispatch(setCafe(event.target.value || null))}
@@ -353,12 +332,6 @@ export default function DashboardPage() {
         </Card>
       ) : null}
 
-      <Card density="comfortable">
-        <p className="text-muted">
-          This dashboard is optimized for staff use with a mobile-first layout, fast touch targets,
-          and reusable UI patterns.
-        </p>
-      </Card>
     </section>
   );
 }

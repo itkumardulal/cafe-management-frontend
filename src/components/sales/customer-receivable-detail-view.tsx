@@ -349,6 +349,7 @@ export function CustomerReceivableDetailView({
               </div>
               <Field id="crp-payment-method" label="Payment method" required>
                 <Select
+                  searchable={false}
                   value={paymentMethod}
                   onChange={(e) =>
                     onPaymentMethodChange(e.target.value as SalePaymentMethod)

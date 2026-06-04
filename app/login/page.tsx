@@ -18,7 +18,8 @@ import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import { appToast } from "@/src/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
-import { loginThunk, logoutThunk, type LoginRejectPayload } from "@/src/store/slices/auth.slice";
+import { loginThunk, logoutThunk, clearSessionExpired, type LoginRejectPayload } from "@/src/store/slices/auth.slice";
+import { resetSessionRedirectGuard } from "@/src/lib/session-auth";
 
 const LOGIN_LOCK_KEY = "auth:login-lock-until";
 const DEFAULT_LOCK_MS = 15 * 60 * 1000;
@@ -58,6 +59,11 @@ function LoginForm() {
         typeof window !== "undefined" ? window.crypto.randomUUID() : "csrf-seed",
     },
   });
+
+  useEffect(() => {
+    resetSessionRedirectGuard();
+    dispatch(clearSessionExpired());
+  }, [dispatch]);
 
   useEffect(() => {
     if (emailFromQuery) {

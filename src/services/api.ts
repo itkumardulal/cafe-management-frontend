@@ -84,9 +84,12 @@ api.interceptors.response.use(
       await refreshingPromise;
       return api(originalRequest as AxiosRequestConfig);
     } catch {
-      const { store } = await import("@/src/store");
-      const { logoutThunk } = await import("@/src/store/slices/auth.slice");
-      await store.dispatch(logoutThunk());
+      const { redirectToHomeAfterSessionExpired } = await import(
+        "@/src/lib/session-auth"
+      );
+      await redirectToHomeAfterSessionExpired(
+        "Your session has expired. Please sign in again.",
+      );
       return Promise.reject(error);
     }
   },

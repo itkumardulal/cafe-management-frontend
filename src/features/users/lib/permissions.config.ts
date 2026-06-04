@@ -72,6 +72,12 @@ const PERMISSION_GROUPS: Array<{
     description: "Expenses and daily costs",
     codes: ["EXPENSE_ITEMS", "DAILY_EXPENSES"],
   },
+  {
+    id: "reports",
+    label: "Reports",
+    description: "Business analytics",
+    codes: ["REPORTS"],
+  },
 ];
 
 export function ensureRequiredPermission(codes: string[]): string[] {

@@ -25,7 +25,8 @@ function CafeAdminsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const user = useAppSelector((state) => state.auth.user);
-  const { managedCafes, loading } = useAppSelector((state) => state.cafe);
+  const { managedCafes, managedCafesStatus } = useAppSelector((state) => state.cafe);
+  const loading = managedCafesStatus === "loading" && managedCafes.length === 0;
   const [addOpen, setAddOpen] = useState(false);
 
   useEffect(() => {
@@ -67,7 +68,7 @@ function CafeAdminsPageContent() {
 
   const onCafeCreated = () => {
     closeAddModal();
-    void dispatch(fetchManagedCafesThunk());
+    void dispatch(fetchManagedCafesThunk({ force: true }));
   };
 
   return (

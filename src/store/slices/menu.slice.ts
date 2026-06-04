@@ -4,7 +4,7 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import type { MenuItem } from "@/src/types/auth";
 import { api } from "@/src/services/api";
 import type { MenuState } from "@/src/store/types/menu.state";
-import { logoutThunk } from "./auth.slice";
+import { logoutThunk, sessionExpiredThunk } from "./auth.slice";
 
 const initialState: MenuState = {
   items: [],
@@ -16,7 +16,7 @@ const initialState: MenuState = {
 export const fetchAuthorizedMenusThunk = createAsyncThunk<
   MenuItem[],
   void,
-  { rejectValue: string }
+  { rejectValue: string; state: { menu: MenuState } }
 >("menu/fetchAuthorized", async (_, { rejectWithValue }) => {
   try {
     const response = await api.get("/menus/authorized");
@@ -24,6 +24,11 @@ export const fetchAuthorizedMenusThunk = createAsyncThunk<
   } catch {
     return rejectWithValue("Failed to load menus");
   }
+}, {
+  condition: (_, { getState }) => {
+    const { initialized, loading } = getState().menu;
+    return !initialized && !loading;
+  },
 });
 
 const menuSlice = createSlice({
@@ -52,6 +57,12 @@ const menuSlice = createSlice({
         state.items = [];
       })
       .addCase(logoutThunk.fulfilled, (state) => {
+        state.items = [];
+        state.loading = false;
+        state.error = null;
+        state.initialized = false;
+      })
+      .addCase(sessionExpiredThunk.fulfilled, (state) => {
         state.items = [];
         state.loading = false;
         state.error = null;

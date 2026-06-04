@@ -57,6 +57,7 @@ export type SaleDetailResponse = {
   customerAddress?: string | null;
   tableId?: string | null;
   tableName?: string | null;
+  tableNamesSnapshot?: string | null;
   subtotal: string;
   otherChargeAmount: string;
   discountAmount: string;

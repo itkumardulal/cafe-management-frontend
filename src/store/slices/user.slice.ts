@@ -3,6 +3,8 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { api } from "@/src/services/api";
+import { logoutThunk, sessionExpiredThunk } from "@/src/store/slices/auth.slice";
+import type { FetchForceArg } from "@/src/store/types/fetch-args";
 import type {
   AssignableMenu,
   CreateStaffPayload,
@@ -15,7 +17,9 @@ import type {
 const initialState: UserState = {
   staff: [],
   createdUsers: [],
+  createdUsersStatus: "idle",
   assignableMenus: [],
+  assignableMenusStatus: "idle",
   loading: false,
   error: null,
 };
@@ -47,8 +51,8 @@ export const createStaffThunk = createAsyncThunk<
 
 export const fetchCreatedUsersThunk = createAsyncThunk<
   CreatedUserRecord[],
-  void,
-  { rejectValue: string }
+  FetchForceArg,
+  { rejectValue: string; state: { user: UserState } }
 >("user/fetchCreatedUsers", async (_, { rejectWithValue }) => {
   try {
     const response = await api.get("/users/created-by-me");
@@ -56,12 +60,20 @@ export const fetchCreatedUsersThunk = createAsyncThunk<
   } catch {
     return rejectWithValue("Failed to load created users");
   }
+}, {
+  condition: (arg, { getState }) => {
+    if (arg && typeof arg === "object" && arg.force) {
+      return true;
+    }
+    const status = getState().user.createdUsersStatus;
+    return status !== "loaded" && status !== "loading";
+  },
 });
 
 export const fetchAssignableMenusThunk = createAsyncThunk<
   AssignableMenu[],
-  void,
-  { rejectValue: string }
+  FetchForceArg,
+  { rejectValue: string; state: { user: UserState } }
 >("user/fetchAssignableMenus", async (_, { rejectWithValue }) => {
   try {
     const response = await api.get("/menus/assignable");
@@ -69,6 +81,14 @@ export const fetchAssignableMenusThunk = createAsyncThunk<
   } catch {
     return rejectWithValue("Failed to load assignable menus");
   }
+}, {
+  condition: (arg, { getState }) => {
+    if (arg && typeof arg === "object" && arg.force) {
+      return true;
+    }
+    const status = getState().user.assignableMenusStatus;
+    return status !== "loaded" && status !== "loading";
+  },
 });
 
 export const updateStaffThunk = createAsyncThunk<
@@ -96,6 +116,12 @@ const userSlice = createSlice({
   reducers: {
     clearUserError(state) {
       state.error = null;
+    },
+    invalidateCreatedUsers(state) {
+      state.createdUsersStatus = "idle";
+    },
+    invalidateAssignableMenus(state) {
+      state.assignableMenusStatus = "idle";
     },
   },
   extraReducers: (builder) => {
@@ -129,20 +155,29 @@ const userSlice = createSlice({
       })
       .addCase(fetchCreatedUsersThunk.pending, (state) => {
         state.loading = true;
+        state.createdUsersStatus = "loading";
         state.error = null;
       })
       .addCase(fetchCreatedUsersThunk.fulfilled, (state, action) => {
         state.loading = false;
+        state.createdUsersStatus = "loaded";
         state.createdUsers = action.payload;
       })
       .addCase(fetchCreatedUsersThunk.rejected, (state, action) => {
         state.loading = false;
+        state.createdUsersStatus = "error";
         state.error = action.payload ?? "Failed to load created users";
       })
+      .addCase(fetchAssignableMenusThunk.pending, (state) => {
+        state.assignableMenusStatus = "loading";
+        state.error = null;
+      })
       .addCase(fetchAssignableMenusThunk.fulfilled, (state, action) => {
+        state.assignableMenusStatus = "loaded";
         state.assignableMenus = action.payload;
       })
       .addCase(fetchAssignableMenusThunk.rejected, (state, action) => {
+        state.assignableMenusStatus = "error";
         state.error = action.payload ?? "Failed to load menus";
       })
       .addCase(updateStaffThunk.pending, (state) => {
@@ -155,9 +190,12 @@ const userSlice = createSlice({
       .addCase(updateStaffThunk.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload ?? "Failed to update staff";
-      });
+      })
+      .addCase(logoutThunk.fulfilled, () => initialState)
+      .addCase(sessionExpiredThunk.fulfilled, () => initialState);
   },
 });
 
-export const { clearUserError } = userSlice.actions;
+export const { clearUserError, invalidateCreatedUsers, invalidateAssignableMenus } =
+  userSlice.actions;
 export default userSlice.reducer;

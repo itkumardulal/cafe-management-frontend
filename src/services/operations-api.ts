@@ -1,3 +1,5 @@
+import { buildGetCacheKey, fetchDeduped } from "@/src/lib/api-fetch-dedupe";
+import { buildReportQueryParams } from "@/src/features/reports/types/reports.types";
 import { api } from "./api";
 
 export type Paginated<T> = {
@@ -19,9 +21,62 @@ export type DateRangeQueryParams = ListQueryParams & {
   toDate?: string;
 };
 
-async function getData<T>(path: string, params?: Record<string, string | number | undefined>) {
-  const response = await api.get(path, { params });
-  return response.data.data as T;
+export type TableOrderSessionDetail = {
+  id: string;
+  status: "OPEN" | "IN_BILLING" | "CLOSED" | "CANCELLED";
+  version: number;
+  openedAt: string;
+  inBillingAt: string | null;
+  closedAt: string | null;
+  notes: string | null;
+  checkoutSaleId: string | null;
+  primaryTableId: string | null;
+  primaryTableName: string | null;
+  tableNames: string[];
+  tables: Array<{ tableId: string; tableName: string; isPrimary: boolean }>;
+  lines: Array<{
+    id: string;
+    menuItemId: string;
+    menuItemName: string;
+    quantity: string;
+    unitPrice: string;
+    lineTotal: string;
+  }>;
+  subtotal: string;
+  lineCount: number;
+};
+
+export type TableOrderBillingHandoff = {
+  sessionId: string;
+  status: string;
+  version: number;
+  serviceType: "DINE_IN";
+  primaryTableId: string;
+  primaryTableName: string;
+  tableNames: string[];
+  lines: Array<{
+    menuItemId: string;
+    name: string;
+    quantity: number;
+    unitPrice: number;
+  }>;
+  subtotal: string;
+};
+
+async function getData<T>(
+  path: string,
+  params?: Record<string, string | number | undefined>,
+  options?: { force?: boolean },
+) {
+  const cacheKey = buildGetCacheKey(path, params);
+  return fetchDeduped(
+    cacheKey,
+    async () => {
+      const response = await api.get(path, { params });
+      return response.data.data as T;
+    },
+    options,
+  );
 }
 
 async function mutate<T>(method: "post" | "patch" | "delete", path: string, body?: unknown) {
@@ -34,6 +89,12 @@ async function mutate<T>(method: "post" | "patch" | "delete", path: string, body
   return response.data.data as T;
 }
 
+function buildReportApiParams(
+  params?: { period?: string; fromDate?: string; toDate?: string },
+): Record<string, string | undefined> {
+  return buildReportQueryParams(params as import("@/src/features/reports/types/reports.types").ReportPeriodParams);
+}
+
 export const operationsApi = {
   menuCategories: {
     list: (params?: ListQueryParams) =>
@@ -41,6 +102,7 @@ export const operationsApi = {
         "/menu-categories",
         params,
       ),
+    options: () => getData<Array<{ id: string; name: string }>>("/menu-categories/options"),
     create: (name: string) => mutate("post", "/menu-categories", { name }),
     update: (id: string, name: string) => mutate("patch", `/menu-categories/${id}`, { name }),
     remove: (id: string) => mutate("delete", `/menu-categories/${id}`),
@@ -54,6 +116,7 @@ export const operationsApi = {
           menuCategoryId: string;
           categoryName: string;
           imageUrl?: string | null;
+          itemType?: string | null;
           unitType?: string | null;
           unitQuantity?: string | null;
           costPerUnit: string;
@@ -87,6 +150,7 @@ export const operationsApi = {
       menuCategoryId: string;
       name: string;
       imageUrl?: string;
+      itemType?: string;
       unitType?: string;
       unitQuantity?: string;
       costPerUnit: number;
@@ -235,6 +299,42 @@ export const operationsApi = {
         overdueBills: number;
         lastPaymentDate: string | null;
       }>(`/suppliers/${id}/billing-summary`),
+  },
+  tableOrders: {
+    board: () =>
+      getData<{
+        items: Array<{
+          tableId: string;
+          tableName: string;
+          status: "VACANT" | "IN_PROGRESS" | "IN_BILLING";
+          sessionId: string | null;
+          sessionTableNames: string[];
+          subtotal: string | null;
+          lineCount: number;
+          lastItemName: string | null;
+        }>;
+      }>("/table-orders/board"),
+    createSession: (data: { tableId: string }) =>
+      mutate<TableOrderSessionDetail>("post", "/table-orders/sessions", data),
+    getSession: (id: string) =>
+      getData<TableOrderSessionDetail>(`/table-orders/sessions/${id}`),
+    updateLines: (
+      id: string,
+      data: {
+        version: number;
+        lines: { menuItemId: string; quantity: number; unitPrice: number }[];
+      },
+    ) => mutate<TableOrderSessionDetail>("patch", `/table-orders/sessions/${id}/lines`, data),
+    merge: (id: string, data: { tableIds: string[]; version?: number }) =>
+      mutate<TableOrderSessionDetail>("post", `/table-orders/sessions/${id}/merge`, data),
+    unmerge: (id: string, data: { tableId: string; version?: number }) =>
+      mutate<TableOrderSessionDetail>("post", `/table-orders/sessions/${id}/unmerge`, data),
+    generateBill: (id: string) =>
+      mutate<TableOrderBillingHandoff>("post", `/table-orders/sessions/${id}/generate-bill`, {}),
+    cancelBilling: (id: string) =>
+      mutate<TableOrderSessionDetail>("post", `/table-orders/sessions/${id}/cancel-billing`, {}),
+    billingHandoff: (id: string) =>
+      getData<TableOrderBillingHandoff>(`/table-orders/sessions/${id}/billing-handoff`),
   },
   diningTables: {
     list: (params?: ListQueryParams) =>
@@ -405,6 +505,57 @@ export const operationsApi = {
         }>;
         totals: Record<string, number>;
       }>("/reports/supplier-aging"),
+  },
+  reports: {
+    summary: (params?: import("@/src/features/reports/types/reports.types").ReportPeriodParams) =>
+      getData<import("@/src/features/reports/types/reports.types").ReportsSummary>(
+        "/reports/summary",
+        buildReportApiParams(params),
+      ),
+    sales: (params?: import("@/src/features/reports/types/reports.types").ReportPeriodParams) =>
+      getData<import("@/src/features/reports/types/reports.types").SalesReport>(
+        "/reports/sales",
+        buildReportApiParams(params),
+      ),
+    profit: (params?: import("@/src/features/reports/types/reports.types").ReportPeriodParams) =>
+      getData<import("@/src/features/reports/types/reports.types").ProfitReport>(
+        "/reports/profit",
+        buildReportApiParams(params),
+      ),
+    discounts: (
+      params?: import("@/src/features/reports/types/reports.types").ReportPeriodParams &
+        ListQueryParams,
+    ) =>
+      getData<import("@/src/features/reports/types/reports.types").DiscountReport>(
+        "/reports/discounts",
+        { ...buildReportApiParams(params), page: params?.page, limit: params?.limit },
+      ),
+    expenses: (params?: import("@/src/features/reports/types/reports.types").ReportPeriodParams) =>
+      getData<import("@/src/features/reports/types/reports.types").ExpenseReport>(
+        "/reports/expenses",
+        buildReportApiParams(params),
+      ),
+    inventory: (
+      params?: import("@/src/features/reports/types/reports.types").ReportPeriodParams &
+        ListQueryParams,
+    ) =>
+      getData<import("@/src/features/reports/types/reports.types").InventoryReport>(
+        "/reports/inventory",
+        { ...buildReportApiParams(params), page: params?.page, limit: params?.limit },
+      ),
+    customerReceivables: (params?: ListQueryParams) =>
+      getData<import("@/src/features/reports/types/reports.types").CustomerReceivableReport>(
+        "/reports/customer-receivables",
+        { page: params?.page, limit: params?.limit },
+      ),
+    supplierPayables: (
+      params?: import("@/src/features/reports/types/reports.types").ReportPeriodParams &
+        ListQueryParams,
+    ) =>
+      getData<import("@/src/features/reports/types/reports.types").SupplierPayableReport>(
+        "/reports/supplier-payables",
+        { ...buildReportApiParams(params), page: params?.page, limit: params?.limit },
+      ),
   },
   dashboard: {
     cafeMetrics: () =>
@@ -636,6 +787,7 @@ export const operationsApi = {
       discountAmount?: number;
       discountPercent?: number;
       notes?: string;
+      diningSessionId?: string;
       lines: { menuItemId: string; quantity: number; unitPrice: number }[];
     }) =>
       mutate<{ id: string; receiptNo: string; grandTotal: string }>("post", "/sales", data),

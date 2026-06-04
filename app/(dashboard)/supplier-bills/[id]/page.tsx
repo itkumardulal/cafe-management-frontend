@@ -434,7 +434,7 @@ export default function SupplierBillDetailPage() {
               </div>
 
               <Field id="bsp-payment-method" label="Payment method" required>
-                <Select value={payMethod} onChange={(e) => setPayMethod(e.target.value as PurchasePaymentMethod)}>
+                <Select searchable={false} value={payMethod} onChange={(e) => setPayMethod(e.target.value as PurchasePaymentMethod)}>
                   <option value="CASH">Cash</option>
                   <option value="BANK_TRANSFER">Bank transfer</option>
                   <option value="ESEWA">eSewa</option>

@@ -969,6 +969,7 @@ function RawMaterialPurchasesContent() {
                     <div className="grid gap-4 p-4 sm:grid-cols-2">
                       <Field id={`material-${idx}`} label="Raw material" required>
                         <Select
+                          searchable
                           value={line.rawMaterialItemId}
                           onChange={(e) =>
                             updateLine(idx, { rawMaterialItemId: e.target.value })
@@ -985,6 +986,7 @@ function RawMaterialPurchasesContent() {
                       </Field>
                       <Field id={`supplier-${idx}`} label="Supplier" required>
                         <Select
+                          searchable
                           value={line.supplierId}
                           onChange={(e) => updateLine(idx, { supplierId: e.target.value })}
                           disabled={!hasRefs}

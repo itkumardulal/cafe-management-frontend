@@ -61,8 +61,11 @@ export function PosSaleReceipt({ sale, cafeName, className, id }: PosSaleReceipt
         <p className="mt-1 inline-block rounded border border-stone-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-stone-800">
           {serviceLabel(sale.serviceType)}
         </p>
-        {sale.serviceType === "DINE_IN" && sale.tableName ? (
-          <p className="mt-1 text-[10px] font-medium text-stone-700">Table: {sale.tableName}</p>
+        {sale.serviceType === "DINE_IN" &&
+        (sale.tableNamesSnapshot || sale.tableName) ? (
+          <p className="mt-1 text-[10px] font-medium text-stone-700">
+            Table: {sale.tableNamesSnapshot ?? sale.tableName}
+          </p>
         ) : null}
         <div className="mx-auto mt-2 h-px w-full border-t border-dashed border-stone-400" aria-hidden />
       </header>

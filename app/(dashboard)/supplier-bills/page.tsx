@@ -22,6 +22,8 @@ import type { BillSettlementSupplierRow } from "@/src/lib/ap-types";
 import { formatDateOnly, formatMoney } from "@/src/lib/format-display";
 import { cn } from "@/src/lib/cn";
 import { operationsApi } from "@/src/services/operations-api";
+import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
+import { fetchBillSettlementAgingThunk } from "@/src/store/slices/reference-data.slice";
 
 const FILTER_KEYS = ["hasOutstanding", "fullySettled", "activeVendors"] as const;
 
@@ -36,16 +38,9 @@ export default function SupplierBillsPage() {
 }
 
 function SupplierBillsContent() {
-  const [aging, setAging] = useState<{
-    totals: {
-      current: number;
-      days1_30: number;
-      days31_60: number;
-      days61_90: number;
-      days90Plus: number;
-      totalOutstanding: number;
-    };
-  } | null>(null);
+  const dispatch = useAppDispatch();
+  const aging = useAppSelector((state) => state.referenceData.billSettlementAging);
+  const agingStatus = useAppSelector((state) => state.referenceData.billSettlementAgingStatus);
 
   const defaultSort = useMemo(
     () => ({ sortBy: "outstandingAmount", sortOrder: "desc" as const }),
@@ -89,8 +84,11 @@ function SupplierBillsContent() {
   });
 
   useEffect(() => {
-    void operationsApi.billSettlement.agingSummary().then(setAging).catch(() => {});
-  }, []);
+    if (agingStatus === "loaded" || agingStatus === "loading") {
+      return;
+    }
+    void dispatch(fetchBillSettlementAgingThunk());
+  }, [agingStatus, dispatch]);
 
   return (
     <>

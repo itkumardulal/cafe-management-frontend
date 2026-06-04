@@ -492,6 +492,7 @@ function DailyExpensesContent() {
             ) : (
               <Field id="item" label="Expense item" required hint="From your expense items catalog">
                 <Select
+                  searchable
                   value={form.expenseItemId}
                   onChange={(e) => setForm((f) => ({ ...f, expenseItemId: e.target.value }))}
                   disabled={expenseItems.length === 0}

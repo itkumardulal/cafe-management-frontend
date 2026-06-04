@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Search } from "lucide-react";
 import {
   Children,
   isValidElement,
@@ -24,6 +24,8 @@ type ParsedOption = {
   disabled?: boolean;
 };
 
+const SEARCHABLE_OPTION_THRESHOLD = 3;
+
 type SelectProps = Omit<SelectHTMLAttributes<HTMLButtonElement>, "onChange" | "value" | "size"> & {
   value: string;
   onChange: (event: { target: { value: string } }) => void;
@@ -33,6 +35,9 @@ type SelectProps = Omit<SelectHTMLAttributes<HTMLButtonElement>, "onChange" | "v
   fullWidth?: boolean;
   /** Match secondary button styling (compact toolbar controls). */
   appearance?: "field" | "button";
+  /** Show a search field in the dropdown. Defaults to true when there are 3+ options. */
+  searchable?: boolean;
+  searchPlaceholder?: string;
 };
 
 function optionLabel(children: ReactNode): string {
@@ -78,12 +83,18 @@ function parseOptions(children: ReactNode): ParsedOption[] {
   return options;
 }
 
+function matchesSearch(label: string, query: string): boolean {
+  return label.toLowerCase().includes(query.trim().toLowerCase());
+}
+
 export function Select({
   className,
   hasError,
   size = "md",
   fullWidth = true,
   appearance = "field",
+  searchable,
+  searchPlaceholder = "Search…",
   value,
   onChange,
   children,
@@ -102,11 +113,22 @@ export function Select({
 
   const [open, setOpen] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
+  const [searchQuery, setSearchQuery] = useState("");
   const [mounted, setMounted] = useState(false);
   const [menuStyle, setMenuStyle] = useState({ top: 0, left: 0, width: 0 });
 
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const isSearchable =
+    searchable ?? selectableOptions.length >= SEARCHABLE_OPTION_THRESHOLD;
+  const filteredOptions = useMemo(() => {
+    if (!isSearchable || !searchQuery.trim()) {
+      return selectableOptions;
+    }
+    return selectableOptions.filter((option) => matchesSearch(option.label, searchQuery));
+  }, [isSearchable, searchQuery, selectableOptions]);
 
   const displayLabel =
     selectedOption?.label ??
@@ -122,9 +144,10 @@ export function Select({
     }
 
     const menuWidth = Math.max(rect.width, isButtonAppearance ? 88 : rect.width);
+    const searchHeaderHeight = isSearchable ? 44 : 0;
     const menuHeight =
       listRef.current?.offsetHeight ??
-      Math.min(selectableOptions.length * 44 + 8, 224);
+      searchHeaderHeight + Math.min(filteredOptions.length * 44 + 8, 224);
     const gap = 6;
     const spaceBelow = window.innerHeight - rect.bottom - gap;
     const spaceAbove = rect.top - gap;
@@ -135,7 +158,7 @@ export function Select({
       left: Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8)),
       width: menuWidth,
     });
-  }, [isButtonAppearance, selectableOptions.length]);
+  }, [filteredOptions.length, isButtonAppearance, isSearchable]);
 
   useEffect(() => {
     setMounted(true);
@@ -194,12 +217,25 @@ export function Select({
   useEffect(() => {
     if (!open) {
       setHighlightIndex(-1);
+      setSearchQuery("");
       return;
     }
 
-    const selectedIndex = selectableOptions.findIndex((option) => option.value === value);
-    setHighlightIndex(selectedIndex >= 0 ? selectedIndex : 0);
-  }, [open, selectableOptions, value]);
+    const selectedIndex = filteredOptions.findIndex((option) => option.value === value);
+    setHighlightIndex(selectedIndex >= 0 ? selectedIndex : filteredOptions.length > 0 ? 0 : -1);
+  }, [open, filteredOptions, value]);
+
+  useEffect(() => {
+    if (!open || !isSearchable) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [isSearchable, open]);
 
   const selectValue = (nextValue: string) => {
     onChange({ target: { value: nextValue } });
@@ -230,10 +266,10 @@ export function Select({
     }
   };
 
-  const handleListKeyDown = (event: React.KeyboardEvent<HTMLUListElement>) => {
+  const handleListKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setHighlightIndex((index) => Math.min(index + 1, selectableOptions.length - 1));
+      setHighlightIndex((index) => Math.min(index + 1, filteredOptions.length - 1));
       return;
     }
 
@@ -245,21 +281,45 @@ export function Select({
 
     if (event.key === "Enter" && highlightIndex >= 0) {
       event.preventDefault();
-      const option = selectableOptions[highlightIndex];
+      const option = filteredOptions[highlightIndex];
       if (option) {
         selectValue(option.value);
       }
     }
   };
 
+  const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown" && filteredOptions.length > 0) {
+      event.preventDefault();
+      setHighlightIndex((index) => (index < 0 ? 0 : index));
+      listRef.current?.focus();
+      return;
+    }
+
+    if (event.key === "Enter" && highlightIndex >= 0) {
+      event.preventDefault();
+      const option = filteredOptions[highlightIndex];
+      if (option) {
+        selectValue(option.value);
+      }
+    }
+
+    if (event.key === "Escape") {
+      event.stopPropagation();
+      setOpen(false);
+      triggerRef.current?.focus();
+    }
+  };
+
   const menu =
     open && mounted && selectableOptions.length > 0
       ? createPortal(
-          <ul
+          <div
             ref={listRef}
             id={listboxId}
             role="listbox"
             aria-labelledby={id}
+            tabIndex={-1}
             style={{
               position: "fixed",
               top: menuStyle.top,
@@ -269,44 +329,82 @@ export function Select({
             }}
             onKeyDown={handleListKeyDown}
             className={cn(
-              "max-h-56 overflow-y-auto border border-[var(--color-border)] bg-[var(--color-surface)] p-1 shadow-[var(--shadow-md)]",
+              "flex max-h-56 flex-col overflow-hidden border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-md)]",
               isButtonAppearance ? "rounded-md" : "rounded-xl",
             )}
           >
-            {selectableOptions.map((option, index) => {
-              const isSelected = option.value === value;
-              const isHighlighted = index === highlightIndex;
-
-              return (
-                <li key={option.value} role="presentation">
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={isSelected}
-                    disabled={option.disabled}
+            {isSearchable ? (
+              <div className="shrink-0 border-b border-[var(--color-border)] p-1.5">
+                <div className="relative">
+                  <Search
+                    size={14}
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-subtle)]"
+                  />
+                  <input
+                    ref={searchInputRef}
+                    type="search"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    onKeyDown={handleSearchKeyDown}
+                    placeholder={searchPlaceholder}
+                    aria-label={searchPlaceholder}
                     className={cn(
-                      "flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm transition-colors",
+                      "w-full py-2 pl-8 pr-2 text-sm text-[var(--color-foreground)] outline-none",
                       isButtonAppearance ? "rounded-md" : "rounded-lg",
-                      isSelected
-                        ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-nav-active-text)]"
-                        : isHighlighted
-                          ? "bg-[var(--color-cream-100)] text-[var(--color-nav-idle-hover)]"
-                          : "text-[var(--color-nav-idle)] hover:bg-[var(--color-cream-100)] hover:text-[var(--color-nav-idle-hover)]",
+                      "bg-[var(--color-surface)] placeholder:text-[var(--color-subtle)]",
+                      "focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30",
                     )}
-                    onMouseEnter={() => setHighlightIndex(index)}
-                    onClick={() => selectValue(option.value)}
-                  >
-                    <span className="whitespace-nowrap tabular-nums">{option.label}</span>
-                    {isSelected ? (
-                      <Check size={16} className="shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
-                    ) : (
-                      <span className="w-4 shrink-0" aria-hidden="true" />
-                    )}
-                  </button>
+                    onClick={(event) => event.stopPropagation()}
+                  />
+                </div>
+              </div>
+            ) : null}
+            <ul className="min-h-0 flex-1 overflow-y-auto p-1">
+              {filteredOptions.length > 0 ? (
+                filteredOptions.map((option, index) => {
+                  const isSelected = option.value === value;
+                  const isHighlighted = index === highlightIndex;
+
+                  return (
+                    <li key={option.value} role="presentation">
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        disabled={option.disabled}
+                        className={cn(
+                          "flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm transition-colors",
+                          isButtonAppearance ? "rounded-md" : "rounded-lg",
+                          isSelected
+                            ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-nav-active-text)]"
+                            : isHighlighted
+                              ? "bg-[var(--color-cream-100)] text-[var(--color-nav-idle-hover)]"
+                              : "text-[var(--color-nav-idle)] hover:bg-[var(--color-cream-100)] hover:text-[var(--color-nav-idle-hover)]",
+                        )}
+                        onMouseEnter={() => setHighlightIndex(index)}
+                        onClick={() => selectValue(option.value)}
+                      >
+                        <span className="truncate">{option.label}</span>
+                        {isSelected ? (
+                          <Check size={16} className="shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
+                        ) : (
+                          <span className="w-4 shrink-0" aria-hidden="true" />
+                        )}
+                      </button>
+                    </li>
+                  );
+                })
+              ) : (
+                <li
+                  role="presentation"
+                  className="px-3 py-2.5 text-sm text-[var(--color-subtle)]"
+                >
+                  No results found
                 </li>
-              );
-            })}
-          </ul>,
+              )}
+            </ul>
+          </div>,
           document.body,
         )
       : null;

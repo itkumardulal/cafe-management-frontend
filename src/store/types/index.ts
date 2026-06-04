@@ -20,3 +20,20 @@ export type {
 export type { LoginPayload, AuthState } from "./auth.state";
 
 export type { MenuState } from "./menu.state";
+
+export type {
+  ApMetrics,
+  ArMetrics,
+  StockAlertsPreview,
+  DashboardState,
+} from "./dashboard.types";
+
+export type {
+  MenuCategoryOption,
+  ReferenceDataState,
+  SellableCatalogItem,
+  DiningTableOption,
+  StockRemovalLineOptions,
+  StockRemovalStaffOption,
+  BillSettlementAgingTotals,
+} from "./reference-data.types";

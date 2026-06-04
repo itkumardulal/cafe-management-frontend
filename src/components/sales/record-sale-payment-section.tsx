@@ -154,6 +154,7 @@ export function RecordSalePaymentSection({
           <div className="grid gap-4 sm:grid-cols-2">
             <Field id="sale-pay-method" label="Method" required>
               <Select
+                searchable={false}
                 value={paymentMethod}
                 onChange={(e) => onPaymentMethodChange(e.target.value as SalePaymentMethod)}
                 disabled={disabled || saving}

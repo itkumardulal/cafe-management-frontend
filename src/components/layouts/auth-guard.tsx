@@ -9,7 +9,7 @@ import { useAppDispatch, useAppSelector } from "../../store/hooks";
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { user, initialized } = useAppSelector((state) => state.auth);
+  const { user, initialized, sessionExpired } = useAppSelector((state) => state.auth);
 
   useEffect(() => {
     if (!initialized) {
@@ -19,13 +19,17 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (initialized && !user) {
+      if (sessionExpired) {
+        router.replace("/");
+        return;
+      }
       router.replace("/login");
       return;
     }
     if (initialized && user?.mustChangePassword) {
       router.replace("/change-password-first");
     }
-  }, [initialized, router, user]);
+  }, [initialized, router, sessionExpired, user]);
 
   if (!initialized) {
     return (

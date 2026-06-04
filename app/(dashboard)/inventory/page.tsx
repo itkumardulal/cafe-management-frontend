@@ -149,11 +149,8 @@ function InventoryContent() {
       }),
     defaultSort: { sortBy: "name", sortOrder: "asc" },
     errorMessage: "Failed to load inventory",
+    extraCacheKey: stockFilter || "all",
   });
-
-  useEffect(() => {
-    void refetch();
-  }, [stockFilter, refetch]);
 
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<Row | null>(null);
@@ -290,6 +287,7 @@ function InventoryContent() {
 
       <div className="flex flex-wrap gap-2">
         <Select
+          searchable={false}
           value={stockFilter}
           onChange={(e) => setStockFilter(e.target.value as "" | "low" | "out")}
           className="w-auto min-w-[140px]"

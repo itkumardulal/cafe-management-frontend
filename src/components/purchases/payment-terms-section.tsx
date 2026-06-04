@@ -53,6 +53,7 @@ export function PaymentTermsSection({
       <p className="text-sm font-medium text-foreground">Payment terms</p>
       <Field id="payment-terms" label="Terms">
         <Select
+          searchable={false}
           value={preset}
           onChange={(e) => onPresetChange(e.target.value as PaymentTermsPreset)}
           disabled={disabled}

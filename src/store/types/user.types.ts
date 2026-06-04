@@ -1,5 +1,6 @@
 import type { UserRole } from "@/src/types/auth";
 import type { UserStatus } from "@/src/lib/user-status";
+import type { LoadStatus } from "./load-status";
 
 export interface StaffMenuAccess {
   menu: { code: string; name: string };
@@ -56,7 +57,9 @@ export interface UpdateStaffPayload {
 export interface UserState {
   staff: StaffRecord[];
   createdUsers: CreatedUserRecord[];
+  createdUsersStatus: LoadStatus;
   assignableMenus: AssignableMenu[];
+  assignableMenusStatus: LoadStatus;
   loading: boolean;
   error: string | null;
 }

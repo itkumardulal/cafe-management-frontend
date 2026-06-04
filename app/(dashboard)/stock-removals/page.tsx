@@ -2,7 +2,7 @@
 
 import { Eye, PackageMinus, Trash2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { DateRangeFilter } from "@/src/components/shared/date-range-filter";
 import { DetailInfoCard } from "@/src/components/shared/detail-info-card";
 import { DetailLineItemsSection } from "@/src/components/shared/detail-line-items-section";
@@ -36,6 +36,8 @@ import { cn } from "@/src/lib/cn";
 import { formatDateTime, formatMoney } from "@/src/lib/format-display";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
+import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
+import { fetchStockRemovalRefsThunk } from "@/src/store/slices/reference-data.slice";
 
 type Line = { itemKey: string; quantity: string };
 
@@ -82,7 +84,16 @@ export default function StockRemovalsPage() {
 }
 
 function StockRemovalsContent() {
+  const dispatch = useAppDispatch();
   const searchParams = useSearchParams();
+  const lineOptions = useAppSelector(
+    (state) =>
+      state.referenceData.stockRemovalLineOptions ?? { menuItems: [], stockItems: [] },
+  );
+  const staffOptions = useAppSelector((state) => state.referenceData.stockRemovalStaffOptions);
+  const stockRemovalRefsStatus = useAppSelector(
+    (state) => state.referenceData.stockRemovalRefsStatus,
+  );
   const {
     items: removals,
     meta,
@@ -111,11 +122,6 @@ function StockRemovalsContent() {
     errorMessage: "Failed to load stock removals",
   });
 
-  const [lineOptions, setLineOptions] = useState<{
-    menuItems: Array<{ id: string; name: string; quantityOnHand: string; unit?: string | null }>;
-    stockItems: Array<{ id: string; name: string; quantityOnHand: string; unit?: string | null }>;
-  }>({ menuItems: [], stockItems: [] });
-  const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
   const [draftFromDate, setDraftFromDate] = useState(params.filters.fromDate ?? "");
   const [draftToDate, setDraftToDate] = useState(params.filters.toDate ?? "");
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
@@ -132,26 +138,12 @@ function StockRemovalsContent() {
   const [deleteTarget, setDeleteTarget] = useState<RemovalRow | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const loadRefs = useCallback(async () => {
-    const [stockResult, staffResult] = await Promise.allSettled([
-      operationsApi.stockRemovals.lineOptions(),
-      operationsApi.stockRemovals.staffOptions(),
-    ]);
-    if (stockResult.status === "fulfilled") {
-      setLineOptions(stockResult.value);
-    } else {
-      setLineOptions({ menuItems: [], stockItems: [] });
-    }
-    if (staffResult.status === "fulfilled") {
-      setStaffOptions(staffResult.value);
-    } else {
-      setStaffOptions([]);
-    }
-  }, []);
-
   useEffect(() => {
-    void loadRefs();
-  }, [loadRefs]);
+    if (stockRemovalRefsStatus === "loaded" || stockRemovalRefsStatus === "loading") {
+      return;
+    }
+    void dispatch(fetchStockRemovalRefsThunk());
+  }, [dispatch, stockRemovalRefsStatus]);
 
   useEffect(() => {
     const menuItemId = searchParams.get("menuItemId");
@@ -264,7 +256,7 @@ function StockRemovalsContent() {
       appToast.success("Stock removal recorded");
       setOpen(false);
       await refetch();
-      void loadRefs();
+      void dispatch(fetchStockRemovalRefsThunk({ force: true }));
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to save removal"));
     } finally {
@@ -682,6 +674,7 @@ function StockRemovalsContent() {
               </Field>
               <Field id="reason" label="Reason" required>
                 <Select
+                  searchable={false}
                   value={reason}
                   onChange={(e) => {
                     const next = e.target.value as "DAMAGE" | "STAFF_USE";
@@ -698,7 +691,7 @@ function StockRemovalsContent() {
             </div>
             {reason === "STAFF_USE" ? (
               <Field id="staff" label="Staff name" required hint="Who used the stock">
-                <Select value={staffUserId} onChange={(e) => setStaffUserId(e.target.value)}>
+                <Select searchable value={staffUserId} onChange={(e) => setStaffUserId(e.target.value)}>
                   <option value="">Choose staff</option>
                   {staffOptions.map((s) => (
                     <option key={s.id} value={s.id}>
@@ -762,6 +755,7 @@ function StockRemovalsContent() {
                   <div className="grid gap-3 p-4 sm:grid-cols-2">
                     <Field id={`item-${idx}`} label="Item" required>
                       <Select
+                        searchable
                         value={line.itemKey}
                         onChange={(e) => updateLine(idx, { itemKey: e.target.value })}
                         disabled={

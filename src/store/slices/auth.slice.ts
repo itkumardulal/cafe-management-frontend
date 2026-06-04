@@ -5,11 +5,13 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import type { AuthUser } from "@/src/types/auth";
 import { api } from "@/src/services/api";
 import type { AuthState, LoginPayload } from "@/src/store/types/auth.state";
+import { authPublicApi } from "@/src/services/auth-public-api";
 
 const initialState: AuthState = {
   user: null,
   loading: false,
   initialized: false,
+  sessionExpired: false,
   error: null,
 };
 
@@ -56,7 +58,11 @@ export const loginThunk = createAsyncThunk<
   },
 );
 
-export const meThunk = createAsyncThunk<AuthUser, void, { rejectValue: string }>(
+export const meThunk = createAsyncThunk<
+  AuthUser,
+  void,
+  { rejectValue: string; state: { auth: AuthState } }
+>(
   "auth/me",
   async (_, { rejectWithValue }) => {
     try {
@@ -65,6 +71,12 @@ export const meThunk = createAsyncThunk<AuthUser, void, { rejectValue: string }>
     } catch {
       return rejectWithValue("Session invalid");
     }
+  },
+  {
+    condition: (_, { getState }) => {
+      const { initialized, loading } = getState().auth;
+      return !initialized && !loading;
+    },
   },
 );
 
@@ -84,9 +96,20 @@ export const logoutThunk = createAsyncThunk<void, void, { rejectValue: string }>
   "auth/logout",
   async (_, { rejectWithValue }) => {
     try {
-      await api.post("/auth/logout");
+      await authPublicApi.post("/auth/logout");
     } catch {
       return rejectWithValue("Logout failed");
+    }
+  },
+);
+
+export const sessionExpiredThunk = createAsyncThunk<void, void>(
+  "auth/sessionExpired",
+  async () => {
+    try {
+      await authPublicApi.post("/auth/logout");
+    } catch {
+      // Session already invalid — local cleanup still runs.
     }
   },
 );
@@ -98,6 +121,9 @@ const authSlice = createSlice({
     clearAuthError(state) {
       state.error = null;
     },
+    clearSessionExpired(state) {
+      state.sessionExpired = false;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -108,6 +134,7 @@ const authSlice = createSlice({
       .addCase(loginThunk.fulfilled, (state, action) => {
         state.loading = false;
         state.initialized = true;
+        state.sessionExpired = false;
         state.user = action.payload;
       })
       .addCase(loginThunk.rejected, (state, action) => {
@@ -115,12 +142,18 @@ const authSlice = createSlice({
         state.error = action.payload?.message ?? "Login failed";
         state.user = null;
       })
+      .addCase(meThunk.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
       .addCase(meThunk.fulfilled, (state, action) => {
+        state.loading = false;
         state.user = action.payload;
         state.initialized = true;
         state.error = null;
       })
       .addCase(meThunk.rejected, (state) => {
+        state.loading = false;
         state.user = null;
         state.initialized = true;
       })
@@ -130,13 +163,23 @@ const authSlice = createSlice({
       })
       .addCase(refreshSessionThunk.rejected, (state) => {
         state.user = null;
+        state.initialized = true;
       })
       .addCase(logoutThunk.fulfilled, (state) => {
         state.user = null;
+        state.loading = false;
+        state.initialized = true;
+        state.error = null;
+      })
+      .addCase(sessionExpiredThunk.fulfilled, (state) => {
+        state.user = null;
+        state.loading = false;
+        state.initialized = true;
+        state.sessionExpired = true;
         state.error = null;
       });
   },
 });
 
-export const { clearAuthError } = authSlice.actions;
+export const { clearAuthError, clearSessionExpired } = authSlice.actions;
 export default authSlice.reducer;

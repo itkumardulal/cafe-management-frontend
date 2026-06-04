@@ -1,4 +1,5 @@
 import type { UserStatus } from "@/src/lib/user-status";
+import type { LoadStatus } from "./load-status";
 
 export interface ManagedCafeAdmin {
   id: string;
@@ -62,7 +63,10 @@ export interface CreateCafeResult {
 export interface CafeState {
   selectedCafeId: string | null;
   managedCafes: ManagedCafe[];
+  managedCafesStatus: LoadStatus;
   selectedCafeOverview: CafeOverview | null;
+  overviewStatus: LoadStatus;
+  overviewLoadedCafeId: string | null;
   loading: boolean;
   error: string | null;
 }

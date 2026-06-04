@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, Coffee, LogOut } from "lucide-react";
 import { getMenuIcon } from "@/src/lib/menu-icons";
 import { motion } from "framer-motion";
@@ -11,7 +11,7 @@ import { Card } from "@/src/components/ui/card";
 import { Modal } from "@/src/components/ui/modal";
 import { cn } from "@/src/lib/cn";
 import { logoutThunk } from "@/src/store/slices/auth.slice";
-import { operationsApi } from "@/src/services/operations-api";
+import { fetchStockAlertsThunk } from "@/src/store/slices/dashboard.slice";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 
 type SidebarProps = {
@@ -26,20 +26,27 @@ export function Sidebar({ collapsed = false, onToggle, className }: SidebarProps
   const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
   const menus = useAppSelector((state) => state.menu.items);
-  const [stockAlertCount, setStockAlertCount] = useState(0);
+  const stockAlerts = useAppSelector((state) => state.dashboard.stockAlerts);
+  const stockAlertsStatus = useAppSelector((state) => state.dashboard.stockAlertsStatus);
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
+  const stockAlertCount = useMemo(() => {
+    if (!user?.role || user.role === "SUPER_ADMIN" || !stockAlerts) {
+      return 0;
+    }
+    return stockAlerts.counts.low + stockAlerts.counts.out;
+  }, [stockAlerts, user?.role]);
+
   useEffect(() => {
     if (!user?.role || user.role === "SUPER_ADMIN") {
-      setStockAlertCount(0);
       return;
     }
-    void operationsApi
-      .stockAlerts()
-      .then((data) => setStockAlertCount(data.counts.low + data.counts.out))
-      .catch(() => setStockAlertCount(0));
-  }, [user?.role]);
+    if (stockAlertsStatus === "loaded" || stockAlertsStatus === "loading") {
+      return;
+    }
+    void dispatch(fetchStockAlertsThunk());
+  }, [dispatch, stockAlertsStatus, user?.role]);
 
   const handleLogout = async () => {
     setLoggingOut(true);

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { UtensilsCrossed } from "lucide-react";
 import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
 import { MobileSortSelect } from "@/src/components/shared/mobile-sort-select";
@@ -24,6 +24,8 @@ import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { cn } from "@/src/lib/cn";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
+import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
+import { fetchMenuCategoryOptionsThunk } from "@/src/store/slices/reference-data.slice";
 
 type MenuItemRow = {
   id: string;
@@ -31,6 +33,7 @@ type MenuItemRow = {
   menuCategoryId: string;
   categoryName: string;
   imageUrl?: string | null;
+  itemType?: string | null;
   unitType?: string | null;
   unitQuantity?: string | null;
   costPerUnit: string;
@@ -42,11 +45,10 @@ type MenuItemRow = {
   notes?: string | null;
 };
 
-type CategoryOption = { id: string; name: string };
-
 const emptyForm = {
   menuCategoryId: "",
   name: "",
+  itemType: "",
   imageUrl: "",
   unitType: "",
   unitQuantity: "",
@@ -66,7 +68,7 @@ export default function MenuItemsPage() {
         fallback={
           <div className="space-y-4">
             <CardListSkeleton />
-            <TableSkeleton columns={6} className="hidden md:block" />
+            <TableSkeleton columns={7} className="hidden md:block" />
             <PaginationSkeleton />
           </div>
         }
@@ -78,6 +80,12 @@ export default function MenuItemsPage() {
 }
 
 function MenuItemsContent() {
+  const dispatch = useAppDispatch();
+  const categories = useAppSelector((state) => state.referenceData.menuCategoryOptions);
+  const menuCategoryOptionsStatus = useAppSelector(
+    (state) => state.referenceData.menuCategoryOptionsStatus,
+  );
+
   const {
     items,
     meta,
@@ -103,7 +111,6 @@ function MenuItemsContent() {
     errorMessage: "Failed to load menu items",
   });
 
-  const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
@@ -112,18 +119,12 @@ function MenuItemsContent() {
   const [deleteTarget, setDeleteTarget] = useState<MenuItemRow | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const loadCategories = useCallback(async () => {
-    try {
-      const categoryData = await operationsApi.menuCategories.list({ limit: 100 });
-      setCategories(categoryData.items.map((c) => ({ id: c.id, name: c.name })));
-    } catch {
-      setCategories([]);
-    }
-  }, []);
-
   useEffect(() => {
-    void loadCategories();
-  }, [loadCategories]);
+    if (menuCategoryOptionsStatus === "loaded" || menuCategoryOptionsStatus === "loading") {
+      return;
+    }
+    void dispatch(fetchMenuCategoryOptionsThunk());
+  }, [dispatch, menuCategoryOptionsStatus]);
 
   const groupedByCategory = useMemo(() => {
     const map = new Map<string, { id: string; name: string; items: MenuItemRow[] }>();
@@ -152,6 +153,7 @@ function MenuItemsContent() {
     setForm({
       menuCategoryId: item.menuCategoryId,
       name: item.name,
+      itemType: item.itemType ?? "",
       imageUrl: item.imageUrl ?? "",
       unitType: item.unitType ?? "",
       unitQuantity: item.unitQuantity ?? "",
@@ -203,6 +205,7 @@ function MenuItemsContent() {
     const payload = {
       menuCategoryId: form.menuCategoryId,
       name: form.name.trim(),
+      itemType: form.itemType.trim() || undefined,
       imageUrl: form.imageUrl,
       unitType: form.unitType.trim(),
       unitQuantity: form.unitQuantity.trim(),
@@ -233,15 +236,18 @@ function MenuItemsContent() {
         }
         appToast.success("Menu item updated");
       } else {
+        const openingNum =
+          form.trackStock && form.openingStockDay1.trim() !== ""
+            ? Number(form.openingStockDay1)
+            : 0;
+        const tracksInventory = form.trackStock && openingNum > 0;
+
         await operationsApi.menuItems.create({
           ...payload,
           costPerUnit,
           sellPricePerUnit,
-          trackStock: form.trackStock,
-          openingStockDay1:
-            form.trackStock && form.openingStockDay1.trim() !== ""
-              ? Number(form.openingStockDay1)
-              : undefined,
+          trackStock: tracksInventory,
+          openingStockDay1: tracksInventory ? openingNum : undefined,
           reorderLevel,
         });
         appToast.success("Menu item added");
@@ -304,7 +310,7 @@ function MenuItemsContent() {
           searchPlaceholder={searchPlaceholder}
           isSearching={isSearching}
           searchResultSummary={searchResultSummary}
-          tableColumns={6}
+          tableColumns={7}
           emptyTitle="No Menu Items Found"
           emptyDescription="Add your first item to a category."
           emptyIcon={UtensilsCrossed}
@@ -380,6 +386,7 @@ function MenuItemsContent() {
                             label: "Unit",
                             value: `${cellOrDash(item.unitQuantity)} · ${cellOrDash(item.unitType)}`,
                           },
+                          { label: "Item type", value: cellOrDash(item.itemType) },
                           { label: "Cost", value: item.costPerUnit },
                           { label: "Sell", value: item.sellPricePerUnit },
                           {
@@ -408,6 +415,7 @@ function MenuItemsContent() {
                         { label: "Category", thClassName: tableCenterColumnClass },
                         { label: "Unit qty", thClassName: tableCenterColumnClass },
                         { label: "Unit type", thClassName: tableCenterColumnClass },
+                        { label: "Item type", thClassName: tableCenterColumnClass },
                         { label: "Cost", thClassName: tableCenterColumnClass },
                         { label: "Sell price", thClassName: tableCenterColumnClass },
                         { label: "Stock", thClassName: tableCenterColumnClass },
@@ -450,6 +458,9 @@ function MenuItemsContent() {
                           </td>
                           <td className={cn("px-4 py-3.5 text-sm text-muted", tableCenterCellClass)}>
                             {cellOrDash(item.unitType)}
+                          </td>
+                          <td className={cn("px-4 py-3.5 text-sm text-muted", tableCenterCellClass)}>
+                            {cellOrDash(item.itemType)}
                           </td>
                           <td className={cn("px-4 py-3.5 text-sm text-foreground", tableCenterCellClass)}>
                             {item.costPerUnit}
@@ -558,6 +569,7 @@ function MenuItemsContent() {
             </h3>
             <Field id="category" label="Menu category" required>
               <Select
+                searchable
                 value={form.menuCategoryId}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, menuCategoryId: e.target.value }))
@@ -579,6 +591,16 @@ function MenuItemsContent() {
                   setForm((f) => ({ ...f, name: e.target.value }))
                 }
                 placeholder="e.g. Chicken momo"
+              />
+            </Field>
+
+            <Field id="itemType" label="Item type" hint="Optional — e.g. Veg, Non-veg, Beverage">
+              <Input
+                value={form.itemType}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, itemType: e.target.value }))
+                }
+                placeholder="fry crispy"
               />
             </Field>
           </section>
@@ -684,8 +706,8 @@ function MenuItemsContent() {
                   label="Opening stock"
                   hint={
                     form.trackStock
-                      ? "Optional — leave empty to start from 0"
-                      : "Optional — used only when stock tracking is enabled"
+                      ? "Required for inventory tracking — item won't appear in inventory without opening stock"
+                      : "Enable stock tracking above to set opening stock"
                   }
                 >
                   <Input
@@ -697,7 +719,7 @@ function MenuItemsContent() {
                       setForm((f) => ({ ...f, openingStockDay1: e.target.value }))
                     }
                     disabled={!form.trackStock}
-                    placeholder="Optional"
+                    placeholder={form.trackStock ? "e.g. 10" : "Enable stock tracking first"}
                   />
                 </Field>
               ) : (

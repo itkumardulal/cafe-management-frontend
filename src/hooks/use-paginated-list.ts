@@ -16,6 +16,7 @@ import {
   type PageSizeOption,
   setStoredPageSize,
 } from "@/src/lib/pagination-storage";
+import { fetchPaginatedListDeduped } from "@/src/lib/list-fetch-dedupe";
 import { appToast } from "@/src/lib/toast";
 import {
   formatSearchResultSummary,
@@ -54,6 +55,8 @@ type UsePaginatedListOptions<T> = {
   enabled?: boolean;
   errorMessage?: string;
   searchPlaceholder?: string;
+  /** Appended to list cache key when fetch params live outside URL (e.g. local filter state). */
+  extraCacheKey?: string;
 };
 
 export function usePaginatedList<T>({
@@ -65,6 +68,7 @@ export function usePaginatedList<T>({
   enabled = true,
   errorMessage = "Failed to load data",
   searchPlaceholder,
+  extraCacheKey = "",
 }: UsePaginatedListOptions<T>) {
   const router = useRouter();
   const pathname = usePathname();
@@ -167,8 +171,9 @@ export function usePaginatedList<T>({
   }, [debouncedSearch, params.search, replaceParams]);
 
   const fetchParamsKey = useMemo(() => JSON.stringify(effectiveParams), [effectiveParams]);
+  const listCacheKey = `${queryKey}:${fetchParamsKey}${extraCacheKey ? `:${extraCacheKey}` : ""}`;
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { force?: boolean }) => {
     if (!enabled) {
       return;
     }
@@ -192,7 +197,11 @@ export function usePaginatedList<T>({
     };
 
     try {
-      const result = await fetchFnRef.current(apiParams);
+      const result = await fetchPaginatedListDeduped(
+        listCacheKey,
+        () => fetchFnRef.current(apiParams),
+        options,
+      );
       if (requestId !== requestIdRef.current) {
         return;
       }
@@ -219,7 +228,7 @@ export function usePaginatedList<T>({
         initialLoadRef.current = false;
       }
     }
-  }, [enabled, errorMessage]);
+  }, [enabled, errorMessage, listCacheKey]);
 
   useEffect(() => {
     void load();
@@ -277,7 +286,7 @@ export function usePaginatedList<T>({
   }, [replaceParams]);
 
   const refetch = useCallback(async () => {
-    await load();
+    await load({ force: true });
   }, [load]);
 
   const clearSearch = useCallback(() => {

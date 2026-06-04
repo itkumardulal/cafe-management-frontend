@@ -29,10 +29,13 @@ import { cn } from "@/src/lib/cn";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
+import { useAppDispatch } from "@/src/store/hooks";
+import { invalidateMenuCategoryOptions } from "@/src/store/slices/reference-data.slice";
 
 type Category = { id: string; name: string; menuItemCount: number };
 
 function MenuCategoriesContent() {
+  const dispatch = useAppDispatch();
   const {
     items: categories,
     meta,
@@ -97,6 +100,7 @@ function MenuCategoriesContent() {
       appToast.success("Category deleted");
       setDeleteTarget(null);
       await refetch();
+      dispatch(invalidateMenuCategoryOptions());
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to delete category"));
     } finally {
@@ -116,6 +120,7 @@ function MenuCategoriesContent() {
       setCatModal(null);
       setCatName("");
       await refetch();
+      dispatch(invalidateMenuCategoryOptions());
     } catch {
       appToast.error("Failed to save category");
     }
