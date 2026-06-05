@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Eye, EyeOff, Users } from "lucide-react";
@@ -16,11 +17,15 @@ import { Card } from "@/src/components/ui/card";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import { Modal } from "@/src/components/ui/modal";
+import { Select } from "@/src/components/ui/select";
 import { SortableTableHeader } from "@/src/components/ui/sortable-table-header";
-import { ResponsiveTable, tableActionsCellClass, tableActionsColumnClass, tableCenterCellClass, tableCenterColumnClass } from "@/src/components/ui/table";
-import { PermissionChips } from "@/src/features/users/components/permission-chips";
-import { PermissionsPicker } from "@/src/features/users/components/permissions-picker";
-import { ensureRequiredPermission } from "@/src/features/users/lib/permissions.config";
+import {
+  ResponsiveTable,
+  tableActionsCellClass,
+  tableActionsColumnClass,
+  tableCenterCellClass,
+  tableCenterColumnClass,
+} from "@/src/components/ui/table";
 import { staffSchema, type StaffSchemaType } from "@/src/features/users/schemas/staff.schema";
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { getApiErrorMessage } from "@/src/lib/api-error";
@@ -30,25 +35,24 @@ import { userStatusBadgeVariant, userStatusLabel } from "@/src/lib/user-status";
 import { api } from "@/src/services/api";
 import { operationsApi } from "@/src/services/operations-api";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
-import {
-  createStaffThunk,
-  fetchAssignableMenusThunk,
-  updateStaffThunk,
-} from "@/src/store/slices/user.slice";
+import { createStaffThunk, updateStaffThunk } from "@/src/store/slices/user.slice";
 import type { StaffRecord } from "@/src/store/types/user.types";
+
+type RoleOption = { id: string; name: string; menuCount: number };
 
 export default function UsersPage() {
   const dispatch = useAppDispatch();
   const authUser = useAppSelector((state) => state.auth.user);
-  const { assignableMenus } = useAppSelector((state) => state.user);
   const [staffRefresh, setStaffRefresh] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [roleOptions, setRoleOptions] = useState<RoleOption[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(true);
   const [editStaff, setEditStaff] = useState<StaffRecord | null>(null);
-  const [editMenus, setEditMenus] = useState<string[]>([]);
   const [editName, setEditName] = useState("");
   const [editContact, setEditContact] = useState("");
+  const [editRoleId, setEditRoleId] = useState("");
 
   const {
     register,
@@ -61,23 +65,55 @@ export default function UsersPage() {
     resolver: zodResolver(staffSchema),
     defaultValues: {
       role: "STAFF",
-      accessMenuCodes: ["DASHBOARD"],
+      staffRoleId: "",
       password: "",
     },
   });
 
+  const staffRoleId = watch("staffRoleId");
+  const hasRoles = roleOptions.length > 0;
+
+  const loadRoleOptions = async () => {
+    setRolesLoading(true);
+    try {
+      const options = await operationsApi.staffRoles.options();
+      setRoleOptions(options);
+    } catch {
+      setRoleOptions([]);
+    } finally {
+      setRolesLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (authUser?.role === "CAFE_ADMIN") {
-      void dispatch(fetchAssignableMenusThunk());
+      void loadRoleOptions();
     }
-  }, [authUser?.role, dispatch]);
-
-  const accessMenuCodes = watch("accessMenuCodes") ?? ["DASHBOARD"];
+  }, [authUser?.role]);
 
   const closeAddModal = () => {
     setAddOpen(false);
     setShowPassword(false);
-    reset({ role: "STAFF", accessMenuCodes: ["DASHBOARD"], password: "" });
+    reset({
+      role: "STAFF",
+      staffRoleId: roleOptions[0]?.id ?? "",
+      password: "",
+      fullName: "",
+      email: "",
+      contactNumber: "",
+    });
+  };
+
+  const openAddModal = () => {
+    reset({
+      role: "STAFF",
+      staffRoleId: roleOptions[0]?.id ?? "",
+      password: "",
+      fullName: "",
+      email: "",
+      contactNumber: "",
+    });
+    setAddOpen(true);
   };
 
   const onSubmit = async (values: StaffSchemaType) => {
@@ -87,7 +123,7 @@ export default function UsersPage() {
       email: values.email,
       contactNumber: values.contactNumber,
       role: values.role,
-      accessMenuCodes: ensureRequiredPermission(values.accessMenuCodes ?? []),
+      staffRoleId: values.staffRoleId,
       ...(values.password?.trim() ? { password: values.password.trim() } : {}),
     };
     try {
@@ -110,19 +146,17 @@ export default function UsersPage() {
     setEditStaff(member);
     setEditName(member.fullName);
     setEditContact(member.contactNumber ?? "");
-    setEditMenus(
-      ensureRequiredPermission(member.menuAccess?.map((a) => a.menu.code) ?? ["DASHBOARD"]),
-    );
+    setEditRoleId(member.staffRole?.id ?? roleOptions[0]?.id ?? "");
   };
 
   const saveEdit = async () => {
-    if (!editStaff) return;
+    if (!editStaff || !editRoleId) return;
     const result = await dispatch(
       updateStaffThunk({
         id: editStaff.id,
         fullName: editName,
         contactNumber: editContact || undefined,
-        accessMenuCodes: ensureRequiredPermission(editMenus),
+        staffRoleId: editRoleId,
       }),
     );
     if (updateStaffThunk.fulfilled.match(result)) {
@@ -140,16 +174,38 @@ export default function UsersPage() {
     <section className="page-shell page-content">
       <PageHeader
         title="Staff Management"
-        description="Add team members and manage app access."
+        description="Add team members and assign a staff role for sidebar access."
         action={
-          <Button type="button" size="sm" onClick={() => setAddOpen(true)}>
+          <Button
+            type="button"
+            size="sm"
+            onClick={openAddModal}
+            disabled={!hasRoles || rolesLoading}
+          >
             Add user
           </Button>
         }
       />
 
+      {!rolesLoading && !hasRoles ? (
+        <Card className="border-dashed p-4 text-sm">
+          <p className="font-medium text-foreground">Create a staff role first</p>
+          <p className="mt-1 text-muted">
+            You need at least one staff role before adding team members.{" "}
+            <Link href="/roles" className="font-medium text-[var(--color-primary)] underline-offset-2 hover:underline">
+              Go to Staff Roles
+            </Link>
+          </p>
+        </Card>
+      ) : null}
+
       <Suspense fallback={<TableSkeleton />}>
-        <UsersStaffList key={staffRefresh} onEdit={openEdit} onAddUser={() => setAddOpen(true)} />
+        <UsersStaffList
+          key={staffRefresh}
+          onEdit={openEdit}
+          onAddUser={openAddModal}
+          canAddUser={hasRoles && !rolesLoading}
+        />
       </Suspense>
 
       <Modal
@@ -205,13 +261,22 @@ export default function UsersPage() {
               </div>
             </Field>
           </div>
-          <PermissionsPicker
-            menus={assignableMenus}
-            value={accessMenuCodes}
-            onChange={(codes) =>
-              setValue("accessMenuCodes", codes, { shouldDirty: true, shouldValidate: true })
-            }
-          />
+          <Field id="staffRoleId" label="Staff role" error={errors.staffRoleId?.message} required>
+            <Select
+              value={staffRoleId}
+              onChange={(e) =>
+                setValue("staffRoleId", e.target.value, { shouldDirty: true, shouldValidate: true })
+              }
+              hasError={Boolean(errors.staffRoleId)}
+            >
+              <option value="">Select a role</option>
+              {roleOptions.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.name} · {role.menuCount} area{role.menuCount === 1 ? "" : "s"}
+                </option>
+              ))}
+            </Select>
+          </Field>
           <FormFooter>
             <Button type="button" variant="secondary" onClick={closeAddModal} disabled={creating}>
               Cancel
@@ -226,9 +291,9 @@ export default function UsersPage() {
       <Modal
         open={editStaff !== null}
         title="Edit staff"
-        description="Update profile details and sidebar access."
+        description="Update profile details and staff role."
         onClose={() => setEditStaff(null)}
-        size="lg"
+        size="md"
       >
         <div className="space-y-4">
           <Field id="editName" label="Full name" required>
@@ -237,16 +302,21 @@ export default function UsersPage() {
           <Field id="editContact" label="Contact">
             <Input value={editContact} onChange={(e) => setEditContact(e.target.value)} />
           </Field>
-          <PermissionsPicker
-            menus={assignableMenus}
-            value={editMenus}
-            onChange={setEditMenus}
-          />
+          <Field id="editRoleId" label="Staff role" required>
+            <Select value={editRoleId} onChange={(e) => setEditRoleId(e.target.value)}>
+              <option value="">Select a role</option>
+              {roleOptions.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.name} · {role.menuCount} area{role.menuCount === 1 ? "" : "s"}
+                </option>
+              ))}
+            </Select>
+          </Field>
           <FormFooter>
             <Button type="button" variant="secondary" onClick={() => setEditStaff(null)}>
               Cancel
             </Button>
-            <Button type="button" onClick={() => void saveEdit()}>
+            <Button type="button" onClick={() => void saveEdit()} disabled={!editRoleId}>
               Save
             </Button>
           </FormFooter>
@@ -265,12 +335,25 @@ async function resendInvite(staffId: string) {
   }
 }
 
+function RoleBadge({ role }: { role?: { id: string; name: string } | null }) {
+  if (!role?.name) {
+    return <span className="text-xs text-muted">—</span>;
+  }
+  return (
+    <Badge size="sm" variant="default">
+      {role.name}
+    </Badge>
+  );
+}
+
 function UsersStaffList({
   onEdit,
   onAddUser,
+  canAddUser,
 }: {
   onEdit: (member: StaffRecord) => void;
   onAddUser: () => void;
+  canAddUser: boolean;
 }) {
   const {
     items: staff,
@@ -292,7 +375,10 @@ function UsersStaffList({
     clearFilters,
   } = usePaginatedList({
     queryKey: "users",
-    fetchFn: (p) => operationsApi.users.staff.list(p) as Promise<import("@/src/hooks/use-paginated-list").PaginatedResult<StaffRecord>>,
+    fetchFn: (p) =>
+      operationsApi.users.staff.list(p) as Promise<
+        import("@/src/hooks/use-paginated-list").PaginatedResult<StaffRecord>
+      >,
     defaultSort: { sortBy: "createdAt", sortOrder: "desc" },
     errorMessage: "Failed to load staff",
   });
@@ -313,7 +399,7 @@ function UsersStaffList({
       emptyTitle="No Users Found"
       emptyDescription="Add your first staff member to get started."
       emptyIcon={Users}
-      emptyAction={{ label: "Add user", onClick: onAddUser }}
+      emptyAction={canAddUser ? { label: "Add user", onClick: onAddUser } : undefined}
       onClearFilters={() => {
         clearSearch();
         clearFilters();
@@ -351,7 +437,7 @@ function UsersStaffList({
               }
               fields={[
                 { label: "Staff ID", value: item.staffId },
-                { label: "Permissions", value: <PermissionChips menuAccess={item.menuAccess} /> },
+                { label: "Role", value: <RoleBadge role={item.staffRole} /> },
               ]}
               actions={
                 <div className="flex flex-wrap justify-end gap-2">
@@ -392,7 +478,7 @@ function UsersStaffList({
               ),
             },
             "Email",
-            { label: "Permissions", thClassName: tableCenterColumnClass },
+            { label: "Role", thClassName: tableCenterColumnClass },
             { label: "Status", thClassName: tableCenterColumnClass },
             { label: "Actions", thClassName: tableActionsColumnClass },
           ]}
@@ -405,7 +491,7 @@ function UsersStaffList({
               <td className="px-3 py-2.5">{item.fullName}</td>
               <td className="px-3 py-2.5">{item.email}</td>
               <td className={cn("px-3 py-2.5", tableCenterCellClass)}>
-                <PermissionChips menuAccess={item.menuAccess} />
+                <RoleBadge role={item.staffRole} />
               </td>
               <td className={cn("px-3 py-2.5", tableCenterCellClass)}>
                 <Badge variant={userStatusBadgeVariant(item.status, item.isActive)}>
@@ -415,20 +501,20 @@ function UsersStaffList({
               <td className="px-3 py-2.5">
                 <div className={tableActionsCellClass}>
                   <div className="flex flex-wrap justify-center gap-2">
-                  {item.status === "INVITED" ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => void resendInvite(item.id)}
-                    >
-                      Resend invite
+                    {item.status === "INVITED" ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void resendInvite(item.id)}
+                      >
+                        Resend invite
+                      </Button>
+                    ) : null}
+                    <Button type="button" size="sm" variant="secondary" onClick={() => onEdit(item)}>
+                      Edit
                     </Button>
-                  ) : null}
-                  <Button type="button" size="sm" variant="secondary" onClick={() => onEdit(item)}>
-                    Edit
-                  </Button>
-                </div>
+                  </div>
                 </div>
               </td>
             </tr>

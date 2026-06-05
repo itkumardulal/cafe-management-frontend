@@ -97,13 +97,8 @@ export const updateStaffThunk = createAsyncThunk<
   { rejectValue: string }
 >("user/updateStaff", async (payload, { rejectWithValue }) => {
   try {
-    const { id, accessMenuCodes, ...rest } = payload;
-    if (Object.keys(rest).length > 0) {
-      await api.patch(`/users/staff/${id}`, rest);
-    }
-    if (accessMenuCodes) {
-      await api.post(`/users/staff/${id}/menu-access`, { menuCodes: accessMenuCodes });
-    }
+    const { id, ...rest } = payload;
+    await api.patch(`/users/staff/${id}`, rest);
     return id;
   } catch (error) {
     return rejectWithValue(getApiErrorMessage(error, "Failed to update staff"));

@@ -687,6 +687,38 @@ export const operationsApi = {
   },
   assignableMenus: () =>
     getData<{ code: string; name: string }[]>("/menus/assignable"),
+  staffRoles: {
+    list: (params?: ListQueryParams) =>
+      getData<
+        Paginated<{
+          id: string;
+          name: string;
+          description?: string | null;
+          isActive: boolean;
+          createdAt: string;
+          staffCount: number;
+          menuAccess: Array<{ menu: { code: string; name: string } }>;
+        }>
+      >("/staff-roles", params),
+    options: () =>
+      getData<Array<{ id: string; name: string; menuCount: number }>>("/staff-roles/options"),
+    getById: (id: string) =>
+      getData<{
+        id: string;
+        name: string;
+        description?: string | null;
+        staffCount: number;
+        menuAccess: Array<{ menu: { code: string; name: string } }>;
+        assignedStaff: Array<{ id: string; fullName: string; staffId: string | null }>;
+      }>(`/staff-roles/${id}`),
+    create: (data: { name: string; description?: string; accessMenuCodes: string[] }) =>
+      mutate("post", "/staff-roles", data),
+    update: (
+      id: string,
+      data: { name?: string; description?: string; accessMenuCodes?: string[] },
+    ) => mutate("patch", `/staff-roles/${id}`, data),
+    remove: (id: string) => mutate("delete", `/staff-roles/${id}`),
+  },
   users: {
     staff: {
       list: (params?: ListQueryParams) =>
@@ -700,6 +732,7 @@ export const operationsApi = {
             isActive: boolean;
             status?: "INVITED" | "ACTIVE" | "INACTIVE" | "LOCKED";
             contactNumber?: string | null;
+            staffRole?: { id: string; name: string } | null;
             menuAccess?: Array<{ menu: { code: string; name: string } }>;
           }>
         >("/users/staff", params),

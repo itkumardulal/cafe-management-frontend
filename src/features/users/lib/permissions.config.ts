@@ -2,43 +2,6 @@ import type { AssignableMenu } from "@/src/store/types/user.types";
 
 export const REQUIRED_PERMISSION_CODE = "DASHBOARD";
 
-export type PermissionPresetId = "cashier" | "inventory" | "manager" | "custom";
-
-export const PERMISSION_PRESETS: Array<{
-  id: Exclude<PermissionPresetId, "custom">;
-  label: string;
-  description: string;
-  codes: string[];
-}> = [
-  {
-    id: "cashier",
-    label: "Cashier",
-    description: "Dashboard & POS",
-    codes: ["DASHBOARD", "POS", "CUSTOMER_RECEIVABLES"],
-  },
-  {
-    id: "inventory",
-    label: "Inventory",
-    description: "Stock & suppliers",
-    codes: [
-      "DASHBOARD",
-      "INVENTORY",
-      "MENU_ITEMS",
-      "RAW_MATERIALS",
-      "RAW_MATERIAL_PURCHASES",
-      "BILL_SETTLEMENT",
-      "STOCK_REMOVALS",
-      "SUPPLIERS",
-    ],
-  },
-  {
-    id: "manager",
-    label: "Full access",
-    description: "All assignable areas",
-    codes: [],
-  },
-];
-
 const PERMISSION_GROUPS: Array<{
   id: string;
   label: string;
@@ -117,38 +80,4 @@ export function buildGroupedMenus(menus: AssignableMenu[]) {
   }
 
   return groups;
-}
-
-export function resolvePresetCodes(
-  presetId: Exclude<PermissionPresetId, "custom">,
-  assignableMenus: AssignableMenu[],
-): string[] {
-  const assignable = new Set(assignableMenus.map((menu) => menu.code));
-
-  if (presetId === "manager") {
-    return ensureRequiredPermission(assignableMenus.map((menu) => menu.code));
-  }
-
-  const preset = PERMISSION_PRESETS.find((item) => item.id === presetId);
-  if (!preset) {
-    return ensureRequiredPermission([REQUIRED_PERMISSION_CODE]);
-  }
-
-  return ensureRequiredPermission(preset.codes.filter((code) => assignable.has(code)));
-}
-
-export function detectActivePreset(
-  selected: string[],
-  assignableMenus: AssignableMenu[],
-): PermissionPresetId {
-  const normalized = [...selected].sort().join(",");
-
-  for (const preset of PERMISSION_PRESETS) {
-    const presetCodes = resolvePresetCodes(preset.id, assignableMenus).sort().join(",");
-    if (presetCodes === normalized) {
-      return preset.id;
-    }
-  }
-
-  return "custom";
 }

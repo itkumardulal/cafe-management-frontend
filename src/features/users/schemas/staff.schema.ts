@@ -7,7 +7,7 @@ export const staffSchema = z.object({
   contactNumber: z.string().optional(),
   profileImage: z.string().optional(),
   role: z.enum(["SUPER_ADMIN", "CAFE_ADMIN", "STAFF"]),
-  accessMenuCodes: z.array(z.string()).optional(),
+  staffRoleId: z.string().uuid("Select a staff role"),
   password: z
     .string()
     .optional()
@@ -18,3 +18,11 @@ export const staffSchema = z.object({
 });
 
 export type StaffSchemaType = z.infer<typeof staffSchema>;
+
+export const staffRoleSchema = z.object({
+  name: z.string().min(2, "Role name is required").max(64),
+  description: z.string().max(256).optional(),
+  accessMenuCodes: z.array(z.string()).min(1, "Select at least one area"),
+});
+
+export type StaffRoleSchemaType = z.infer<typeof staffRoleSchema>;

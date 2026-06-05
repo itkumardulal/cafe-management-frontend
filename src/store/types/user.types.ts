@@ -14,6 +14,7 @@ export interface StaffRecord {
   contactNumber?: string;
   isActive: boolean;
   status?: UserStatus;
+  staffRole?: { id: string; name: string } | null;
   menuAccess?: StaffMenuAccess[];
 }
 
@@ -43,7 +44,7 @@ export interface CreateStaffPayload {
   fullName: string;
   email: string;
   contactNumber?: string;
-  accessMenuCodes?: string[];
+  staffRoleId: string;
   password?: string;
 }
 
@@ -51,7 +52,7 @@ export interface UpdateStaffPayload {
   id: string;
   fullName?: string;
   contactNumber?: string;
-  accessMenuCodes?: string[];
+  staffRoleId?: string;
 }
 
 export interface UserState {
