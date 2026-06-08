@@ -46,6 +46,21 @@ export type TableOrderSessionDetail = {
   lineCount: number;
 };
 
+export type TableOrderSessionDeleted = {
+  deleted: true;
+  id: string;
+};
+
+export type TableOrderSessionUpdateResult =
+  | TableOrderSessionDetail
+  | TableOrderSessionDeleted;
+
+export function isDeletedSessionUpdate(
+  result: TableOrderSessionUpdateResult,
+): result is TableOrderSessionDeleted {
+  return "deleted" in result;
+}
+
 export type TableOrderBillingHandoff = {
   sessionId: string;
   status: string;
@@ -157,6 +172,7 @@ export const operationsApi = {
       sellPricePerUnit: number;
       openingStockDay1?: number;
       trackStock?: boolean;
+      directPurchaseItemId?: string;
       reorderLevel?: number;
       notes?: string;
     }) => mutate("post", "/menu-items", data),
@@ -324,7 +340,12 @@ export const operationsApi = {
         version: number;
         lines: { menuItemId: string; quantity: number; unitPrice: number }[];
       },
-    ) => mutate<TableOrderSessionDetail>("patch", `/table-orders/sessions/${id}/lines`, data),
+    ) =>
+      mutate<TableOrderSessionUpdateResult>(
+        "patch",
+        `/table-orders/sessions/${id}/lines`,
+        data,
+      ),
     merge: (id: string, data: { tableIds: string[]; version?: number }) =>
       mutate<TableOrderSessionDetail>("post", `/table-orders/sessions/${id}/merge`, data),
     unmerge: (id: string, data: { tableId: string; version?: number }) =>
@@ -363,8 +384,6 @@ export const operationsApi = {
       notes?: string;
       supplierInvoiceNo?: string;
       paymentType: import("@/src/lib/ap-types").CreatePaymentType;
-      paymentTermsPreset: import("@/src/lib/ap-types").PaymentTermsPreset;
-      dueDate?: string;
       initialPayment?: {
         amount: number;
         paymentMethod: import("@/src/lib/ap-types").PurchasePaymentMethod;
@@ -384,13 +403,18 @@ export const operationsApi = {
         "/raw-material-purchases",
         data,
       ),
-    updateHeader: (
+    update: (
       id: string,
       data: {
+        purchaseDate: string;
         notes?: string;
-        dueDate?: string;
-        paymentTermsPreset?: import("@/src/lib/ap-types").PaymentTermsPreset;
-        paymentTermsDays?: number;
+        supplierInvoiceNo?: string;
+        lines: {
+          rawMaterialItemId: string;
+          supplierId: string;
+          quantity: number;
+          ratePerUnit: number;
+        }[];
       },
     ) => mutate("patch", `/raw-material-purchases/${id}`, data),
     recordPayment: (
@@ -404,6 +428,79 @@ export const operationsApi = {
         proofAttachmentUrl?: string;
       },
     ) => mutate("post", `/raw-material-purchases/${id}/payments`, data),
+  },
+  directPurchases: {
+    list: (params?: DateRangeQueryParams) =>
+      getData<Paginated<import("@/src/lib/ap-types").ApBillSummary>>(
+        "/direct-purchases",
+        params,
+      ),
+    linkOptions: () =>
+      getData<
+        Array<{
+          id: string;
+          name: string;
+          unitType?: string | null;
+          unitQuantity?: string | null;
+          quantityOnHand?: string;
+        }>
+      >("/direct-purchases/link-options"),
+    getOne: (id: string) =>
+      getData<import("@/src/lib/ap-types").DirectApBillDetail>(`/direct-purchases/${id}`),
+    create: (data: {
+      purchaseDate: string;
+      notes?: string;
+      supplierInvoiceNo?: string;
+      paymentType: import("@/src/lib/ap-types").CreatePaymentType;
+      initialPayment?: {
+        amount: number;
+        paymentMethod: import("@/src/lib/ap-types").PurchasePaymentMethod;
+        referenceNumber?: string;
+        remarks?: string;
+        proofAttachmentUrl?: string;
+      };
+      lines: {
+        itemName: string;
+        unitType?: string;
+        unitQuantity?: string;
+        supplierId: string;
+        quantity: number;
+        ratePerUnit: number;
+      }[];
+    }) =>
+      mutate<{ purchaseGroupId: string; purchases: import("@/src/lib/ap-types").ApBillDetail[] }>(
+        "post",
+        "/direct-purchases",
+        data,
+      ),
+    update: (
+      id: string,
+      data: {
+        purchaseDate: string;
+        notes?: string;
+        supplierInvoiceNo?: string;
+        lines: {
+          itemName: string;
+          unitType?: string;
+          unitQuantity?: string;
+          supplierId: string;
+          quantity: number;
+          ratePerUnit: number;
+          directPurchaseItemId?: string;
+        }[];
+      },
+    ) => mutate("patch", `/direct-purchases/${id}`, data),
+    recordPayment: (
+      id: string,
+      data: {
+        amount: number;
+        paymentMethod: import("@/src/lib/ap-types").PurchasePaymentMethod;
+        referenceNumber?: string;
+        remarks?: string;
+        paymentDate?: string;
+        proofAttachmentUrl?: string;
+      },
+    ) => mutate("post", `/direct-purchases/${id}/payments`, data),
   },
   billSettlement: {
     list: (params?: {
@@ -556,6 +653,14 @@ export const operationsApi = {
         "/reports/supplier-payables",
         { ...buildReportApiParams(params), page: params?.page, limit: params?.limit },
       ),
+    banks: (
+      params?: import("@/src/features/reports/types/reports.types").ReportPeriodParams &
+        ListQueryParams,
+    ) =>
+      getData<import("@/src/features/reports/types/reports.types").BankReport>(
+        "/reports/banks",
+        { ...buildReportApiParams(params), page: params?.page ?? 1, limit: params?.limit ?? 50 },
+      ),
   },
   dashboard: {
     cafeMetrics: () =>
@@ -584,7 +689,7 @@ export const operationsApi = {
       getData<
         Paginated<{
           id: string;
-          name: string;
+          displayLabel: string;
           description?: string | null;
           monthlySheetCategory: string;
           createdAt: string;
@@ -593,7 +698,6 @@ export const operationsApi = {
         }>
       >("/expense-items", params),
     create: (data: {
-      name: string;
       description?: string;
       monthlySheetCategory?: string;
       salaryStaffUserId?: string;
@@ -601,7 +705,6 @@ export const operationsApi = {
     update: (
       id: string,
       data: {
-        name?: string;
         description?: string;
         monthlySheetCategory?: string;
         salaryStaffUserId?: string;
@@ -627,6 +730,112 @@ export const operationsApi = {
     update: (id: string, data: Record<string, unknown>) => mutate("patch", `/expense-entries/${id}`, data),
     remove: (id: string) => mutate("delete", `/expense-entries/${id}`),
   },
+  bankAccounts: {
+    list: (params?: ListQueryParams & { activeOnly?: boolean }) => {
+      const { activeOnly, ...rest } = params ?? {};
+      return getData<
+        Paginated<{
+          id: string;
+          bankName: string;
+          accountNumber: string;
+          accountHolderName: string;
+          openingBalance: string;
+          currentBalance: string;
+          totalDeposits: string;
+          totalWithdrawals: string;
+          transactionCount: number;
+          isActive: boolean;
+          createdAt: string;
+          updatedAt: string;
+        }> & {
+          meta: {
+            page: number;
+            limit: number;
+            total: number;
+            totalPages: number;
+            activeAccountCount?: number;
+            totalCurrentBalance?: string;
+          };
+        }
+      >("/bank-accounts", {
+        ...rest,
+        ...(activeOnly ? { activeOnly: "true" } : {}),
+      });
+    },
+    create: (data: {
+      bankName: string;
+      accountNumber: string;
+      accountHolderName: string;
+      openingBalance?: number;
+    }) => mutate("post", "/bank-accounts", data),
+    update: (
+      id: string,
+      data: {
+        bankName?: string;
+        accountNumber?: string;
+        accountHolderName?: string;
+        openingBalance?: number;
+        isActive?: boolean;
+      },
+    ) => mutate("patch", `/bank-accounts/${id}`, data),
+    remove: (id: string) => mutate("delete", `/bank-accounts/${id}`),
+  },
+  bankTransactions: {
+    list: (
+      params?: DateRangeQueryParams & {
+        bankAccountId?: string;
+        type?: "DEPOSIT" | "WITHDRAWAL";
+      },
+    ) =>
+      getData<
+        Paginated<{
+          id: string;
+          bankAccountId: string;
+          bankName: string;
+          accountNumber: string;
+          accountHolderName: string;
+          type: "DEPOSIT" | "WITHDRAWAL";
+          amount: string;
+          transactionDate: string;
+          referenceNumber?: string | null;
+          proofAttachmentUrl?: string | null;
+          notes?: string | null;
+          createdAt: string;
+          createdByName?: string | null;
+        }> & {
+          meta: {
+            page: number;
+            limit: number;
+            total: number;
+            totalPages: number;
+            totalDeposits?: string;
+            totalWithdrawals?: string;
+            netChange?: string;
+          };
+        }
+      >("/bank-transactions", params),
+    create: (data: {
+      bankAccountId: string;
+      type: "DEPOSIT" | "WITHDRAWAL";
+      amount: number;
+      transactionDate: string;
+      referenceNumber?: string;
+      proofAttachmentUrl?: string;
+      notes?: string;
+    }) => mutate("post", "/bank-transactions", data),
+    update: (
+      id: string,
+      data: {
+        type?: "DEPOSIT" | "WITHDRAWAL";
+        amount?: number;
+        transactionDate?: string;
+        referenceNumber?: string;
+        proofAttachmentUrl?: string;
+        notes?: string;
+      },
+    ) => mutate("patch", `/bank-transactions/${id}`, data),
+    remove: (id: string) => mutate("delete", `/bank-transactions/${id}`),
+  },
   stockRemovals: {
     list: (params?: DateRangeQueryParams) =>
       getData<
@@ -651,6 +860,7 @@ export const operationsApi = {
         reason: string;
         notes?: string | null;
         staffName: string | null;
+        staffUserId?: string | null;
         createdByName: string | null;
         lineCount: number;
         lines: Array<{
@@ -683,6 +893,20 @@ export const operationsApi = {
         quantity: number;
       }>;
     }) => mutate("post", "/stock-removals", data),
+    update: (
+      id: string,
+      data: {
+        entryAt: string;
+        reason: "DAMAGE" | "STAFF_USE";
+        staffUserId?: string;
+        notes?: string;
+        lines: Array<{
+          menuItemId?: string;
+          stockItemId?: string;
+          quantity: number;
+        }>;
+      },
+    ) => mutate("patch", `/stock-removals/${id}`, data),
     remove: (id: string) => mutate("delete", `/stock-removals/${id}`),
   },
   assignableMenus: () =>

@@ -1,13 +1,19 @@
 import { Badge } from "@/src/components/ui/badge";
+import { cn } from "@/src/lib/cn";
 import type { StaffMenuAccess } from "@/src/store/types/user.types";
 import { REQUIRED_PERMISSION_CODE } from "@/src/features/users/lib/permissions.config";
 
 type PermissionChipsProps = {
   menuAccess?: StaffMenuAccess[];
   maxVisible?: number;
+  className?: string;
 };
 
-export function PermissionChips({ menuAccess, maxVisible = 4 }: PermissionChipsProps) {
+export function PermissionChips({
+  menuAccess,
+  maxVisible = 4,
+  className,
+}: PermissionChipsProps) {
   if (!menuAccess?.length) {
     return <span className="text-xs text-muted">—</span>;
   }
@@ -21,16 +27,28 @@ export function PermissionChips({ menuAccess, maxVisible = 4 }: PermissionChipsP
   const visible = sorted.slice(0, maxVisible);
   const hiddenCount = sorted.length - visible.length;
   const hiddenNames = sorted.slice(maxVisible).map((item) => item.menu.name).join(", ");
+  const allNames = sorted.map((item) => item.menu.name).join(", ");
 
   return (
-    <div className="flex flex-wrap items-center gap-1" title={sorted.map((item) => item.menu.name).join(", ")}>
+    <div
+      className={cn(
+        "flex max-w-full flex-wrap items-center justify-start gap-1.5 text-left",
+        className,
+      )}
+      title={allNames}
+    >
       {visible.map((item) => (
-        <Badge key={item.menu.code} size="sm" variant="default">
+        <Badge
+          key={item.menu.code}
+          size="sm"
+          variant="default"
+          className="max-w-full whitespace-nowrap"
+        >
           {item.menu.name}
         </Badge>
       ))}
       {hiddenCount > 0 ? (
-        <Badge size="sm" variant="default" title={hiddenNames}>
+        <Badge size="sm" variant="default" title={hiddenNames} className="shrink-0">
           +{hiddenCount}
         </Badge>
       ) : null}

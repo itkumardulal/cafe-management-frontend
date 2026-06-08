@@ -192,7 +192,7 @@ export function RecordBillPaymentSection({
                 <p className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-subtle)]">
                   Remaining
                 </p>
-                <p className="mt-0.5 text-sm font-semibold tabular-nums text-[var(--color-warning)]">
+                <p className="mt-0.5 text-sm font-semibold tabular-nums tone-warning-text">
                   {formatMoney(afterRemaining)}
                 </p>
               </div>

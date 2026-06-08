@@ -129,7 +129,7 @@ export function CustomerReceivableDetailView({
           </div>
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-cream-50)] px-4 py-3 text-right">
             <p className="text-[11px] uppercase tracking-wide text-muted">Outstanding amount</p>
-            <p className="font-mono text-2xl font-bold tabular-nums text-amber-800 dark:text-amber-300 leading-tight">
+            <p className="font-mono text-2xl font-bold tabular-nums tone-warning-text leading-tight">
               {formatMoney(customer.outstandingAmount)}
             </p>
           </div>
@@ -311,7 +311,7 @@ export function CustomerReceivableDetailView({
 
             <div className="mb-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-cream-50)] px-3 py-2.5">
               <p className="text-xs uppercase tracking-wide text-muted">Outstanding now</p>
-              <p className="font-mono text-xl font-bold tabular-nums text-amber-800 dark:text-amber-300">
+              <p className="font-mono text-xl font-bold tabular-nums tone-warning-text">
                 {formatMoney(customer.outstandingAmount)}
               </p>
               {paymentAmount > 0 && !parsed.invalid ? (
@@ -413,7 +413,7 @@ export function CustomerReceivableDetailView({
           <div className="mx-auto flex max-w-[900px] items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[11px] uppercase tracking-wide text-muted">Outstanding</p>
-              <p className="font-mono text-base font-semibold tabular-nums text-amber-800 dark:text-amber-300">
+              <p className="font-mono text-base font-semibold tabular-nums tone-warning-text">
                 {formatMoney(customer.outstandingAmount)}
               </p>
             </div>

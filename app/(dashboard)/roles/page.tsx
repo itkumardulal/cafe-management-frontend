@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import Link from "next/link";
 import { ShieldUser } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -70,6 +69,8 @@ function StaffRolesContent() {
   const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
   const [pendingValues, setPendingValues] = useState<StaffRoleSchemaType | null>(null);
   const [menusChanged, setMenusChanged] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<StaffRoleRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const {
     register,
@@ -184,7 +185,7 @@ function StaffRolesContent() {
     void submitRole(values);
   };
 
-  const handleDelete = async (role: StaffRoleRow) => {
+  const requestDelete = async (role: StaffRoleRow) => {
     if (role.staffCount > 0) {
       try {
         const detail = await operationsApi.staffRoles.getById(role.id);
@@ -198,16 +199,23 @@ function StaffRolesContent() {
       return;
     }
 
-    if (!window.confirm(`Delete staff role "${role.name}"?`)) {
+    setDeleteTarget(role);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) {
       return;
     }
-
+    setDeleting(true);
     try {
-      await operationsApi.staffRoles.remove(role.id);
+      await operationsApi.staffRoles.remove(deleteTarget.id);
       appToast.success("Staff role deleted");
+      setDeleteTarget(null);
       setRefreshKey((n) => n + 1);
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to delete staff role"));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -271,14 +279,16 @@ function StaffRolesContent() {
                 fields={[
                   {
                     label: "Permissions",
+                    layout: "stack",
                     value: <PermissionChips menuAccess={role.menuAccess} />,
                   },
                   { label: "Staff assigned", value: String(role.staffCount) },
                 ]}
                 actions={
                   <RowActions
+                    showLabels
                     onEdit={() => openEdit(role)}
-                    onDelete={() => void handleDelete(role)}
+                    onDelete={() => void requestDelete(role)}
                   />
                 }
               />
@@ -301,16 +311,17 @@ function StaffRolesContent() {
                   />
                 ),
               },
-              { label: "Permissions", thClassName: tableCenterColumnClass },
+              { label: "Permissions" },
               { label: "Staff", thClassName: tableCenterColumnClass },
               { label: "Actions", thClassName: tableActionsColumnClass },
             ]}
             ariaLabel="Staff roles"
-            density="compact"
+            density="comfortable"
+            className="min-w-0 border-0 shadow-none [&_table]:min-w-full"
           >
             {roles.map((role) => (
-              <tr key={role.id} className="border-t border-[var(--color-border)]">
-                <td className="px-3 py-2.5">
+              <tr key={role.id} className="border-t border-[var(--color-border)] last:border-b-0">
+                <td className="px-4 py-3.5 align-top">
                   <div>
                     <p className="font-medium">{role.name}</p>
                     {role.description ? (
@@ -318,19 +329,20 @@ function StaffRolesContent() {
                     ) : null}
                   </div>
                 </td>
-                <td className={cn("px-3 py-2.5", tableCenterCellClass)}>
+                <td className="px-4 py-3.5 align-top">
                   <PermissionChips menuAccess={role.menuAccess} />
                 </td>
-                <td className={cn("px-3 py-2.5", tableCenterCellClass)}>
+                <td className={cn("px-4 py-3.5", tableCenterCellClass)}>
                   <Badge size="sm" variant="default">
                     {role.staffCount}
                   </Badge>
                 </td>
-                <td className="px-3 py-2.5">
+                <td className="px-4 py-3.5">
                   <div className={tableActionsCellClass}>
                     <RowActions
+                      showLabels
                       onEdit={() => openEdit(role)}
-                      onDelete={() => void handleDelete(role)}
+                      onDelete={() => void requestDelete(role)}
                     />
                   </div>
                 </td>
@@ -339,6 +351,42 @@ function StaffRolesContent() {
           </ResponsiveTable>
         </Card>
       </PaginatedListSection>
+
+      <Modal
+        open={deleteTarget !== null}
+        title="Delete staff role?"
+        description="Only roles with no assigned staff can be deleted."
+        onClose={() => {
+          if (!deleting) {
+            setDeleteTarget(null);
+          }
+        }}
+      >
+        <div className="space-y-5">
+          <p className="text-sm text-muted">
+            Are you sure you want to delete{" "}
+            <span className="font-semibold text-foreground">{deleteTarget?.name}</span>?
+          </p>
+          <FormFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleting}
+            >
+              No
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={() => void confirmDelete()}
+              loading={deleting}
+            >
+              Yes, delete
+            </Button>
+          </FormFooter>
+        </div>
+      </Modal>
 
       <Modal
         open={modalOpen}

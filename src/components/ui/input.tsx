@@ -8,10 +8,19 @@ type InputProps = InputHTMLAttributes<HTMLInputElement> & {
 };
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className, hasError, size = "md", fullWidth = true, ...props }, ref) => {
+  ({ className, hasError, size = "md", fullWidth = true, type, onWheel, ...props }, ref) => {
     return (
       <input
         ref={ref}
+        type={type}
+        onWheel={
+          type === "number"
+            ? (e) => {
+                e.currentTarget.blur();
+                onWheel?.(e);
+              }
+            : onWheel
+        }
         className={cn(
           "touch-target rounded-xl border bg-[var(--color-surface)] px-3 text-base md:text-sm text-[var(--color-foreground)] placeholder:text-[var(--color-subtle)] caret-[var(--color-foreground)] outline-none transition-colors",
           fullWidth && "w-full",

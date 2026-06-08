@@ -50,11 +50,9 @@ export const TABLE_STATUS: Record<
     stripeClass: "border-l-[var(--color-warning)]",
     cardClass:
       "bg-[var(--color-surface)] dark:bg-[color-mix(in_srgb,var(--color-warning)_10%,var(--color-surface))]",
-    chipClass:
-      "border-amber-300/80 bg-amber-50 text-amber-900 dark:border-amber-600/50 dark:bg-amber-950/50 dark:text-amber-100",
-    statClass:
-      "border border-amber-200 bg-amber-50 dark:border-amber-600/40 dark:bg-amber-950/40",
-    accentClass: "text-amber-900 dark:text-amber-100",
+    chipClass: "tone-warning-chip",
+    statClass: "border tone-warning-panel",
+    accentClass: "tone-warning-text",
     statValueClass: "text-[var(--color-foreground)]",
     cardBodyClass: "text-[var(--color-foreground)]",
     pulseDot: true,

@@ -45,7 +45,7 @@ export function ReportStaffLeaderboard({
                   className={cn(
                     "shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-semibold tabular-nums",
                     index === 0
-                      ? "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
+                      ? "tone-warning-surface tone-warning-text"
                       : "bg-[var(--color-cream-100)] text-muted",
                   )}
                 >

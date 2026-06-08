@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, PackageMinus, Trash2 } from "lucide-react";
+import { PackageMinus, Pencil, Trash2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { DateRangeFilter } from "@/src/components/shared/date-range-filter";
@@ -13,6 +13,7 @@ import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
 import { MobileSortSelect } from "@/src/components/shared/mobile-sort-select";
 import { PageHeader } from "@/src/components/shared/page-header";
 import { PaginatedListSection } from "@/src/components/shared/paginated-list-section";
+import { RowActions } from "@/src/components/shared/row-actions";
 import { PaginationSkeleton } from "@/src/components/skeletons/pagination-skeleton";
 import { ViewModalSkeleton } from "@/src/components/skeletons/view-modal-skeleton";
 import { TableSkeleton } from "@/src/components/skeletons/table-skeleton";
@@ -22,6 +23,7 @@ import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
+import { NumberInput } from "@/src/components/ui/number-input";
 import { Modal } from "@/src/components/ui/modal";
 import { Select } from "@/src/components/ui/select";
 import {
@@ -54,6 +56,7 @@ type RemovalRow = {
 };
 
 type RemovalDetail = RemovalRow & {
+  staffUserId?: string | null;
   lines: Array<{
     id: string;
     lineType: "MENU" | "INVENTORY";
@@ -126,6 +129,7 @@ function StockRemovalsContent() {
   const [draftToDate, setDraftToDate] = useState(params.filters.toDate ?? "");
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [open, setOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [entryAt, setEntryAt] = useState(new Date().toISOString().slice(0, 16));
   const [reason, setReason] = useState<"DAMAGE" | "STAFF_USE">("DAMAGE");
@@ -170,12 +174,42 @@ function StockRemovalsContent() {
   };
 
   const openCreate = () => {
+    setEditId(null);
     setEntryAt(new Date().toISOString().slice(0, 16));
     setReason("DAMAGE");
     setStaffUserId("");
     setNotes("");
     setLines([emptyLine()]);
     setOpen(true);
+  };
+
+  const openEdit = async (id: string) => {
+    setEditId(id);
+    setOpen(true);
+    try {
+      const detail = await operationsApi.stockRemovals.getOne(id);
+      const entry = detail.entryAt.slice(0, 16);
+      setEntryAt(entry.length === 16 ? entry : new Date(detail.entryAt).toISOString().slice(0, 16));
+      setReason(detail.reason as "DAMAGE" | "STAFF_USE");
+      setStaffUserId(detail.staffUserId ?? "");
+      setNotes(detail.notes ?? "");
+      setLines(
+        detail.lines.map((line) => ({
+          itemKey:
+            line.lineType === "MENU" && line.menuItemId
+              ? `MENU:${line.menuItemId}`
+              : line.stockItemId
+                ? `INVENTORY:${line.stockItemId}`
+                : "",
+          quantity: line.quantity,
+        })),
+      );
+      setViewOpen(false);
+    } catch (error) {
+      setOpen(false);
+      setEditId(null);
+      appToast.error(getApiErrorMessage(error, "Failed to load removal for editing"));
+    }
   };
 
   const openView = async (id: string) => {
@@ -246,19 +280,26 @@ function StockRemovalsContent() {
 
     setSaving(true);
     try {
-      await operationsApi.stockRemovals.create({
+      const payload = {
         entryAt: new Date(entryAt).toISOString(),
         reason,
         staffUserId: reason === "STAFF_USE" ? staffUserId : undefined,
         notes: notes.trim() || undefined,
         lines: parsedLines,
-      });
-      appToast.success("Stock removal recorded");
+      };
+      if (editId) {
+        await operationsApi.stockRemovals.update(editId, payload);
+        appToast.success("Stock removal updated");
+      } else {
+        await operationsApi.stockRemovals.create(payload);
+        appToast.success("Stock removal recorded");
+      }
       setOpen(false);
+      setEditId(null);
       await refetch();
       void dispatch(fetchStockRemovalRefsThunk({ force: true }));
     } catch (error) {
-      appToast.error(getApiErrorMessage(error, "Failed to save removal"));
+      appToast.error(getApiErrorMessage(error, editId ? "Failed to update removal" : "Failed to save removal"));
     } finally {
       setSaving(false);
     }
@@ -390,20 +431,12 @@ function StockRemovalsContent() {
                   { label: "Notes", value: r.notes?.trim() || "—" },
                 ]}
                 actions={
-                  <div className="flex flex-wrap justify-end gap-2">
-                    <Button type="button" size="sm" variant="secondary" onClick={() => void openView(r.id)}>
-                      View
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => setDeleteTarget(r)}
-                      className="border-danger/50 text-danger hover:border-danger hover:bg-danger/10 hover:text-danger"
-                    >
-                      Delete
-                    </Button>
-                  </div>
+                  <RowActions
+                    showLabels
+                    onView={() => void openView(r.id)}
+                    onEdit={() => void openEdit(r.id)}
+                    onDelete={() => setDeleteTarget(r)}
+                  />
                 }
               />
             ))}
@@ -475,26 +508,12 @@ function StockRemovalsContent() {
                 </td>
                 <td className="px-4 py-3.5">
                   <div className={tableActionsCellClass}>
-                    <div className="inline-flex flex-nowrap items-center justify-center gap-1.5">
-                      <Button type="button" size="sm" variant="secondary" onClick={() => void openView(r.id)}>
-                        <span className="inline-flex items-center gap-1.5">
-                          <Eye size={15} strokeWidth={1.75} aria-hidden />
-                          View
-                        </span>
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => setDeleteTarget(r)}
-                        className="border-danger/50 text-danger hover:border-danger hover:bg-danger/10 hover:text-danger"
-                      >
-                        <span className="inline-flex items-center gap-1.5">
-                          <Trash2 size={15} strokeWidth={1.75} aria-hidden />
-                          Delete
-                        </span>
-                      </Button>
-                    </div>
+                    <RowActions
+                      showLabels
+                      onView={() => void openView(r.id)}
+                      onEdit={() => void openEdit(r.id)}
+                      onDelete={() => setDeleteTarget(r)}
+                    />
                   </div>
                 </td>
               </tr>
@@ -633,6 +652,14 @@ function StockRemovalsContent() {
             >
               Close
             </Button>
+            {viewRemoval ? (
+              <Button type="button" onClick={() => void openEdit(viewRemoval.id)}>
+                <span className="inline-flex items-center gap-1.5">
+                  <Pencil size={16} aria-hidden />
+                  Edit
+                </span>
+              </Button>
+            ) : null}
           </div>
         </div>
       </Modal>
@@ -641,20 +668,33 @@ function StockRemovalsContent() {
         open={open}
         size="xl"
         mobileVariant="fullscreen"
-        title="New stock removal"
-        description="Record stock removed from menu or inventory (damage, staff use)."
+        title={editId ? "Edit stock removal" : "New stock removal"}
+        description={
+          editId
+            ? "Update removal details and line items. Stock is adjusted automatically."
+            : "Record stock removed from menu or inventory (damage, staff use)."
+        }
         onClose={() => {
           if (!saving) {
             setOpen(false);
+            setEditId(null);
           }
         }}
         footer={
           <FormFooter>
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={saving}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setOpen(false);
+                setEditId(null);
+              }}
+              disabled={saving}
+            >
               Cancel
             </Button>
             <Button type="button" onClick={() => void submit()} loading={saving} disabled={!canCreate}>
-              Record removal
+              {editId ? "Save changes" : "Record removal"}
             </Button>
           </FormFooter>
         }
@@ -777,13 +817,11 @@ function StockRemovalsContent() {
                       </Select>
                     </Field>
                     <Field id={`qty-${idx}`} label="Quantity" required>
-                      <Input
-                        type="number"
+                      <NumberInput
                         min={0.0001}
-                        step="0.01"
                         placeholder="e.g. 2"
                         value={line.quantity}
-                        onChange={(e) => updateLine(idx, { quantity: e.target.value })}
+                        onValueChange={(quantity) => updateLine(idx, { quantity })}
                       />
                     </Field>
                   </div>

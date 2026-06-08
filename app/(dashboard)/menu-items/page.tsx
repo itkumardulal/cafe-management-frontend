@@ -12,6 +12,7 @@ import { EmptyState } from "@/src/components/ui/empty-state";
 import { ResponsiveTable, tableActionsCellClass, tableActionsColumnClass, tableCenterCellClass, tableCenterColumnClass } from "@/src/components/ui/table";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
+import { NumberInput } from "@/src/components/ui/number-input";
 import { Modal } from "@/src/components/ui/modal";
 import { Select } from "@/src/components/ui/select";
 import { FormFooter } from "@/src/components/shared/form-footer";
@@ -22,6 +23,7 @@ import { PaginationSkeleton } from "@/src/components/skeletons/pagination-skelet
 import { TableSkeleton } from "@/src/components/skeletons/table-skeleton";
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { cn } from "@/src/lib/cn";
+import { getApiErrorMessage } from "@/src/lib/api-error";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
@@ -40,6 +42,7 @@ type MenuItemRow = {
   sellPricePerUnit: string;
   openingStockDay1: string;
   trackStock: boolean;
+  directPurchaseItemId?: string | null;
   reorderLevel?: string | null;
   quantityOnHand: string | null;
   notes?: string | null;
@@ -55,6 +58,7 @@ const emptyForm = {
   costPerUnit: "",
   sellPricePerUnit: "",
   trackStock: false,
+  directPurchaseItemId: "",
   openingStockDay1: "",
   stockAdjustmentQty: "",
   reorderLevel: "",
@@ -116,8 +120,20 @@ function MenuItemsContent() {
   const [imageUploading, setImageUploading] = useState(false);
   const [imageUploadEntityId, setImageUploadEntityId] = useState("");
   const [form, setForm] = useState(emptyForm);
+  const [linkOptions, setLinkOptions] = useState<
+    Array<{
+      id: string;
+      name: string;
+      unitType?: string | null;
+      unitQuantity?: string | null;
+      quantityOnHand?: string;
+    }>
+  >([]);
   const [deleteTarget, setDeleteTarget] = useState<MenuItemRow | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [existingMenuNames, setExistingMenuNames] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
 
   useEffect(() => {
     if (menuCategoryOptionsStatus === "loaded" || menuCategoryOptionsStatus === "loading") {
@@ -125,6 +141,37 @@ function MenuItemsContent() {
     }
     void dispatch(fetchMenuCategoryOptionsThunk());
   }, [dispatch, menuCategoryOptionsStatus]);
+
+  useEffect(() => {
+    if (!open || editId || !form.trackStock) {
+      return;
+    }
+    void operationsApi.directPurchases
+      .linkOptions()
+      .then(setLinkOptions)
+      .catch(() => setLinkOptions([]));
+  }, [open, editId, form.trackStock]);
+
+  useEffect(() => {
+    if (!open) return;
+    void operationsApi.menuItems
+      .list({ limit: 500, page: 1, sortBy: "name", sortOrder: "asc" })
+      .then((res) =>
+        setExistingMenuNames(res.items.map((i) => ({ id: i.id, name: i.name }))),
+      )
+      .catch(() => setExistingMenuNames([]));
+  }, [open]);
+
+  const nameError = useMemo(() => {
+    const trimmed = form.name.trim();
+    if (!trimmed) return undefined;
+    const duplicate = existingMenuNames.find(
+      (item) =>
+        item.id !== editId &&
+        item.name.trim().toLowerCase() === trimmed.toLowerCase(),
+    );
+    return duplicate ? "Menu item already exists" : undefined;
+  }, [form.name, existingMenuNames, editId]);
 
   const groupedByCategory = useMemo(() => {
     const map = new Map<string, { id: string; name: string; items: MenuItemRow[] }>();
@@ -144,6 +191,7 @@ function MenuItemsContent() {
     setEditId(null);
     setImageUploadEntityId(crypto.randomUUID());
     setForm(emptyForm);
+    setLinkOptions([]);
     setOpen(true);
   };
 
@@ -160,6 +208,7 @@ function MenuItemsContent() {
       costPerUnit: item.costPerUnit,
       sellPricePerUnit: item.sellPricePerUnit,
       trackStock: item.trackStock,
+      directPurchaseItemId: "",
       openingStockDay1: item.openingStockDay1 ?? item.quantityOnHand ?? "",
       stockAdjustmentQty: "",
       reorderLevel: item.reorderLevel ?? "",
@@ -169,8 +218,22 @@ function MenuItemsContent() {
   };
 
   const save = async () => {
-    if (!form.menuCategoryId || !form.name.trim()) {
-      appToast.error("Category and item name are required");
+    if (!form.menuCategoryId) {
+      appToast.error("Menu category is required");
+      return;
+    }
+    if (!editId && form.trackStock && !form.directPurchaseItemId) {
+      appToast.error(
+        "Select a direct purchase item — add item names in Direct Purchases first",
+      );
+      return;
+    }
+    if (!form.name.trim()) {
+      appToast.error("Item name is required");
+      return;
+    }
+    if (nameError) {
+      appToast.error(nameError);
       return;
     }
     if (!form.imageUrl) {
@@ -205,7 +268,6 @@ function MenuItemsContent() {
     const payload = {
       menuCategoryId: form.menuCategoryId,
       name: form.name.trim(),
-      itemType: form.itemType.trim() || undefined,
       imageUrl: form.imageUrl,
       unitType: form.unitType.trim(),
       unitQuantity: form.unitQuantity.trim(),
@@ -214,7 +276,9 @@ function MenuItemsContent() {
 
     try {
       const reorderLevel =
-        form.reorderLevel.trim() === "" ? undefined : Number(form.reorderLevel);
+        form.trackStock && form.reorderLevel.trim() !== ""
+          ? Number(form.reorderLevel)
+          : undefined;
 
       if (editId) {
         await operationsApi.menuItems.update(editId, {
@@ -222,7 +286,7 @@ function MenuItemsContent() {
           costPerUnit,
           sellPricePerUnit,
           trackStock: form.trackStock,
-          reorderLevel: reorderLevel ?? null,
+          reorderLevel: form.trackStock ? (reorderLevel ?? null) : null,
         });
         if (
           form.trackStock &&
@@ -236,26 +300,22 @@ function MenuItemsContent() {
         }
         appToast.success("Menu item updated");
       } else {
-        const openingNum =
-          form.trackStock && form.openingStockDay1.trim() !== ""
-            ? Number(form.openingStockDay1)
-            : 0;
-        const tracksInventory = form.trackStock && openingNum > 0;
-
         await operationsApi.menuItems.create({
           ...payload,
           costPerUnit,
           sellPricePerUnit,
-          trackStock: tracksInventory,
-          openingStockDay1: tracksInventory ? openingNum : undefined,
+          trackStock: form.trackStock,
           reorderLevel,
+          ...(form.trackStock && form.directPurchaseItemId
+            ? { directPurchaseItemId: form.directPurchaseItemId }
+            : {}),
         });
         appToast.success("Menu item added");
       }
       setOpen(false);
       await refetch();
-    } catch {
-      appToast.error("Failed to save menu item");
+    } catch (error) {
+      appToast.error(getApiErrorMessage(error, "Failed to save menu item"));
     }
   };
 
@@ -269,8 +329,8 @@ function MenuItemsContent() {
       appToast.success("Menu item deleted");
       setDeleteTarget(null);
       await refetch();
-    } catch {
-      appToast.error("Failed to delete menu item");
+    } catch (error) {
+      appToast.error(getApiErrorMessage(error, "Failed to delete menu item"));
     } finally {
       setDeleting(false);
     }
@@ -390,10 +450,14 @@ function MenuItemsContent() {
                           { label: "Cost", value: item.costPerUnit },
                           { label: "Sell", value: item.sellPricePerUnit },
                           {
+                            label: "Type",
+                            value: item.trackStock ? "Direct purchase" : "Prepared dish",
+                          },
+                          {
                             label: "Stock",
                             value: item.trackStock
                               ? (item.quantityOnHand ?? "0")
-                              : "Not tracked",
+                              : "—",
                           },
                           ...(item.notes ? [{ label: "Notes", value: item.notes }] : []),
                         ]}
@@ -469,7 +533,7 @@ function MenuItemsContent() {
                             {item.sellPricePerUnit}
                           </td>
                           <td className={cn("px-4 py-3.5 text-sm text-foreground", tableCenterCellClass)}>
-                            {item.quantityOnHand}
+                            {item.trackStock ? (item.quantityOnHand ?? "0") : "—"}
                           </td>
                           <td className="max-w-[200px] px-4 py-3.5 text-sm text-muted">
                             {item.notes ? (
@@ -556,7 +620,12 @@ function MenuItemsContent() {
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="button" onClick={() => void save()} loading={imageUploading}>
+            <Button
+              type="button"
+              onClick={() => void save()}
+              loading={imageUploading}
+              disabled={Boolean(nameError)}
+            >
               {editId ? "Save changes" : "Add item"}
             </Button>
           </FormFooter>
@@ -584,25 +653,120 @@ function MenuItemsContent() {
               </Select>
             </Field>
 
-            <Field id="name" label="Item name" required>
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-[var(--color-foreground)]">Item type</p>
+              <label className="flex cursor-pointer items-start gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="itemTypeKind"
+                  checked={!form.trackStock}
+                  onChange={() =>
+                    setForm((f) => ({
+                      ...f,
+                      trackStock: false,
+                      directPurchaseItemId: "",
+                      reorderLevel: "",
+                    }))
+                  }
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-medium">Prepared dish</span>
+                  <span className="mt-0.5 block text-xs text-muted">
+                    Made in the cafe — no stock tracking on the menu.
+                  </span>
+                </span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="itemTypeKind"
+                  checked={form.trackStock}
+                  onChange={() => setForm((f) => ({ ...f, trackStock: true }))}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-medium">Direct purchase product</span>
+                  <span className="mt-0.5 block text-xs text-muted">
+                    Items added manually in Direct Purchases — select one below to sell on the menu.
+                  </span>
+                </span>
+              </label>
+            </div>
+
+            {!editId && form.trackStock ? (
+              <Field
+                id="directPurchaseLink"
+                label="Direct purchase item"
+                required
+                hint="Items you typed in Direct Purchases that are not yet on the menu"
+              >
+                {linkOptions.length === 0 ? (
+                  <p className="rounded-lg border border-[var(--color-border)] bg-[var(--color-cream-50)] px-3 py-2 text-sm text-[var(--color-muted)]">
+                    No direct purchase items yet. Add item names in{" "}
+                    <a href="/direct-purchases" className="font-medium text-[var(--color-primary)] underline-offset-2 hover:underline">
+                      Direct Purchases
+                    </a>{" "}
+                    first.
+                  </p>
+                ) : (
+                  <Select
+                    searchable
+                    value={form.directPurchaseItemId}
+                    onChange={(e) => {
+                      const selected = linkOptions.find((o) => o.id === e.target.value);
+                      setForm((f) => ({
+                        ...f,
+                        directPurchaseItemId: e.target.value,
+                        ...(selected
+                          ? {
+                              name: selected.name,
+                              unitType: selected.unitType ?? f.unitType,
+                              unitQuantity: selected.unitQuantity ?? f.unitQuantity,
+                            }
+                          : { name: "", directPurchaseItemId: "" }),
+                      }));
+                    }}
+                  >
+                    <option value="">Choose direct purchase item</option>
+                    {linkOptions.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name}
+                        {o.unitQuantity || o.unitType
+                          ? ` (${[o.unitQuantity, o.unitType].filter(Boolean).join(" ")})`
+                          : ""}
+                        {o.quantityOnHand && Number(o.quantityOnHand) > 0
+                          ? ` — stock: ${o.quantityOnHand}`
+                          : ""}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+            ) : null}
+
+            <Field
+              id="name"
+              label="Item name"
+              required
+              error={nameError}
+              hint={
+                !editId && form.trackStock
+                  ? "Filled from the direct purchase item you selected"
+                  : undefined
+              }
+            >
               <Input
                 value={form.name}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, name: e.target.value }))
                 }
                 placeholder="e.g. Chicken momo"
+                disabled={!editId && form.trackStock}
+                hasError={Boolean(nameError)}
               />
             </Field>
 
-            <Field id="itemType" label="Item type" hint="Optional — e.g. Veg, Non-veg, Beverage">
-              <Input
-                value={form.itemType}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, itemType: e.target.value }))
-                }
-                placeholder="fry crispy"
-              />
-            </Field>
           </section>
 
           <section className="space-y-3 border-t border-[var(--color-border)] pt-5">
@@ -638,6 +802,7 @@ function MenuItemsContent() {
                     setForm((f) => ({ ...f, unitType: e.target.value }))
                   }
                   placeholder="ml, kg, plate"
+                  disabled={!editId && form.trackStock}
                 />
               </Field>
               <Field
@@ -652,6 +817,7 @@ function MenuItemsContent() {
                     setForm((f) => ({ ...f, unitQuantity: e.target.value }))
                   }
                   placeholder="e.g. 250"
+                  disabled={!editId && form.trackStock}
                 />
               </Field>
             </div>
@@ -663,105 +829,63 @@ function MenuItemsContent() {
             </h3>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field id="cost" label="Cost per unit" required hint="Must be less than sell price">
-                <Input
-                  type="number"
+                <NumberInput
                   min={0}
-                  step="0.01"
                   value={form.costPerUnit}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, costPerUnit: e.target.value }))
+                  onValueChange={(costPerUnit) =>
+                    setForm((f) => ({ ...f, costPerUnit }))
                   }
                 />
               </Field>
 
               <Field id="sell" label="Sell price" required hint="Must be greater than cost price">
-                <Input
-                  type="number"
+                <NumberInput
                   min={0}
-                  step="0.01"
                   value={form.sellPricePerUnit}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, sellPricePerUnit: e.target.value }))
+                  onValueChange={(sellPricePerUnit) =>
+                    setForm((f) => ({ ...f, sellPricePerUnit }))
                   }
                 />
               </Field>
             </div>
 
-            <label className="flex cursor-pointer items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={form.trackStock}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, trackStock: e.target.checked }))
-                }
-                className="rounded border-[var(--color-border)]"
-              />
-              Track stock for this item
-            </label>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              {!editId ? (
-                <Field
-                  id="opening"
-                  label="Opening stock"
-                  hint={
-                    form.trackStock
-                      ? "Required for inventory tracking — item won't appear in inventory without opening stock"
-                      : "Enable stock tracking above to set opening stock"
-                  }
-                >
-                  <Input
-                    type="number"
-                    min={0}
-                    step="1"
-                    value={form.openingStockDay1}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, openingStockDay1: e.target.value }))
-                    }
-                    disabled={!form.trackStock}
-                    placeholder={form.trackStock ? "e.g. 10" : "Enable stock tracking first"}
-                  />
-                </Field>
-              ) : (
-                <Field
-                  id="openingView"
-                  label="Opening stock"
-                  hint={
-                    form.trackStock
-                      ? "Initial configured stock"
-                      : "Stock tracking is disabled for this item"
-                  }
-                >
-                  <Input
-                    type="number"
-                    value={form.openingStockDay1}
-                    disabled
-                    placeholder="0"
-                  />
-                </Field>
-              )}
-              <Field
-                id="reorder"
-                label="Reorder level"
-                hint={
-                  form.trackStock
-                    ? "Optional — alerts when at or below"
-                    : "Optional — enabled when stock tracking is on"
-                }
+            {form.trackStock ? (
+              <div
+                className={cn(
+                  "grid gap-3",
+                  editId ? "sm:grid-cols-2" : "sm:grid-cols-1",
+                )}
               >
-                <Input
-                  type="number"
-                  min={0}
-                  step="1"
-                  value={form.reorderLevel}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, reorderLevel: e.target.value }))
-                  }
-                  disabled={!form.trackStock}
-                  placeholder="Optional"
-                />
-              </Field>
-            </div>
+                {editId ? (
+                  <Field
+                    id="currentStock"
+                    label="Current stock"
+                    hint="Updated via Direct Purchases and POS sales"
+                  >
+                    <Input
+                      value={form.openingStockDay1}
+                      disabled
+                      placeholder="0"
+                    />
+                  </Field>
+                ) : null}
+                <Field
+                  id="reorder"
+                  label="Reorder level"
+                  hint="Optional — alerts when at or below"
+                >
+                  <NumberInput
+                    min={0}
+                    decimals={0}
+                    value={form.reorderLevel}
+                    onValueChange={(reorderLevel) =>
+                      setForm((f) => ({ ...f, reorderLevel }))
+                    }
+                    placeholder="Optional"
+                  />
+                </Field>
+              </div>
+            ) : null}
             {editId ? (
               <Field
                 id="stockAdjustment"
@@ -769,15 +893,15 @@ function MenuItemsContent() {
                 hint={
                   form.trackStock
                     ? "Optional — use + for add, - for reduce (e.g. 10 or -3)"
-                    : "Enable stock tracking to update quantity"
+                    : "Enable direct purchase product to update quantity"
                 }
               >
-                <Input
-                  type="number"
-                  step="1"
+                <NumberInput
+                  decimals={0}
+                  allowNegative
                   value={form.stockAdjustmentQty}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, stockAdjustmentQty: e.target.value }))
+                  onValueChange={(stockAdjustmentQty) =>
+                    setForm((f) => ({ ...f, stockAdjustmentQty }))
                   }
                   disabled={!form.trackStock}
                   placeholder="e.g. 10 or -3"

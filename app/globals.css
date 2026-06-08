@@ -267,6 +267,35 @@
     color: var(--color-subtle);
   }
 
+  /* Warning / due-balance tones — readable in light + dark (replaces pale Tailwind amber) */
+  .tone-warning-text {
+    color: var(--color-warning);
+  }
+
+  .tone-warning-surface {
+    background-color: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface));
+  }
+
+  .tone-warning-surface-subtle {
+    background-color: color-mix(in srgb, var(--color-warning) 8%, var(--color-surface));
+  }
+
+  .tone-warning-chip {
+    border: 1px solid color-mix(in srgb, var(--color-warning) 32%, var(--color-border));
+    background-color: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface));
+    color: var(--color-warning);
+  }
+
+  .tone-warning-panel {
+    border-color: color-mix(in srgb, var(--color-warning) 35%, var(--color-border));
+    background-color: color-mix(in srgb, var(--color-warning) 8%, var(--color-surface));
+  }
+
+  .tone-warning-banner {
+    background-color: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface));
+    color: var(--color-warning);
+  }
+
   .menu-chip {
     color: var(--color-nav-idle);
     background: var(--color-cream-100);

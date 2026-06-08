@@ -12,8 +12,14 @@ const PERMISSION_GROUPS: Array<{
   {
     id: "menuSales",
     label: "Menu & sales",
-    description: "Catalog and point of sale",
-    codes: ["MENU_CATEGORIES", "MENU_ITEMS", "TABLES", "POS", "CUSTOMER_RECEIVABLES"],
+    description: "Catalog setup",
+    codes: ["MENU_CATEGORIES", "MENU_ITEMS"],
+  },
+  {
+    id: "pos",
+    label: "POS",
+    description: "Point of sale and table service",
+    codes: ["POS", "TABLES", "TABLE_ORDERS", "CUSTOMER_RECEIVABLES"],
   },
   {
     id: "inventory",
@@ -24,6 +30,7 @@ const PERMISSION_GROUPS: Array<{
       "RAW_MATERIALS",
       "SUPPLIERS",
       "RAW_MATERIAL_PURCHASES",
+      "DIRECT_PURCHASES",
       "BILL_SETTLEMENT",
       "STOCK_REMOVALS",
       "MENU_ITEMS",
@@ -33,7 +40,7 @@ const PERMISSION_GROUPS: Array<{
     id: "finance",
     label: "Finance",
     description: "Expenses and daily costs",
-    codes: ["EXPENSE_ITEMS", "DAILY_EXPENSES"],
+    codes: ["BANKS", "BANK_TRANSACTIONS", "EXPENSE_ITEMS", "DAILY_EXPENSES"],
   },
   {
     id: "reports",

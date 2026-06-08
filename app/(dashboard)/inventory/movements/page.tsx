@@ -32,6 +32,7 @@ function sourceLabel(row: MovementRow) {
   if (t === "STOCK_REMOVAL") return "Stock removal";
   if (t === "OPENING") return "Opening";
   if (t === "ADJUSTMENT_IN") return "Stock in";
+  if (t === "DIRECT_PURCHASE") return "Direct purchase";
   return t;
 }
 

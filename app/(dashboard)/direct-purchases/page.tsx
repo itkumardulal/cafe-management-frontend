@@ -23,11 +23,10 @@ import { ViewModalSkeleton } from "@/src/components/skeletons/view-modal-skeleto
 import { PaginationSkeleton } from "@/src/components/skeletons/pagination-skeleton";
 import { TableSkeleton } from "@/src/components/skeletons/table-skeleton";
 import {
-  RawMaterialPurchaseReceipt,
-  type RmPurchaseReceiptData,
-} from "@/src/components/purchases/raw-material-purchase-receipt";
+  DirectPurchaseReceipt,
+  type DirectPurchaseReceiptData,
+} from "@/src/components/purchases/direct-purchase-receipt";
 import { Button } from "@/src/components/ui/button";
-import { Badge } from "@/src/components/ui/badge";
 import { Card } from "@/src/components/ui/card";
 import { DatePicker } from "@/src/components/ui/date-picker";
 import { Field } from "@/src/components/ui/field";
@@ -47,14 +46,19 @@ import { operationsApi } from "@/src/services/operations-api";
 import { useAppSelector } from "@/src/store/hooks";
 
 type Line = {
-  rawMaterialItemId: string;
+  directPurchaseItemId?: string;
+  itemName: string;
+  unitType: string;
+  unitQuantity: string;
   supplierId: string;
   quantity: string;
   ratePerUnit: string;
 };
 
 const emptyLine = (): Line => ({
-  rawMaterialItemId: "",
+  itemName: "",
+  unitType: "",
+  unitQuantity: "",
   supplierId: "",
   quantity: "1",
   ratePerUnit: "",
@@ -69,13 +73,34 @@ function lineTotal(quantity: string, ratePerUnit: string): number {
   return qty * rate;
 }
 
-type ViewPurchaseData = RmPurchaseReceiptData & {
+type ViewPurchaseData = DirectPurchaseReceiptData & {
   id: string;
 };
 
 type PurchaseRow = ApBillSummary;
 
-export default function RawMaterialPurchasesPage() {
+type DirectPurchaseDetailLine = {
+  item: {
+    id: string;
+    name: string;
+    unitType?: string | null;
+    unitQuantity?: string | null;
+  };
+  supplier: { id: string; name: string };
+  quantity: string;
+  ratePerUnit: string;
+  lineTotal: string;
+};
+
+function formatLineUnit(item: {
+  unitType?: string | null;
+  unitQuantity?: string | null;
+}) {
+  const parts = [item.unitQuantity?.trim(), item.unitType?.trim()].filter(Boolean);
+  return parts.length > 0 ? parts.join(" ") : null;
+}
+
+export default function DirectPurchasesPage() {
   return (
     <section className="page-shell page-content space-y-4">
       <Suspense
@@ -86,13 +111,13 @@ export default function RawMaterialPurchasesPage() {
           </div>
         }
       >
-        <RawMaterialPurchasesContent />
+        <DirectPurchasesContent />
       </Suspense>
     </section>
   );
 }
 
-function RawMaterialPurchasesContent() {
+function DirectPurchasesContent() {
   const authUser = useAppSelector((state) => state.auth.user);
   const {
     items: purchases,
@@ -115,14 +140,13 @@ function RawMaterialPurchasesContent() {
     clearFilters,
     refetch,
   } = usePaginatedList<PurchaseRow>({
-    queryKey: "raw-material-purchases",
-    fetchFn: (p) => operationsApi.rmPurchases.list(p),
+    queryKey: "direct-purchases",
+    fetchFn: (p) => operationsApi.directPurchases.list(p),
     defaultSort: { sortBy: "purchaseDate", sortOrder: "desc" },
     filterKeys: ["fromDate", "toDate"],
     errorMessage: "Failed to load purchases",
   });
 
-  const [materials, setMaterials] = useState<{ id: string; name: string }[]>([]);
   const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
   const [draftFromDate, setDraftFromDate] = useState(params.filters.fromDate ?? "");
   const [draftToDate, setDraftToDate] = useState(params.filters.toDate ?? "");
@@ -150,7 +174,7 @@ function RawMaterialPurchasesContent() {
   const [viewOpen, setViewOpen] = useState(false);
   const [viewLoading, setViewLoading] = useState(false);
   const [viewPurchase, setViewPurchase] = useState<ViewPurchaseData | null>(null);
-  const [printPurchase, setPrintPurchase] = useState<RmPurchaseReceiptData | null>(null);
+  const [printPurchase, setPrintPurchase] = useState<DirectPurchaseReceiptData | null>(null);
   const printAfterRender = useRef(false);
 
   const grandTotal = useMemo(
@@ -166,18 +190,12 @@ function RawMaterialPurchasesContent() {
 
   const loadRefs = useCallback(async () => {
     try {
-      const [m, s] = await Promise.all([
-        operationsApi.rawMaterials.list({ limit: 100 }),
-        operationsApi.suppliers.list({ limit: 100 }),
-      ]);
-      setMaterials(
-        m.items.map((i: { id: string; name: string }) => ({ id: i.id, name: i.name })),
-      );
+      const s = await operationsApi.suppliers.list({ limit: 100 });
       setSuppliers(
         s.items.map((i: { id: string; name: string }) => ({ id: i.id, name: i.name })),
       );
     } catch {
-      appToast.error("Failed to load materials or suppliers");
+      appToast.error("Failed to load suppliers");
     }
   }, []);
 
@@ -245,8 +263,16 @@ function RawMaterialPurchasesContent() {
     for (let i = 0; i < lines.length; i += 1) {
       const line = lines[i];
       const row = i + 1;
-      if (!line.rawMaterialItemId) {
-        appToast.error(`Line ${row}: select a raw material`);
+      if (!line.itemName.trim()) {
+        appToast.error(`Line ${row}: enter an item name`);
+        return;
+      }
+      if (!line.unitType.trim()) {
+        appToast.error(`Line ${row}: enter a unit type`);
+        return;
+      }
+      if (!line.unitQuantity.trim()) {
+        appToast.error(`Line ${row}: enter a unit quantity`);
         return;
       }
       if (!line.supplierId) {
@@ -282,14 +308,17 @@ function RawMaterialPurchasesContent() {
     setSaving(true);
     try {
       const mappedLines = lines.map((l) => ({
-        rawMaterialItemId: l.rawMaterialItemId,
+        ...(l.directPurchaseItemId ? { directPurchaseItemId: l.directPurchaseItemId } : {}),
+        itemName: l.itemName.trim(),
+        unitType: l.unitType.trim(),
+        unitQuantity: l.unitQuantity.trim(),
         supplierId: editId && editSupplierId ? editSupplierId : l.supplierId,
         quantity: Number(l.quantity),
         ratePerUnit: Number(l.ratePerUnit),
       }));
 
       if (editId) {
-        await operationsApi.rmPurchases.update(editId, {
+        await operationsApi.directPurchases.update(editId, {
           purchaseDate,
           notes: notes.trim() || undefined,
           supplierInvoiceNo: supplierInvoiceNo.trim() || undefined,
@@ -302,7 +331,7 @@ function RawMaterialPurchasesContent() {
         return;
       }
 
-      const result = await operationsApi.rmPurchases.create({
+      const result = await operationsApi.directPurchases.create({
         purchaseDate,
         notes: notes.trim() || undefined,
         supplierInvoiceNo: supplierInvoiceNo.trim() || undefined,
@@ -343,17 +372,17 @@ function RawMaterialPurchasesContent() {
     }
   };
 
-  const hasRefs = materials.length > 0 && suppliers.length > 0;
+  const hasRefs = suppliers.length > 0;
 
   const cafeNameFallback = authUser?.cafe?.cafeName;
 
   const fetchPurchaseDetail = useCallback(async (id: string) => {
-    const detail = await operationsApi.rmPurchases.getOne(id);
-    const lines = detail.lines ?? [];
+    const detail = await operationsApi.directPurchases.getOne(id);
+    const apiLines = detail.lines ?? [];
     const grandTotal =
       detail.grandTotal ??
       String(
-        lines.reduce(
+        apiLines.reduce(
           (sum: number, line: { lineTotal?: string | number | null }) =>
             sum + Number(line.lineTotal || 0),
           0,
@@ -366,7 +395,7 @@ function RawMaterialPurchasesContent() {
       createdAt: detail.createdAt ?? "",
       notes: detail.notes,
       createdByName: detail.createdByName,
-      lineCount: detail.lineCount ?? lines.length,
+      lineCount: detail.lineCount ?? apiLines.length,
       billingType: detail.billingType ?? "PAID",
       paymentStatus: detail.paymentStatus,
       paidAmount: detail.paidAmount,
@@ -377,7 +406,10 @@ function RawMaterialPurchasesContent() {
       creditAmount: detail.creditAmount ?? "0",
       bankPaymentScreenshotUrl: detail.bankPaymentScreenshotUrl,
       cafe: detail.cafe,
-      lines,
+      lines: apiLines.map((line) => ({
+        ...line,
+        item: line.item ?? (line as { menuItem?: DirectPurchaseDetailLine["item"] }).menuItem!,
+      })),
     } satisfies ViewPurchaseData;
   }, []);
 
@@ -397,7 +429,7 @@ function RawMaterialPurchasesContent() {
 
   const openEdit = async (id: string) => {
     try {
-      const detail = await operationsApi.rmPurchases.getOne(id);
+      const detail = await operationsApi.directPurchases.getOne(id);
       const supplierId = detail.supplierId ?? detail.lines[0]?.supplier.id ?? "";
       setEditId(id);
       setEditSupplierId(supplierId);
@@ -407,7 +439,10 @@ function RawMaterialPurchasesContent() {
       setLines(
         detail.lines.length > 0
           ? detail.lines.map((line) => ({
-              rawMaterialItemId: line.rawMaterialItem.id,
+              directPurchaseItemId: line.directPurchaseItemId ?? line.item.id,
+              itemName: line.item.name,
+              unitType: line.item.unitType ?? "",
+              unitQuantity: line.item.unitQuantity ?? "",
               supplierId: line.supplier.id,
               quantity: String(line.quantity),
               ratePerUnit: String(line.ratePerUnit),
@@ -447,8 +482,8 @@ function RawMaterialPurchasesContent() {
   return (
     <>
       <PageHeader
-        title="Raw material purchases"
-        description="Purchase receipts for expenses. These records do not update inventory stock."
+        title="Direct purchases"
+        description="Purchase stock-tracked menu items from suppliers. These records update inventory stock."
         action={
           <Button type="button" size="sm" onClick={openCreate}>
             New purchase
@@ -458,7 +493,7 @@ function RawMaterialPurchasesContent() {
 
       {!hasRefs ? (
         <p className="text-sm text-muted">
-          Add at least one raw material and one supplier before you can save a purchase.
+          Add at least one stock-tracked menu item and one supplier before you can save a purchase.
         </p>
       ) : null}
 
@@ -486,7 +521,7 @@ function RawMaterialPurchasesContent() {
         searchResultSummary={searchResultSummary}
         tableColumns={7}
         emptyTitle="No Purchases Found"
-        emptyDescription="Record raw material purchases for the selected period, or clear filters."
+        emptyDescription="Record direct purchases for the selected period, or clear filters."
         emptyIcon={Receipt}
         emptyAction={{ label: "New purchase", onClick: openCreate }}
         onClearFilters={() => {
@@ -788,7 +823,7 @@ function RawMaterialPurchasesContent() {
                     {viewPurchase.lines.map((line, idx) => (
                       <LineItemCard
                         key={idx}
-                        title={line.rawMaterialItem.name}
+                        title={line.item.name}
                         fields={[
                           { label: "Supplier", value: line.supplier.name },
                           { label: "Qty", value: formatMoney(line.quantity) },
@@ -804,10 +839,12 @@ function RawMaterialPurchasesContent() {
                   <tr key={idx} className="border-t border-[var(--color-border)] last:border-b-0">
                     <td className="px-4 py-3 text-sm font-medium text-[var(--color-foreground)]">
                       <div className="min-w-0">
-                        <p className="truncate">{line.rawMaterialItem.name}</p>
-                        <p className="mt-0.5 text-xs text-[var(--color-muted)]">
-                          Unit: {line.rawMaterialItem.unit}
-                        </p>
+                        <p className="truncate">{line.item.name}</p>
+                        {formatLineUnit(line.item) ? (
+                          <p className="mt-0.5 text-xs text-[var(--color-muted)]">
+                            Unit: {formatLineUnit(line.item)}
+                          </p>
+                        ) : null}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-[var(--color-muted)]">{line.supplier.name}</td>
@@ -862,9 +899,9 @@ function RawMaterialPurchasesContent() {
 
       {typeof document !== "undefined" && printPurchase
         ? createPortal(
-            <div id="rm-purchase-print-host" className="hidden print:flex">
-              <RawMaterialPurchaseReceipt
-                id="rm-purchase-receipt"
+            <div id="dp-purchase-print-host" className="hidden print:flex">
+              <DirectPurchaseReceipt
+                id="dp-purchase-receipt"
                 purchase={printPurchase}
                 cafeName={cafeNameFallback}
               />
@@ -925,21 +962,14 @@ function RawMaterialPurchasesContent() {
                 aria-hidden
               />
               <p className="text-sm leading-relaxed text-[var(--color-muted)]">
-                Before saving, add at least one entry on{" "}
-                <a
-                  href="/raw-materials"
-                  className="font-medium text-[var(--color-primary)] underline-offset-2 hover:underline"
-                >
-                  Raw materials
-                </a>{" "}
-                and{" "}
+                Before saving, add at least one{" "}
                 <a
                   href="/suppliers"
                   className="font-medium text-[var(--color-primary)] underline-offset-2 hover:underline"
                 >
-                  Suppliers
+                  supplier
                 </a>
-                .
+                . Type item names manually on each line — link them to the menu later from Menu items.
               </p>
             </div>
           ) : null}
@@ -987,7 +1017,7 @@ function RawMaterialPurchasesContent() {
                   Line items
                 </h3>
                 <p className="mt-1 text-sm text-[var(--color-muted)]">
-                  Each row is one material from a supplier with quantity and rate.
+                  Each row is one menu item from a supplier with quantity and rate.
                 </p>
               </div>
               <span className="rounded-full bg-[var(--color-surface-muted)] px-2.5 py-1 text-xs font-medium text-[var(--color-muted)]">
@@ -1016,7 +1046,7 @@ function RawMaterialPurchasesContent() {
                             Line item {idx + 1}
                           </p>
                           <p className="text-xs text-[var(--color-muted)]">
-                            Material, supplier, quantity & rate
+                            Supplier, item name, units, quantity & rate
                           </p>
                         </div>
                       </div>
@@ -1043,22 +1073,15 @@ function RawMaterialPurchasesContent() {
                     </header>
 
                     <div className="grid gap-4 p-4 sm:grid-cols-2">
-                      <Field id={`material-${idx}`} label="Raw material" required>
-                        <Select
-                          searchable
-                          value={line.rawMaterialItemId}
+                      <Field id={`item-${idx}`} label="Item name" required>
+                        <Input
+                          value={line.itemName}
                           onChange={(e) =>
-                            updateLine(idx, { rawMaterialItemId: e.target.value })
+                            updateLine(idx, { itemName: e.target.value })
                           }
+                          placeholder="e.g. Coke, Lays chips"
                           disabled={!hasRefs}
-                        >
-                          <option value="">Choose material</option>
-                          {materials.map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {m.name}
-                            </option>
-                          ))}
-                        </Select>
+                        />
                       </Field>
                       <Field id={`supplier-${idx}`} label="Supplier" required>
                         {editId ? (
@@ -1082,6 +1105,22 @@ function RawMaterialPurchasesContent() {
                             ))}
                           </Select>
                         )}
+                      </Field>
+                      <Field id={`unitQty-${idx}`} label="Unit quantity" required hint="e.g. 250, 1">
+                        <Input
+                          value={line.unitQuantity}
+                          onChange={(e) => updateLine(idx, { unitQuantity: e.target.value })}
+                          placeholder="e.g. 250"
+                          disabled={!hasRefs}
+                        />
+                      </Field>
+                      <Field id={`unitType-${idx}`} label="Unit type" required hint="e.g. bottle, pack, ml">
+                        <Input
+                          value={line.unitType}
+                          onChange={(e) => updateLine(idx, { unitType: e.target.value })}
+                          placeholder="e.g. bottle"
+                          disabled={!hasRefs}
+                        />
                       </Field>
                       <Field id={`qty-${idx}`} label="Quantity" required>
                         <NumberInput
@@ -1168,13 +1207,13 @@ function RawMaterialPurchasesContent() {
               bankProofSlot={
                 paymentMethod === "BANK_TRANSFER" ? (
                   <ImageUploadField
-                    id="rmPurchaseBankProof"
+                    id="dpPurchaseBankProof"
                     label="Bank transfer proof"
                     required
                     value={bankScreenshotUrl}
                     onChange={setBankScreenshotUrl}
                     assetType="module"
-                    module="raw-material-purchases"
+                    module="direct-purchases"
                     entityId={uploadEntityId}
                     dropTitle="Drop screenshot here"
                     recommendedSize="PNG or JPG, max 5MB"

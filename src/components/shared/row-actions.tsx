@@ -1,6 +1,6 @@
 "use client";
 
-import { SquarePen, Trash2 } from "lucide-react";
+import { Eye, SquarePen, Trash2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/lib/cn";
 
@@ -10,11 +10,13 @@ const actionBtnClass =
 export function RowActions({
   onEdit,
   onDelete,
+  onView,
   className,
   showLabels = false,
 }: {
-  onEdit: () => void;
-  onDelete: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  onView?: () => void;
   className?: string;
   showLabels?: boolean;
 }) {
@@ -26,24 +28,36 @@ export function RowActions({
           className,
         )}
       >
-        <Button type="button" size="sm" variant="secondary" onClick={onEdit}>
-          <span className="inline-flex items-center gap-1.5">
-            <SquarePen size={15} strokeWidth={1.75} aria-hidden />
-            Edit
-          </span>
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          onClick={onDelete}
-          className="border-[var(--color-danger)]/50 text-[var(--color-danger)] hover:border-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 hover:text-[var(--color-danger)]"
-        >
-          <span className="inline-flex items-center gap-1.5">
-            <Trash2 size={15} strokeWidth={1.75} aria-hidden />
-            Delete
-          </span>
-        </Button>
+        {onView ? (
+          <Button type="button" size="sm" variant="secondary" onClick={onView}>
+            <span className="inline-flex items-center gap-1.5">
+              <Eye size={15} strokeWidth={1.75} aria-hidden />
+              View
+            </span>
+          </Button>
+        ) : null}
+        {onEdit ? (
+          <Button type="button" size="sm" variant="secondary" onClick={onEdit}>
+            <span className="inline-flex items-center gap-1.5">
+              <SquarePen size={15} strokeWidth={1.75} aria-hidden />
+              Edit
+            </span>
+          </Button>
+        ) : null}
+        {onDelete ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={onDelete}
+            className="border-[var(--color-danger)]/50 text-[var(--color-danger)] hover:border-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 hover:text-[var(--color-danger)]"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <Trash2 size={15} strokeWidth={1.75} aria-hidden />
+              Delete
+            </span>
+          </Button>
+        ) : null}
       </div>
     );
   }
@@ -52,22 +66,36 @@ export function RowActions({
     <div
       className={cn("inline-flex items-center justify-end gap-0.5", className)}
     >
-      <button
-        type="button"
-        onClick={onEdit}
-        className={actionBtnClass}
-        aria-label="Edit"
-      >
-        <SquarePen size={16} strokeWidth={1.75} aria-hidden />
-      </button>
-      <button
-        type="button"
-        onClick={onDelete}
-        className={cn(actionBtnClass, "hover:text-[var(--color-danger)]")}
-        aria-label="Delete"
-      >
-        <Trash2 size={16} strokeWidth={1.75} aria-hidden />
-      </button>
+      {onView ? (
+        <button
+          type="button"
+          onClick={onView}
+          className={actionBtnClass}
+          aria-label="View"
+        >
+          <Eye size={16} strokeWidth={1.75} aria-hidden />
+        </button>
+      ) : null}
+      {onEdit ? (
+        <button
+          type="button"
+          onClick={onEdit}
+          className={actionBtnClass}
+          aria-label="Edit"
+        >
+          <SquarePen size={16} strokeWidth={1.75} aria-hidden />
+        </button>
+      ) : null}
+      {onDelete ? (
+        <button
+          type="button"
+          onClick={onDelete}
+          className={cn(actionBtnClass, "hover:text-[var(--color-danger)]")}
+          aria-label="Delete"
+        >
+          <Trash2 size={16} strokeWidth={1.75} aria-hidden />
+        </button>
+      ) : null}
     </div>
   );
 }

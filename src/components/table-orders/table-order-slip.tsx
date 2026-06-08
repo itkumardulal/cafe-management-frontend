@@ -43,6 +43,8 @@ type TableOrderSlipProps = {
   onUpdateQty: (key: string, qty: number) => void;
   onRemove: (key: string) => void;
   onGenerateBill: () => void;
+  onCancelBilling?: () => void;
+  cancellingBilling?: boolean;
   onGoToPos?: () => void;
 };
 
@@ -63,10 +65,13 @@ export function TableOrderSlip({
   onUpdateQty,
   onRemove,
   onGenerateBill,
+  onCancelBilling,
+  cancellingBilling,
   onGoToPos,
 }: TableOrderSlipProps) {
   const listRef = useRef<HTMLUListElement>(null);
   const isOpen = status === "OPEN";
+  const isBilling = status === "IN_BILLING";
 
   useEffect(() => {
     if (!lastAddedKey || !listRef.current) return;
@@ -94,7 +99,10 @@ export function TableOrderSlip({
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {status === "OPEN" ? (
-                <StatusChip status="IN_PROGRESS" pulse={lines.length > 0} />
+                <StatusChip
+                  status={lines.length === 0 ? "VACANT" : "IN_PROGRESS"}
+                  pulse={lines.length > 0}
+                />
               ) : status === "IN_BILLING" ? (
                 <StatusChip status="IN_BILLING" />
               ) : null}
@@ -155,20 +163,44 @@ export function TableOrderSlip({
               </Button>
             ) : null}
           </div>
-        ) : onGoToPos ? (
-          <Button type="button" size="sm" className="mt-2.5 h-7" onClick={onGoToPos}>
-            Continue at POS
-          </Button>
+        ) : isBilling && (onCancelBilling || onGoToPos) ? (
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
+            {onCancelBilling ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="h-7 text-xs"
+                onClick={onCancelBilling}
+                disabled={cancellingBilling}
+              >
+                {cancellingBilling ? "Cancelling…" : "Resume editing"}
+              </Button>
+            ) : null}
+            {onGoToPos ? (
+              <Button type="button" size="sm" className="h-7 text-xs" onClick={onGoToPos}>
+                Continue at POS
+              </Button>
+            ) : null}
+          </div>
         ) : null}
       </div>
+
+      {isBilling ? (
+        <p className="shrink-0 border-b border-[var(--color-border)] bg-[color-mix(in_srgb,var(--color-warning)_8%,var(--color-surface))] px-4 py-2 text-[11px] leading-snug text-[var(--color-muted)]">
+          Order is locked for billing. Use <span className="font-medium text-[var(--color-foreground)]">Resume editing</span> to remove items, or continue at POS to take payment.
+        </p>
+      ) : null}
 
       <div className={cn(tableOrdersScrollArea, "px-3 py-3")}>
         {lines.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-10 text-center">
             <Receipt className="h-9 w-9 text-[var(--color-muted)] opacity-50" strokeWidth={1.25} aria-hidden />
             <p className="mt-3 text-sm font-medium text-[var(--color-foreground)]">No items yet</p>
-            <p className="mt-1 max-w-[12rem] text-xs text-[var(--color-muted)]">
-              Tap dishes in the menu to add them here.
+            <p className="mt-1 max-w-[14rem] text-xs text-[var(--color-muted)]">
+              {isBilling
+                ? "Resume editing to clear this order and free the table."
+                : "Tap dishes in the menu to add them here."}
             </p>
           </div>
         ) : (
@@ -267,13 +299,31 @@ export function TableOrderSlip({
               "Generate bill"
             )}
           </Button>
-        ) : onGoToPos ? (
-          <Button type="button" size="sm" className="mt-2 h-9 w-full text-sm" onClick={onGoToPos}>
-            Continue at POS
-          </Button>
+        ) : isBilling ? (
+          <div className="mt-2 space-y-2">
+            {onGoToPos ? (
+              <Button type="button" size="sm" className="h-9 w-full text-sm" onClick={onGoToPos}>
+                Continue at POS
+              </Button>
+            ) : null}
+            {onCancelBilling ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="h-9 w-full text-sm"
+                onClick={onCancelBilling}
+                disabled={cancellingBilling}
+              >
+                {cancellingBilling ? "Cancelling…" : "Resume editing"}
+              </Button>
+            ) : null}
+          </div>
         ) : null}
         <p className="mt-1.5 text-center text-[9px] leading-snug text-[var(--color-muted)]">
-          Payment is completed in POS after generating the bill.
+          {isBilling
+            ? "Resume editing to change items, or complete payment at POS."
+            : "Payment is completed in POS after generating the bill."}
         </p>
       </div>
     </div>

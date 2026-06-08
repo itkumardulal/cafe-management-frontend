@@ -23,7 +23,7 @@ export const LIST_SEARCH_PLACEHOLDERS: Record<string, string> = {
   'raw-material-purchases': 'Search by receipt no. or notes…',
   'bill-settlement': 'Search receipt, supplier, or invoice…',
   'supplier-bills': 'Search receipt, supplier, or invoice…',
-  'expense-items': 'Search by expense item name…',
+  'expense-items': 'Search by category, staff, or description…',
   'daily-expenses': 'Search by item name or notes…',
   inventory: 'Search by stock item name…',
   'stock-items': 'Search by stock item name…',

@@ -31,8 +31,8 @@ const toneStyles: Record<KpiTone, { icon: LucideIcon; chip: string; ring: string
   },
   expense: {
     icon: Wallet,
-    chip: "bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-300",
-    ring: "group-hover:ring-amber-200/80 dark:group-hover:ring-amber-900/50",
+    chip: "tone-warning-surface tone-warning-text",
+    ring: "group-hover:ring-[color-mix(in_srgb,var(--color-warning)_40%,transparent)]",
   },
   receivable: {
     icon: HandCoins,

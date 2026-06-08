@@ -16,6 +16,7 @@ import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
+import { NumberInput } from "@/src/components/ui/number-input";
 import { Modal } from "@/src/components/ui/modal";
 import { Select } from "@/src/components/ui/select";
 import {
@@ -352,8 +353,8 @@ function InventoryContent() {
               }
               fields={[
                 { label: "Type", value: kindBadge(item.itemKind) },
-                ...(item.itemKind === "MENU" && item.openingStockDay1
-                  ? [{ label: "Opening stock", value: item.openingStockDay1 }]
+                ...(item.itemKind === "MENU"
+                  ? [{ label: "Current stock", value: item.quantityOnHand }]
                   : []),
                 { label: "On hand", value: item.quantityOnHand },
                 { label: "Reorder", value: item.reorderLevel ?? "—" },
@@ -381,7 +382,7 @@ function InventoryContent() {
             headers={[
               "Name",
               { label: "Type", thClassName: tableCenterColumnClass },
-              { label: "Opening", thClassName: tableCenterColumnClass },
+              { label: "Current stock", thClassName: tableCenterColumnClass },
               { label: "On hand", thClassName: tableCenterColumnClass },
               { label: "Reorder", thClassName: tableCenterColumnClass },
               { label: "Status", thClassName: tableCenterColumnClass },
@@ -401,7 +402,7 @@ function InventoryContent() {
                   {kindBadge(item.itemKind)}
                 </td>
                 <td className={cn(tableCenterCellClass, "px-4 py-4 align-middle")}>
-                  {item.itemKind === "MENU" ? (item.openingStockDay1 ?? "—") : "—"}
+                  {item.itemKind === "MENU" ? item.quantityOnHand : "—"}
                 </td>
                 <td className={cn(tableCenterCellClass, "px-4 py-4 align-middle")}>
                   {item.quantityOnHand}
@@ -457,20 +458,21 @@ function InventoryContent() {
           </Field>
           {!edit ? (
             <Field id="opening" label="Opening quantity" hint="Optional">
-              <Input
-                type="number"
+              <NumberInput
                 min={0}
                 value={form.openingQuantity}
-                onChange={(e) => setForm((f) => ({ ...f, openingQuantity: e.target.value }))}
+                onValueChange={(openingQuantity) =>
+                  setForm((f) => ({ ...f, openingQuantity }))
+                }
               />
             </Field>
           ) : null}
           <Field id="reorder" label="Reorder level" hint="Optional — for low-stock alerts">
-            <Input
-              type="number"
+            <NumberInput
               min={0}
+              decimals={0}
               value={form.reorderLevel}
-              onChange={(e) => setForm((f) => ({ ...f, reorderLevel: e.target.value }))}
+              onValueChange={(reorderLevel) => setForm((f) => ({ ...f, reorderLevel }))}
             />
           </Field>
           <Field id="desc" label="Description" hint="Optional">
@@ -502,11 +504,10 @@ function InventoryContent() {
       >
         <div className="space-y-4 pb-2">
           <Field id="qty" label="Quantity" required>
-            <Input
-              type="number"
+            <NumberInput
               min={0.0001}
               value={stockInQty}
-              onChange={(e) => setStockInQty(e.target.value)}
+              onValueChange={setStockInQty}
             />
           </Field>
           <Field id="notes" label="Notes" hint="Optional">

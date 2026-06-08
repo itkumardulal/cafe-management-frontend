@@ -7,6 +7,14 @@ import { MenuSectionSlider } from "@/src/components/table-orders/menu-section-sl
 import { Input } from "@/src/components/ui/input";
 import { cn } from "@/src/lib/cn";
 
+const categoryChipClass = (active: boolean) =>
+  cn(
+    "shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+    active
+      ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-nav-active-text)] shadow-sm"
+      : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-nav-idle)] hover:border-[var(--color-input)] hover:bg-[var(--color-cream-100)] hover:text-[var(--color-nav-idle-hover)]",
+  );
+
 export type MenuCatalogItem = {
   id: string;
   name: string;
@@ -70,19 +78,19 @@ export function TableMenuPicker({
 
   return (
     <div className="flex h-full min-h-0 flex-1 basis-0 flex-col overflow-hidden">
-      <div className="shrink-0 space-y-2.5 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--color-surface)] text-[var(--color-primary)] shadow-[var(--shadow-sm)]">
+      <div className="shrink-0 min-w-0 space-y-2.5 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-surface)] text-[var(--color-primary)] shadow-[var(--shadow-sm)]">
             <UtensilsCrossed className="h-4 w-4" strokeWidth={1.75} aria-hidden />
           </span>
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-semibold text-[var(--color-foreground)]">Menu</p>
-            <p className="text-xs text-[var(--color-muted)]">
+            <p className="truncate text-xs text-[var(--color-muted)]">
               {loading ? "Loading dishes…" : `${filtered.length} available · tap to add`}
             </p>
           </div>
         </div>
-        <div className="relative">
+        <div className="relative min-w-0">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]"
             aria-hidden
@@ -95,21 +103,27 @@ export function TableMenuPicker({
             disabled={disabled}
           />
         </div>
-        <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none]">
-          <CategoryChip
-            active={!categoryFilter}
-            onClick={() => onCategoryFilterChange("")}
-            label="All"
-          />
-          {categories.map((c) => (
-            <CategoryChip
-              key={c}
-              active={categoryFilter === c}
-              onClick={() => onCategoryFilterChange(c)}
-              label={c}
-            />
-          ))}
-        </div>
+        {categories.length > 0 ? (
+          <div className="flex min-w-0 flex-wrap gap-1">
+            <button
+              type="button"
+              onClick={() => onCategoryFilterChange("")}
+              className={categoryChipClass(!categoryFilter)}
+            >
+              All
+            </button>
+            {categories.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => onCategoryFilterChange(c)}
+                className={categoryChipClass(categoryFilter === c)}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className={cn(tableOrdersScrollArea, "space-y-3 bg-[var(--color-surface)] p-4")}>
@@ -137,30 +151,5 @@ export function TableMenuPicker({
         )}
       </div>
     </div>
-  );
-}
-
-function CategoryChip({
-  active,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all duration-200",
-        active
-          ? "border-transparent bg-[var(--color-primary)] text-[var(--color-primary-foreground)] shadow-[var(--shadow-sm)]"
-          : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-muted)] hover:border-[color-mix(in_srgb,var(--color-primary)_25%,var(--color-border))] hover:bg-[color-mix(in_srgb,var(--color-primary)_6%,var(--color-surface))] hover:text-[var(--color-foreground)]",
-      )}
-    >
-      {label}
-    </button>
   );
 }

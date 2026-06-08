@@ -144,6 +144,15 @@ export type InventoryReport = {
       totalPurchaseValue: string;
       note: string;
     }>;
+    directPurchases: Array<{
+      directPurchaseItemId: string;
+      name: string;
+      unitType: string | null;
+      unitQuantity: string | null;
+      totalPurchasedQty: string;
+      totalPurchaseValue: string;
+      note: string;
+    }>;
     meta: { page: number; limit: number; total: number; totalPages: number };
   };
 };
@@ -230,6 +239,48 @@ export type SupplierPayableReport = {
     paymentMethod: string;
     paymentDate: string;
   }>;
+};
+
+export type BankReport = {
+  period: ReportPeriod;
+  snapshotNote: string;
+  summary: {
+    totalCurrentBalance: string;
+    activeAccountCount: number;
+    totalDepositsInPeriod: string;
+    totalWithdrawalsInPeriod: string;
+    netChangeInPeriod: string;
+  };
+  accounts: Array<{
+    id: string;
+    bankName: string;
+    accountNumber: string;
+    accountHolderName: string;
+    isActive: boolean;
+    openingBalance: string;
+    currentBalance: string;
+    balanceAtPeriodStart: string;
+    balanceAtPeriodEnd: string;
+    periodDeposits: string;
+    periodWithdrawals: string;
+    periodNetChange: string;
+  }>;
+  transactions: {
+    items: Array<{
+      id: string;
+      bankAccountId: string;
+      bankName: string;
+      accountNumber: string;
+      type: "DEPOSIT" | "WITHDRAWAL";
+      amount: string;
+      transactionDate: string;
+      referenceNumber?: string | null;
+      proofAttachmentUrl?: string | null;
+      notes?: string | null;
+      createdByName?: string | null;
+    }>;
+    meta: { page: number; limit: number; total: number; totalPages: number };
+  };
 };
 
 export function buildReportQueryParams(params?: ReportPeriodParams): Record<string, string | undefined> {

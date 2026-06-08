@@ -7,7 +7,7 @@ type BadgeSize = "sm" | "md";
 const badgeStyles: Record<BadgeVariant, string> = {
   default: "bg-[var(--color-cream-100)] text-[var(--color-muted)]",
   success: "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300",
-  warning: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
+  warning: "tone-warning-surface tone-warning-text",
   danger: "bg-red-100 text-red-800 dark:bg-red-950/70 dark:text-red-300",
 };
 

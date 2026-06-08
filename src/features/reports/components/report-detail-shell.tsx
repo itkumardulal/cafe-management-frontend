@@ -11,7 +11,7 @@ import { reportHref, type ReportPeriodParams } from "@/src/features/reports/type
 
 const categoryChip: Record<string, string> = {
   Performance: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
-  Finance: "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
+  Finance: "bg-[var(--color-primary-soft)] text-[var(--color-nav-active-text)]",
   Operations: "bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300",
 };
 
@@ -118,7 +118,7 @@ const summaryToneStyles: Record<SummaryTone, string> = {
   positive:
     "border-emerald-200/70 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/20",
   negative: "border-red-200/70 bg-red-50/40 dark:border-red-900/40 dark:bg-red-950/20",
-  warning: "border-amber-200/70 bg-amber-50/40 dark:border-amber-900/40 dark:bg-amber-950/20",
+  warning: "border tone-warning-panel",
   info: "border-sky-200/70 bg-sky-50/40 dark:border-sky-900/40 dark:bg-sky-950/20",
 };
 
@@ -178,7 +178,7 @@ export function ReportSection({
 
 const agingSeverityStyles = {
   ok: "bg-[var(--color-cream-100)]",
-  warn: "bg-amber-50 dark:bg-amber-950/30",
+  warn: "tone-warning-surface-subtle",
   danger: "bg-red-50 dark:bg-red-950/30",
 };
 
@@ -204,7 +204,7 @@ export function ReportAgingGrid({
               bucket.severity === "danger"
                 ? "text-red-700 dark:text-red-400"
                 : bucket.severity === "warn"
-                  ? "text-amber-800 dark:text-amber-300"
+                  ? "tone-warning-text"
                   : "text-foreground",
             )}
           >

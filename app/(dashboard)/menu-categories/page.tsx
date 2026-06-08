@@ -121,8 +121,8 @@ function MenuCategoriesContent() {
       setCatName("");
       await refetch();
       dispatch(invalidateMenuCategoryOptions());
-    } catch {
-      appToast.error("Failed to save category");
+    } catch (error) {
+      appToast.error(getApiErrorMessage(error, "Failed to save category"));
     }
   };
 

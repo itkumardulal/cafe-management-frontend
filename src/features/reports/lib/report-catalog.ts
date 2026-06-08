@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
   HandCoins,
+  Landmark,
   Package,
   Percent,
   TrendingUp,
@@ -49,6 +50,14 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     shortTitle: "Expenses",
     description: "Expenses by category compared to sales and profit.",
     icon: Wallet,
+    category: "Finance",
+  },
+  {
+    slug: "banks",
+    title: "Bank balances",
+    shortTitle: "Banks",
+    description: "Current bank balances, period deposits and withdrawals, and transaction history.",
+    icon: Landmark,
     category: "Finance",
   },
   {

@@ -1,8 +1,10 @@
 import {
+  ArrowLeftRight,
   Calculator,
   ChartColumn,
   Coffee,
   HandCoins,
+  Landmark,
   ScanLine,
   FolderTree,
   LayoutDashboard,
@@ -50,6 +52,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   "package-minus": PackageMinus,
   "hand-coins": HandCoins,
   "scan-line": ScanLine,
+  landmark: Landmark,
+  "arrow-left-right": ArrowLeftRight,
 };
 
 export function getMenuIcon(icon?: string | null): LucideIcon {

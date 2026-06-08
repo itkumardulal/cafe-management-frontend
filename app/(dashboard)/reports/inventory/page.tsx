@@ -21,6 +21,13 @@ import { formatMoney } from "@/src/lib/format-display";
 import { operationsApi } from "@/src/services/operations-api";
 import { tableCenterCellClass, tableCenterColumnClass } from "@/src/components/ui/table";
 
+function formatDirectPurchaseUnit(item: {
+  unitType?: string | null;
+  unitQuantity?: string | null;
+}) {
+  return [item.unitQuantity?.trim(), item.unitType?.trim()].filter(Boolean).join(" ");
+}
+
 function InventoryReportContent() {
   const { periodParams, effectivePeriodParams, setPeriodParams } = useReportPeriodNavigation();
   const [tab, setTab] = useState<"stock" | "alerts" | "activity" | "purchases">("stock");
@@ -47,8 +54,10 @@ function InventoryReportContent() {
             },
             {
               id: "purchases" as const,
-              label: "Raw purchases",
-              count: report.periodActivity.rawMaterialPurchases.length,
+              label: "Purchases",
+              count:
+                report.periodActivity.rawMaterialPurchases.length +
+                report.periodActivity.directPurchases.length,
             },
           ]
         : [],
@@ -249,7 +258,8 @@ function InventoryReportContent() {
           ) : null}
 
           {tab === "purchases" ? (
-            report.periodActivity.rawMaterialPurchases.length > 0 ? (
+            <>
+            {report.periodActivity.rawMaterialPurchases.length > 0 ? (
               <ReportSection
                 title="Raw material purchases"
                 description="Purchase totals only — on-hand ingredient tracking is not enabled."
@@ -292,9 +302,56 @@ function InventoryReportContent() {
                   ))}
                 </ReportDataTable>
               </ReportSection>
-            ) : (
-              <EmptyState title="No raw material purchases" description="No purchases in this period." />
-            )
+            ) : null}
+            {(report.periodActivity.directPurchases?.length ?? 0) > 0 ? (
+              <ReportSection
+                title="Direct purchases"
+                description="Stockable menu items purchased for resale — increases on-hand stock."
+                count={report.periodActivity.directPurchases.length}
+              >
+                <ReportDataTable
+                  headers={[
+                    "Menu item",
+                    { label: "Qty purchased", thClassName: tableCenterColumnClass },
+                    { label: "Value", thClassName: tableCenterColumnClass },
+                  ]}
+                  mobileCards={
+                    <ListCardStack>
+                      {report.periodActivity.directPurchases.map((item) => (
+                        <ListCard
+                          key={item.directPurchaseItemId}
+                          title={item.name}
+                          fields={[
+                            {
+                              label: "Qty purchased",
+                              value: `${item.totalPurchasedQty} ${formatDirectPurchaseUnit(item)}`.trim(),
+                            },
+                            { label: "Value", value: formatMoney(item.totalPurchaseValue) },
+                          ]}
+                        />
+                      ))}
+                    </ListCardStack>
+                  }
+                >
+                  {report.periodActivity.directPurchases.map((item) => (
+                    <tr key={item.directPurchaseItemId}>
+                      <td className="font-medium">{item.name}</td>
+                      <td className={tableCenterCellClass}>
+                        {item.totalPurchasedQty} {formatDirectPurchaseUnit(item)}
+                      </td>
+                      <td className={cn(tableCenterCellClass, "font-mono tabular-nums")}>
+                        {formatMoney(item.totalPurchaseValue)}
+                      </td>
+                    </tr>
+                  ))}
+                </ReportDataTable>
+              </ReportSection>
+            ) : null}
+            {report.periodActivity.rawMaterialPurchases.length === 0 &&
+            report.periodActivity.directPurchases.length === 0 ? (
+              <EmptyState title="No purchases" description="No raw material or direct purchases in this period." />
+            ) : null}
+            </>
           ) : null}
         </div>
       ) : null}

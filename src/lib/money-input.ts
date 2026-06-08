@@ -10,6 +10,25 @@ export function roundMoneyStr(n: number) {
   return String(Math.round(Math.max(0, n) * 100) / 100);
 }
 
+type NormalizeNumericOptions = {
+  decimals?: number;
+  allowNegative?: boolean;
+};
+
+export function normalizeNumericStr(
+  str: string,
+  { decimals = 2, allowNegative = false }: NormalizeNumericOptions = {},
+) {
+  const t = str.trim();
+  if (t === "" || t === "-") return t === "-" ? "" : "";
+  const n = Number(t);
+  if (!Number.isFinite(n)) return str;
+  if (!allowNegative && n < 0) return decimals === 0 ? "0" : "0";
+  if (decimals === 0) return String(Math.round(n));
+  const factor = 10 ** decimals;
+  return String(Math.round(n * factor) / factor);
+}
+
 export type PurchaseBillingType = "PAID" | "CREDIT";
 
 export type PurchasePaymentSummary = {

@@ -113,7 +113,7 @@ function DiscountReportContent() {
                 <td className="font-mono text-sm">{item.receiptNo}</td>
                 <td className={tableCenterCellClass}>{formatDateOnly(item.saleAt)}</td>
                 <td>{item.staff?.fullName ?? "Unknown"}</td>
-                <td className={cn(tableCenterCellClass, "font-mono tabular-nums text-amber-700 dark:text-amber-400")}>
+                <td className={cn(tableCenterCellClass, "font-mono tabular-nums text-[var(--color-nav-active-text)]")}>
                   {formatMoney(item.discountAmount)}
                 </td>
                 <td className={cn(tableCenterCellClass, "font-mono tabular-nums")}>

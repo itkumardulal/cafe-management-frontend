@@ -233,7 +233,7 @@ export function PosSaleDetail({ sale, onSaleUpdated }: PosSaleDetailProps) {
             ) : null}
             <div className="flex justify-between gap-2 font-medium">
               <dt>On credit</dt>
-              <dd className="font-mono tabular-nums text-amber-800">
+              <dd className="font-mono tabular-nums tone-warning-text">
                 {formatMoney(sale.remainingAmount ?? sale.creditAmount)}
               </dd>
             </div>

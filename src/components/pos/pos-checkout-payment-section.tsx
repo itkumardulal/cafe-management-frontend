@@ -274,7 +274,7 @@ export function PosCheckoutPaymentSection({
         </div>
         <div>
           <p className="text-xs text-muted">On credit</p>
-          <p className="font-mono font-semibold tabular-nums text-amber-800 dark:text-amber-300">
+          <p className="font-mono font-semibold tabular-nums tone-warning-text">
             {formatMoney(creditPreview)}
           </p>
         </div>
@@ -412,7 +412,7 @@ export function PosCheckoutPaymentSection({
               style={{ width: `${Math.min(100, (paidNow / grandTotal) * 100)}%` }}
             />
             <div
-              className="bg-amber-500 transition-all"
+              className="bg-[var(--color-warning)] transition-all"
               style={{ width: `${Math.min(100, (creditPreview / grandTotal) * 100)}%` }}
             />
           </div>
@@ -424,7 +424,7 @@ export function PosCheckoutPaymentSection({
           "flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm",
           statusOk
             ? "bg-green-500/10 text-green-800 dark:text-green-300"
-            : "bg-amber-500/10 text-amber-900 dark:text-amber-200",
+            : "tone-warning-banner",
         )}
       >
         {statusOk ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}

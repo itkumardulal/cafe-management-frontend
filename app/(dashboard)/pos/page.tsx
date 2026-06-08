@@ -32,6 +32,7 @@ import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/ui/badge";
 import { EmptyState } from "@/src/components/ui/empty-state";
 import { Input } from "@/src/components/ui/input";
+import { NumberInput } from "@/src/components/ui/number-input";
 import { Modal } from "@/src/components/ui/modal";
 import { Select } from "@/src/components/ui/select";
 import {
@@ -43,6 +44,7 @@ import { getApiErrorMessage } from "@/src/lib/api-error";
 import { cn } from "@/src/lib/cn";
 import { PosRecentSales } from "@/src/components/pos/pos-recent-sales";
 import { formatDateTime, formatMoney } from "@/src/lib/format-display";
+import { roundMoneyStr } from "@/src/lib/money-input";
 import { normalizePhone } from "@/src/lib/phone-normalize";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
@@ -915,7 +917,7 @@ function PosPageContent() {
                           </button>
                         </div>
                       ) : tableOptions.length === 0 ? (
-                        <p className="text-xs text-[var(--color-warning)]">
+                        <p className="text-xs tone-warning-text">
                           No tables set up. Ask a manager to add tables in the Tables menu.
                         </p>
                       ) : (
@@ -1002,16 +1004,17 @@ function PosPageContent() {
                               >
                                 <Minus className="h-4 w-4" />
                               </button>
-                              <Input
-                                type="number"
+                              <NumberInput
                                 min={0.01}
-                                step="0.01"
                                 fullWidth={false}
                                 className="h-9 w-full min-w-0 rounded-none border-0 px-1 text-center"
-                                value={line.qty}
-                                onChange={(e) =>
-                                  updateCartLine(line.key, { qty: Number(e.target.value) })
-                                }
+                                value={roundMoneyStr(line.qty)}
+                                onValueChange={(value) => {
+                                  const qty = Number(value);
+                                  if (Number.isFinite(qty)) {
+                                    updateCartLine(line.key, { qty });
+                                  }
+                                }}
                               />
                               <button
                                 type="button"
@@ -1034,15 +1037,16 @@ function PosPageContent() {
                           </div>
                           <div>
                             <label className="mb-1 block text-[11px] text-muted">Unit price</label>
-                            <Input
-                              type="number"
+                            <NumberInput
                               min={0}
-                              step="0.01"
                               className="h-9 font-mono tabular-nums"
-                              value={line.unitPrice}
-                              onChange={(e) =>
-                                updateCartLine(line.key, { unitPrice: Number(e.target.value) })
-                              }
+                              value={roundMoneyStr(line.unitPrice)}
+                              onValueChange={(value) => {
+                                const unitPrice = Number(value);
+                                if (Number.isFinite(unitPrice)) {
+                                  updateCartLine(line.key, { unitPrice });
+                                }
+                              }}
                               aria-label={`Unit price for ${line.name}`}
                             />
                           </div>
@@ -1062,13 +1066,11 @@ function PosPageContent() {
                 <h3 className={checkoutSectionTitle}>
                   {serviceType === "DELIVERY" ? "Delivery fee" : "Extra charges"}
                 </h3>
-                <Input
+                <NumberInput
                   id="pos-other-charge"
-                  type="number"
                   min={0}
-                  step="0.01"
                   value={otherChargeStr}
-                  onChange={(e) => setOtherChargeStr(e.target.value)}
+                  onValueChange={setOtherChargeStr}
                   placeholder="0.00"
                   className="h-10"
                 />
@@ -1104,13 +1106,11 @@ function PosPageContent() {
                 </div>
                 {discountMode !== "none" ? (
                   <div>
-                    <Input
-                      type="number"
+                    <NumberInput
                       min={0}
                       max={discountMode === "percent" ? 100 : undefined}
-                      step={discountMode === "percent" ? "0.01" : "0.01"}
                       value={discountStr}
-                      onChange={(e) => setDiscountStr(e.target.value)}
+                      onValueChange={setDiscountStr}
                       placeholder={discountMode === "percent" ? "e.g. 10" : "0.00"}
                       className="h-10"
                       aria-label={

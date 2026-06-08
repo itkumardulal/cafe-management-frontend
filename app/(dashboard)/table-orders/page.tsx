@@ -26,6 +26,7 @@ import { getApiErrorMessage } from "@/src/lib/api-error";
 import { cn } from "@/src/lib/cn";
 import { appToast } from "@/src/lib/toast";
 import {
+  isDeletedSessionUpdate,
   operationsApi,
   type TableOrderSessionDetail,
 } from "@/src/services/operations-api";
@@ -69,6 +70,7 @@ export default function TableOrdersPage() {
   const [orderLines, setOrderLines] = useState<OrderLine[]>([]);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [cancellingBilling, setCancellingBilling] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeSelected, setMergeSelected] = useState<string[]>([]);
   const [unmergeOpen, setUnmergeOpen] = useState(false);
@@ -106,12 +108,48 @@ export default function TableOrdersPage() {
     [session],
   );
 
+  const orderSubtotal = useMemo(() => {
+    let t = 0;
+    for (const l of orderLines) {
+      t += Math.round(l.qty * l.unitPrice * 100) / 100;
+    }
+    return Math.round(t * 100) / 100;
+  }, [orderLines]);
+
+  const displayBoard = useMemo(() => {
+    if (!session || session.status !== "OPEN") return board;
+
+    const activeTableIds = new Set(session.tables.map((t) => t.tableId));
+
+    return board.map((t) => {
+      if (!activeTableIds.has(t.tableId)) return t;
+
+      if (orderLines.length === 0) {
+        return {
+          ...t,
+          status: "VACANT" as const,
+          lineCount: 0,
+          subtotal: null,
+          lastItemName: null,
+        };
+      }
+
+      return {
+        ...t,
+        status: "IN_PROGRESS" as const,
+        lineCount: orderLines.length,
+        subtotal: String(orderSubtotal),
+        lastItemName: orderLines[orderLines.length - 1]?.name ?? null,
+      };
+    });
+  }, [board, session, orderLines, orderSubtotal]);
+
   const boardSummary = useMemo(() => {
-    const serving = board.filter((t) => t.status === "IN_PROGRESS").length;
-    const billing = board.filter((t) => t.status === "IN_BILLING").length;
-    const vacant = board.filter((t) => t.status === "VACANT").length;
-    return { serving, billing, vacant, total: board.length };
-  }, [board]);
+    const serving = displayBoard.filter((t) => t.status === "IN_PROGRESS").length;
+    const billing = displayBoard.filter((t) => t.status === "IN_BILLING").length;
+    const vacant = displayBoard.filter((t) => t.status === "VACANT").length;
+    return { serving, billing, vacant, total: displayBoard.length };
+  }, [displayBoard]);
 
   const openSession = useCallback(async (detail: TableOrderSessionDetail) => {
     setSession(detail);
@@ -123,11 +161,6 @@ export default function TableOrdersPage() {
   }, []);
 
   const handleTableClick = async (item: FloorTable) => {
-    if (item.status === "IN_BILLING") {
-      if (item.sessionId) router.push(`/pos?sessionId=${item.sessionId}`);
-      return;
-    }
-
     try {
       if (item.status === "VACANT") {
         if (item.sessionId) {
@@ -164,6 +197,14 @@ export default function TableOrdersPage() {
             unitPrice: l.unitPrice,
           })),
         });
+        if (isDeletedSessionUpdate(updated)) {
+          setSession(null);
+          setOrderLines([]);
+          setLastAddedKey(null);
+          void loadBoard(true);
+          appToast.success("Order cleared — table is vacant");
+          return;
+        }
         setSession(updated);
         setOrderLines(sessionToLines(updated));
         void loadBoard(true);
@@ -182,6 +223,10 @@ export default function TableOrdersPage() {
   const scheduleSave = useCallback(
     (lines: OrderLine[], currentSession: TableOrderSessionDetail) => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (lines.length === 0) {
+        void persistLines(lines, currentSession);
+        return;
+      }
       saveTimer.current = setTimeout(() => {
         void persistLines(lines, currentSession);
       }, 600);
@@ -236,14 +281,6 @@ export default function TableOrdersPage() {
     scheduleSave(next, session);
   };
 
-  const orderSubtotal = useMemo(() => {
-    let t = 0;
-    for (const l of orderLines) {
-      t += Math.round(l.qty * l.unitPrice * 100) / 100;
-    }
-    return Math.round(t * 100) / 100;
-  }, [orderLines]);
-
   const cartQtyByItemId = useMemo(() => {
     const map = new Map<string, number>();
     for (const l of orderLines) map.set(l.menuItemId, l.qty);
@@ -253,10 +290,10 @@ export default function TableOrdersPage() {
   const vacantForMerge = useMemo(() => {
     if (!session) return [];
     const linkedIds = new Set(session.tables.map((t) => t.tableId));
-    return board.filter(
+    return displayBoard.filter(
       (b) => b.status === "VACANT" && !linkedIds.has(b.tableId),
     );
-  }, [board, session]);
+  }, [displayBoard, session]);
 
   const secondaryTables = useMemo(
     () => session?.tables.filter((t) => !t.isPrimary) ?? [],
@@ -306,6 +343,21 @@ export default function TableOrdersPage() {
     }
   };
 
+  const handleCancelBilling = async () => {
+    if (!session || session.status !== "IN_BILLING") return;
+    setCancellingBilling(true);
+    try {
+      const updated = await operationsApi.tableOrders.cancelBilling(session.id);
+      await openSession(updated);
+      void loadBoard(true);
+      appToast.success("Billing cancelled — you can edit the order again");
+    } catch (error) {
+      appToast.error(getApiErrorMessage(error, "Failed to cancel billing"));
+    } finally {
+      setCancellingBilling(false);
+    }
+  };
+
   const handleGenerateBill = async () => {
     if (!session) return;
     if (orderLines.length === 0) {
@@ -316,7 +368,7 @@ export default function TableOrdersPage() {
     try {
       let current = session;
       if (current.status === "OPEN") {
-        current = await operationsApi.tableOrders.updateLines(current.id, {
+        const saved = await operationsApi.tableOrders.updateLines(current.id, {
           version: current.version,
           lines: orderLines.map((l) => ({
             menuItemId: l.menuItemId,
@@ -324,6 +376,11 @@ export default function TableOrdersPage() {
             unitPrice: l.unitPrice,
           })),
         });
+        if (isDeletedSessionUpdate(saved)) {
+          appToast.error("Add at least one item before generating the bill");
+          return;
+        }
+        current = saved;
       }
       await operationsApi.tableOrders.generateBill(current.id);
       router.push(`/pos?sessionId=${current.id}`);
@@ -408,7 +465,7 @@ export default function TableOrdersPage() {
           }
         >
           <TableFloorBoard
-            tables={board}
+            tables={displayBoard}
             loading={boardLoading}
             selectedTableIds={selectedTableIds}
             onSelectTable={(t) => void handleTableClick(t)}
@@ -465,6 +522,12 @@ export default function TableOrdersPage() {
                   onUpdateQty={updateLineQty}
                   onRemove={removeLine}
                   onGenerateBill={() => void handleGenerateBill()}
+                  onCancelBilling={
+                    session.status === "IN_BILLING"
+                      ? () => void handleCancelBilling()
+                      : undefined
+                  }
+                  cancellingBilling={cancellingBilling}
                   onGoToPos={
                     session.status === "IN_BILLING"
                       ? () => router.push(`/pos?sessionId=${session.id}`)

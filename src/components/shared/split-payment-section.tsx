@@ -2,7 +2,7 @@
 
 import { AlertCircle, Banknote, Building2, CheckCircle2, Split } from "lucide-react";
 import { type ReactNode, useEffect, useMemo } from "react";
-import { Input } from "@/src/components/ui/input";
+import { NumberInput } from "@/src/components/ui/number-input";
 import { cn } from "@/src/lib/cn";
 import { formatMoney } from "@/src/lib/format-display";
 import {
@@ -254,14 +254,12 @@ export function SplitPaymentSection({
                 />
                 Cash paid
               </label>
-              <Input
+              <NumberInput
                 id={`${idPrefix}-cash`}
-                type="number"
                 min={0}
-                step="0.01"
                 disabled={disabled || grandTotal <= 0}
                 value={cashPaidStr}
-                onChange={(e) => onCashPaidStrChange(e.target.value)}
+                onValueChange={onCashPaidStrChange}
                 onBlur={billingType === "PAID" ? fillBankFromCash : undefined}
                 className="h-11 border-[var(--color-border)] bg-[var(--color-surface)] font-mono text-base tabular-nums"
                 placeholder="0.00"
@@ -275,14 +273,12 @@ export function SplitPaymentSection({
                 <span className="h-2 w-2 shrink-0 rounded-full bg-sky-500" aria-hidden />
                 Bank paid
               </label>
-              <Input
+              <NumberInput
                 id={`${idPrefix}-bank`}
-                type="number"
                 min={0}
-                step="0.01"
                 disabled={disabled || grandTotal <= 0}
                 value={bankPaidStr}
-                onChange={(e) => onBankPaidStrChange(e.target.value)}
+                onValueChange={onBankPaidStrChange}
                 onBlur={billingType === "PAID" ? fillCashFromBank : undefined}
                 className="h-11 border-[var(--color-border)] bg-[var(--color-surface)] font-mono text-base tabular-nums"
                 placeholder="0.00"
@@ -356,7 +352,7 @@ export function SplitPaymentSection({
                     {billingType === "CREDIT" ? "Credit recorded" : "Balanced"}
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-warning)]/10 px-2.5 py-1 text-xs font-medium text-[var(--color-warning)]">
+                  <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium tone-warning-surface tone-warning-text">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
                     {billingType === "CREDIT"
                       ? creditPreview <= 0

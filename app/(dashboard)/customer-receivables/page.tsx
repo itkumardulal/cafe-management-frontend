@@ -207,7 +207,7 @@ function CustomerReceivablesContent() {
                 title={row.name}
                 subtitle={<span className="font-mono tabular-nums">{row.phoneNumber}</span>}
                 badge={
-                  <span className="font-mono font-semibold tabular-nums text-amber-800 dark:text-amber-300">
+                  <span className="font-mono font-semibold tabular-nums tone-warning-text">
                     {formatMoney(row.outstandingAmount)}
                   </span>
                 }

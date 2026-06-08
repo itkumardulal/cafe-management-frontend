@@ -6,6 +6,8 @@ import { cn } from "@/src/lib/cn";
 export type ListCardField = {
   label: string;
   value: ReactNode;
+  /** Stack label above value — better for chips, badges, or multi-line content. */
+  layout?: "inline" | "stack";
 };
 
 export function ListCard({
@@ -47,14 +49,30 @@ export function ListCard({
 
           {fields && fields.length > 0 ? (
             <dl className="grid gap-2">
-              {fields.map((field) => (
-                <div key={field.label} className="flex items-baseline justify-between gap-3 text-sm">
-                  <dt className="shrink-0 text-xs font-medium uppercase tracking-wide text-[var(--color-subtle)]">
-                    {field.label}
-                  </dt>
-                  <dd className="min-w-0 text-right text-sm text-[var(--color-foreground)]">{field.value}</dd>
-                </div>
-              ))}
+              {fields.map((field) =>
+                field.layout === "stack" ? (
+                  <div key={field.label} className="space-y-1.5 text-sm">
+                    <dt className="text-xs font-medium uppercase tracking-wide text-[var(--color-subtle)]">
+                      {field.label}
+                    </dt>
+                    <dd className="min-w-0 text-left text-sm text-[var(--color-foreground)]">
+                      {field.value}
+                    </dd>
+                  </div>
+                ) : (
+                  <div
+                    key={field.label}
+                    className="flex items-baseline justify-between gap-3 text-sm"
+                  >
+                    <dt className="shrink-0 text-xs font-medium uppercase tracking-wide text-[var(--color-subtle)]">
+                      {field.label}
+                    </dt>
+                    <dd className="min-w-0 text-right text-sm text-[var(--color-foreground)]">
+                      {field.value}
+                    </dd>
+                  </div>
+                ),
+              )}
             </dl>
           ) : null}
         </div>

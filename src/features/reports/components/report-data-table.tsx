@@ -39,7 +39,7 @@ export function ReportDataTable({
 export function ReportRankBadge({ rank }: { rank: number }) {
   const tone =
     rank === 1
-      ? "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
+      ? "tone-warning-surface tone-warning-text"
       : rank === 2
         ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
         : rank === 3

@@ -18,6 +18,7 @@ import { Card } from "@/src/components/ui/card";
 import { DatePicker } from "@/src/components/ui/date-picker";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
+import { NumberInput } from "@/src/components/ui/number-input";
 import { Modal } from "@/src/components/ui/modal";
 import { Select } from "@/src/components/ui/select";
 import { SortableTableHeader } from "@/src/components/ui/sortable-table-header";
@@ -114,7 +115,9 @@ function DailyExpensesContent() {
   const loadExpenseItems = useCallback(async () => {
     try {
       const data = await operationsApi.expenseItems.list({ limit: 100 });
-      setExpenseItems(data.items.map((i) => ({ id: i.id, name: i.name })));
+      setExpenseItems(
+        data.items.map((i) => ({ id: i.id, name: i.displayLabel })),
+      );
     } catch {
       setExpenseItems([]);
     }
@@ -509,12 +512,10 @@ function DailyExpensesContent() {
 
             <div className="grid gap-3 sm:grid-cols-2">
               <Field id="amount" label="Amount" required hint="Expense amount in your local currency">
-                <Input
-                  type="number"
+                <NumberInput
                   min={0.01}
-                  step="0.01"
                   value={form.amount}
-                  onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                  onValueChange={(amount) => setForm((f) => ({ ...f, amount }))}
                   placeholder="e.g. 1500.00"
                 />
               </Field>

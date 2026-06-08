@@ -15,6 +15,8 @@ export type PaymentTermsPreset =
   | "CUSTOM";
 export type CreatePaymentType = "FULLY_PAID" | "PARTIALLY_PAID" | "CREDIT";
 
+export type SupplierBillKind = "RAW_MATERIAL" | "DIRECT";
+
 export type ApBillSummary = {
   id: string;
   receiptNo: string;
@@ -79,6 +81,26 @@ export type ApBillDetail = ApBillSummary & {
   payments: PurchasePaymentRow[];
 };
 
+export type DirectApBillDetail = ApBillSummary & {
+  createdByName?: string | null;
+  cafe?: {
+    cafeName: string;
+    address?: string | null;
+    contactNumber?: string | null;
+    email?: string;
+  };
+  lines: Array<{
+    id: string;
+    directPurchaseItemId: string;
+    item: { id: string; name: string; unitType: string | null; unitQuantity: string | null };
+    supplier: { id: string; name: string };
+    quantity: string;
+    ratePerUnit: string;
+    lineTotal: string;
+  }>;
+  payments: PurchasePaymentRow[];
+};
+
 export type BillSettlementSupplierRow = {
   id: string;
   name: string;
@@ -109,6 +131,7 @@ export type BillSettlementSupplierDetail = {
   };
   purchaseHistory: Array<{
     id: string;
+    billKind?: SupplierBillKind;
     receiptNo: string;
     purchaseDate: string;
     dueDate: string | null;
@@ -127,6 +150,7 @@ export type BillSettlementSupplierDetail = {
   }>;
   paymentHistory: Array<
     PurchasePaymentRow & {
+      billKind?: SupplierBillKind;
       purchaseId: string;
       purchaseReceiptNo: string;
     }
