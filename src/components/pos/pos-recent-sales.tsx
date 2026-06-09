@@ -17,6 +17,7 @@ import {
 } from "@/src/components/ui/table";
 import { Button } from "@/src/components/ui/button";
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
+import { serviceLabel } from "@/src/features/printing/lib/pos-labels";
 import { cn } from "@/src/lib/cn";
 import { formatDateTime, formatMoney } from "@/src/lib/format-display";
 import { operationsApi } from "@/src/services/operations-api";
@@ -44,10 +45,6 @@ function chipClass(active: boolean) {
       ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-nav-active-text)] shadow-sm"
       : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-nav-idle)] hover:border-[var(--color-input)] hover:bg-[var(--color-cream-100)] hover:text-[var(--color-nav-idle-hover)]",
   );
-}
-
-function serviceLabel(type: SaleRow["serviceType"]) {
-  return type === "DINE_IN" ? "Dine in" : "Delivery";
 }
 
 function tableCell(row: SaleRow) {

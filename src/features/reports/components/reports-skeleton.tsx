@@ -53,7 +53,15 @@ export function ReportsHubSkeleton() {
   );
 }
 
-export function ReportDetailSkeleton({ columns = 4 }: { columns?: number }) {
+export function ReportDetailSkeleton({
+  columns = 4,
+  summaryCards = 4,
+  showWaterfall = false,
+}: {
+  columns?: number;
+  summaryCards?: number;
+  showWaterfall?: boolean;
+}) {
   return (
     <section className="page-shell page-content space-y-5">
       <div className="flex items-center gap-2">
@@ -69,13 +77,26 @@ export function ReportDetailSkeleton({ columns = 4 }: { columns?: number }) {
         </div>
       </div>
       <Skeleton className="h-10 w-full max-w-lg" />
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i} density="compact" className="space-y-2">
-            <Skeleton className="h-3 w-20" />
-            <Skeleton className="h-7 w-28" />
+      <div className="space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: summaryCards }).map((_, i) => (
+            <Card key={i} density="compact" className="space-y-2">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-7 w-28" />
+            </Card>
+          ))}
+        </div>
+        {showWaterfall ? (
+          <Card density="compact" className="space-y-3 p-4">
+            <Skeleton className="h-3 w-32" />
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex justify-between gap-4">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+            ))}
           </Card>
-        ))}
+        ) : null}
       </div>
       <TableSkeleton columns={columns} rows={6} />
     </section>

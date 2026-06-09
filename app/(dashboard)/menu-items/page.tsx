@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { UtensilsCrossed } from "lucide-react";
 import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
 import { MobileSortSelect } from "@/src/components/shared/mobile-sort-select";
+import { DigitalMenuQrCard } from "@/src/components/admin/digital-menu-qr-card";
 import { PageHeader } from "@/src/components/shared/page-header";
 import { PaginatedListSection } from "@/src/components/shared/paginated-list-section";
 import { Button } from "@/src/components/ui/button";
@@ -352,6 +353,8 @@ function MenuItemsContent() {
           </Button>
         }
       />
+
+      <DigitalMenuQrCard />
 
       {categories.length === 0 ? (
         <EmptyState

@@ -1,12 +1,12 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useMemo } from "react";
 import Link from "next/link";
-import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { EmptyState } from "@/src/components/ui/empty-state";
 import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
 import { ReportDataTable } from "@/src/features/reports/components/report-data-table";
+import { ReportExportButton } from "@/src/features/reports/components/report-export-button";
 import {
   buildAgingBuckets,
   ReportAgingGrid,
@@ -14,9 +14,13 @@ import {
   ReportSummaryCard,
   ReportSummaryStrip,
 } from "@/src/features/reports/components/report-detail-shell";
+import { ReportTableFooterRow } from "@/src/features/reports/components/report-table-footer-row";
+import { ReportTableMobileTotalCard } from "@/src/features/reports/components/report-table-mobile-total-card";
 import { ReportPageLayout } from "@/src/features/reports/components/report-page-layout";
 import { ReportDetailSkeleton } from "@/src/features/reports/components/reports-skeleton";
 import { useReportLoader } from "@/src/features/reports/hooks/use-report-loader";
+import { buildReportExportFileName } from "@/src/features/reports/lib/build-report-export-file-name";
+import { sumDecimalStrings, sumNumbers } from "@/src/features/reports/lib/report-table-totals";
 import type { CustomerReceivableReport } from "@/src/features/reports/types/reports.types";
 import { cn } from "@/src/lib/cn";
 import { formatDateOnly, formatMoney } from "@/src/lib/format-display";
@@ -28,6 +32,8 @@ import {
   tableCenterColumnClass,
 } from "@/src/components/ui/table";
 
+const FOOTER_LABEL = "Total";
+
 function CustomerReceivableReportContent() {
   const { data: report, loading } = useReportLoader<CustomerReceivableReport>(
     () => operationsApi.reports.customerReceivables({ page: 1, limit: 50 }),
@@ -35,7 +41,14 @@ function CustomerReceivableReportContent() {
     "Failed to load receivables report",
   );
 
-  const overdue = Number(report?.summary.overdueAmount ?? 0);
+  const items = report?.items ?? [];
+  const totals = useMemo(
+    () => ({
+      outstanding: sumDecimalStrings(items.map((item) => item.outstandingAmount)),
+      unpaidBills: sumNumbers(items.map((item) => item.unpaidBillCount)),
+    }),
+    [items],
+  );
 
   return (
     <ReportPageLayout
@@ -53,11 +66,6 @@ function CustomerReceivableReportContent() {
                 tone="warning"
               />
               <ReportSummaryCard
-                label="Overdue"
-                value={formatMoney(report.summary.overdueAmount)}
-                tone={overdue > 0 ? "negative" : "positive"}
-              />
-              <ReportSummaryCard
                 label="Customers with credit"
                 value={String(report.summary.customersWithCredit)}
                 tone="info"
@@ -73,36 +81,59 @@ function CustomerReceivableReportContent() {
       }
     >
       {loading ? (
-        <ReportDetailSkeleton columns={6} />
-      ) : report && report.items.length > 0 ? (
+        <ReportDetailSkeleton columns={5} />
+      ) : report && items.length > 0 ? (
         <ReportSection
           title="Customers owing money"
           description="Sorted by highest outstanding balance."
           count={report.meta.total}
+          action={
+            <ReportExportButton
+              fileName={buildReportExportFileName("customer-receivables", "customers")}
+              sheetName="Receivables"
+              mode="fetchAll"
+              fetchAllPages={async (page, limit) => {
+                const data = await operationsApi.reports.customerReceivables({ page, limit });
+                return { items: data.items, total: data.meta.total };
+              }}
+              columns={[
+                { header: "Customer", getValue: (row) => row.name },
+                { header: "Phone", getValue: (row) => row.phoneNumber },
+                { header: "Outstanding", getValue: (row) => Number(row.outstandingAmount) },
+                { header: "Unpaid bills", getValue: (row) => row.unpaidBillCount },
+                {
+                  header: "Last payment",
+                  getValue: (row) => (row.lastPaymentDate ? formatDateOnly(row.lastPaymentDate) : "—"),
+                },
+              ]}
+              getFooterRow={(rows) => [
+                "Total",
+                "",
+                Number(sumDecimalStrings(rows.map((row) => row.outstandingAmount))),
+                sumNumbers(rows.map((row) => row.unpaidBillCount)),
+                "",
+              ]}
+            />
+          }
         >
           <ReportDataTable
             headers={[
               "Customer",
               { label: "Outstanding", thClassName: tableCenterColumnClass },
               { label: "Unpaid bills", thClassName: tableCenterColumnClass },
-              { label: "Overdue", thClassName: tableCenterColumnClass },
               { label: "Last payment", thClassName: tableCenterColumnClass },
-              { label: "Actions", thClassName: tableActionsColumnClass },
+              {
+                label: "Actions",
+                thClassName: cn(tableActionsColumnClass, "w-[1%] whitespace-nowrap"),
+              },
             ]}
             mobileCards={
               <ListCardStack>
-                {report.items.map((item) => (
+                {items.map((item) => (
                   <ListCard
                     key={item.customerId}
                     title={item.name}
                     subtitle={item.phoneNumber}
-                    badge={
-                      Number(item.overdueAmount) > 0 ? (
-                        <Badge variant="danger" size="sm">
-                          Overdue {formatMoney(item.overdueAmount)}
-                        </Badge>
-                      ) : undefined
-                    }
                     fields={[
                       { label: "Outstanding", value: formatMoney(item.outstandingAmount) },
                       { label: "Unpaid bills", value: String(item.unpaidBillCount) },
@@ -113,17 +144,40 @@ function CustomerReceivableReportContent() {
                     ]}
                     actions={
                       <Link href={`/customer-receivables/${item.customerId}`}>
-                        <Button type="button" size="sm" variant="secondary">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          className="!min-h-0 h-8 px-3 py-1.5"
+                        >
                           Collect
                         </Button>
                       </Link>
                     }
                   />
                 ))}
+                <ReportTableMobileTotalCard
+                  label={FOOTER_LABEL}
+                  fields={[
+                    { label: "Outstanding", value: formatMoney(totals.outstanding) },
+                    { label: "Unpaid bills", value: String(totals.unpaidBills) },
+                  ]}
+                />
               </ListCardStack>
             }
+            footer={
+              <ReportTableFooterRow
+                label={FOOTER_LABEL}
+                cells={[
+                  formatMoney(totals.outstanding),
+                  totals.unpaidBills,
+                  "—",
+                  "—",
+                ]}
+              />
+            }
           >
-            {report.items.map((item) => (
+            {items.map((item) => (
               <tr key={item.customerId}>
                 <td>
                   <p className="font-medium">{item.name}</p>
@@ -134,23 +188,21 @@ function CustomerReceivableReportContent() {
                 </td>
                 <td className={tableCenterCellClass}>{item.unpaidBillCount}</td>
                 <td className={tableCenterCellClass}>
-                  {Number(item.overdueAmount) > 0 ? (
-                    <Badge variant="danger" size="sm">
-                      {formatMoney(item.overdueAmount)}
-                    </Badge>
-                  ) : (
-                    "—"
-                  )}
-                </td>
-                <td className={tableCenterCellClass}>
                   {item.lastPaymentDate ? formatDateOnly(item.lastPaymentDate) : "—"}
                 </td>
-                <td className={tableActionsCellClass}>
-                  <Link href={`/customer-receivables/${item.customerId}`}>
-                    <Button type="button" size="sm" variant="secondary">
-                      Collect
-                    </Button>
-                  </Link>
+                <td className="whitespace-nowrap">
+                  <div className={tableActionsCellClass}>
+                    <Link href={`/customer-receivables/${item.customerId}`} className="inline-flex">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="!min-h-0 h-8 shrink-0 px-3 py-1.5"
+                      >
+                        Collect
+                      </Button>
+                    </Link>
+                  </div>
                 </td>
               </tr>
             ))}

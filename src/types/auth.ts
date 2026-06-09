@@ -9,6 +9,7 @@ export interface AuthUser {
   cafe?: {
     id: string;
     cafeName: string;
+    slug: string;
     logo?: string | null;
   } | null;
   isActive?: boolean;

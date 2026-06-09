@@ -48,7 +48,10 @@ export function ResponsiveTable({
           className={cn(
             "w-full text-left text-sm [&_tbody_tr]:transition-colors [&_tbody_td]:align-middle",
             isEmbedded
-              ? "min-w-full [&_tbody_tr:first-child]:border-t-0 [&_tbody_tr:hover]:bg-transparent [&_tbody_tr:focus-within]:bg-transparent"
+              ? cn(
+                  "min-w-full [&_tbody_td]:px-4 [&_tbody_td]:py-3 [&_tbody_tr:first-child]:border-t-0 [&_tbody_tr:hover]:bg-transparent [&_tbody_tr:focus-within]:bg-transparent",
+                  density === "compact" && "[&_tbody_td]:px-3 [&_tbody_td]:py-2.5",
+                )
               : "min-w-[640px] [&_tbody_tr:hover]:bg-[var(--color-surface-muted)] [&_tbody_tr:focus-within]:bg-[var(--color-primary-soft)]",
           )}
           aria-label={ariaLabel}

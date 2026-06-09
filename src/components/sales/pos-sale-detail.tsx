@@ -15,6 +15,7 @@ import {
   type SalePaymentMode,
 } from "@/src/components/sales/record-sale-payment-section";
 import type { PosSaleReceiptData } from "@/src/components/sales/pos-sale-receipt";
+import { serviceLabel } from "@/src/features/printing/lib/pos-labels";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import type { SalePaymentMethod } from "@/src/lib/ar-types";
 import {
@@ -27,10 +28,6 @@ import { formatDateOnly, formatDateTime, formatMoney } from "@/src/lib/format-di
 import { parseMoneyInput, roundMoneyStr } from "@/src/lib/money-input";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
-
-function serviceLabel(type: PosSaleReceiptData["serviceType"]) {
-  return type === "DELIVERY" ? "Delivery" : "Dine in";
-}
 
 type PosSaleDetailProps = {
   sale: PosSaleReceiptData;

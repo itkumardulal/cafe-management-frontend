@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useMemo } from "react";
 import { Badge } from "@/src/components/ui/badge";
 import { EmptyState } from "@/src/components/ui/empty-state";
 import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
 import { ReportDataTable } from "@/src/features/reports/components/report-data-table";
+import { ReportExportButton } from "@/src/features/reports/components/report-export-button";
 import {
   buildAgingBuckets,
   ReportAgingGrid,
@@ -12,15 +13,21 @@ import {
   ReportSummaryCard,
   ReportSummaryStrip,
 } from "@/src/features/reports/components/report-detail-shell";
+import { ReportTableFooterRow } from "@/src/features/reports/components/report-table-footer-row";
+import { ReportTableMobileTotalCard } from "@/src/features/reports/components/report-table-mobile-total-card";
 import { ReportPageLayout } from "@/src/features/reports/components/report-page-layout";
 import { ReportDetailSkeleton } from "@/src/features/reports/components/reports-skeleton";
 import { useReportPeriodNavigation } from "@/src/features/reports/components/reports-hub-content";
 import { useReportLoader } from "@/src/features/reports/hooks/use-report-loader";
+import { buildReportExportFileName } from "@/src/features/reports/lib/build-report-export-file-name";
+import { sumDecimalStrings } from "@/src/features/reports/lib/report-table-totals";
 import type { SupplierPayableReport } from "@/src/features/reports/types/reports.types";
 import { cn } from "@/src/lib/cn";
 import { formatDateOnly, formatMoney } from "@/src/lib/format-display";
 import { operationsApi } from "@/src/services/operations-api";
 import { tableCenterCellClass, tableCenterColumnClass } from "@/src/components/ui/table";
+
+const FOOTER_LABEL = "Total";
 
 function SupplierPayableReportContent() {
   const { periodParams, effectivePeriodParams, setPeriodParams } = useReportPeriodNavigation();
@@ -31,8 +38,23 @@ function SupplierPayableReportContent() {
   );
 
   const overdue = Number(report?.summary.overdueBillsAmount ?? 0);
-
   const agingTotals = report?.aging.totals ?? {};
+  const outstandingItems = report?.outstandingBills.items ?? [];
+  const paymentItems = report?.paymentHistory ?? [];
+
+  const outstandingTotals = useMemo(
+    () => ({
+      remaining: sumDecimalStrings(outstandingItems.map((bill) => bill.remainingAmount)),
+    }),
+    [outstandingItems],
+  );
+
+  const paymentTotals = useMemo(
+    () => ({
+      amount: sumDecimalStrings(paymentItems.map((payment) => payment.amount)),
+    }),
+    [paymentItems],
+  );
 
   return (
     <ReportPageLayout
@@ -92,8 +114,52 @@ function SupplierPayableReportContent() {
             title="Outstanding bills"
             description="Unpaid supplier bills sorted by due date."
             count={report.outstandingBills.meta.total}
+            action={
+              outstandingItems.length > 0 ? (
+                <ReportExportButton
+                  fileName={buildReportExportFileName(
+                    "supplier-payables",
+                    "outstanding-bills",
+                    report.period.label,
+                  )}
+                  sheetName="Outstanding"
+                  mode="fetchAll"
+                  fetchAllPages={async (page, limit) => {
+                    const data = await operationsApi.reports.supplierPayables({
+                      ...effectivePeriodParams,
+                      page,
+                      limit,
+                    });
+                    return {
+                      items: data.outstandingBills.items,
+                      total: data.outstandingBills.meta.total,
+                    };
+                  }}
+                  columns={[
+                    { header: "Receipt", getValue: (row) => row.receiptNo },
+                    { header: "Supplier", getValue: (row) => row.supplierName },
+                    {
+                      header: "Due date",
+                      getValue: (row) => (row.dueDate ? formatDateOnly(row.dueDate) : "—"),
+                    },
+                    { header: "Remaining", getValue: (row) => Number(row.remainingAmount) },
+                    {
+                      header: "Status",
+                      getValue: (row) => (row.isOverdue ? "Overdue" : row.billStatus),
+                    },
+                  ]}
+                  getFooterRow={(rows) => [
+                    "Total",
+                    "",
+                    "",
+                    Number(sumDecimalStrings(rows.map((row) => row.remainingAmount))),
+                    "",
+                  ]}
+                />
+              ) : undefined
+            }
           >
-            {report.outstandingBills.items.length > 0 ? (
+            {outstandingItems.length > 0 ? (
               <ReportDataTable
                 headers={[
                   "Receipt",
@@ -104,7 +170,7 @@ function SupplierPayableReportContent() {
                 ]}
                 mobileCards={
                   <ListCardStack>
-                    {report.outstandingBills.items.map((bill) => (
+                    {outstandingItems.map((bill) => (
                       <ListCard
                         key={bill.id}
                         title={bill.receiptNo}
@@ -123,10 +189,22 @@ function SupplierPayableReportContent() {
                         ]}
                       />
                     ))}
+                    <ReportTableMobileTotalCard
+                      label={FOOTER_LABEL}
+                      fields={[
+                        { label: "Remaining", value: formatMoney(outstandingTotals.remaining) },
+                      ]}
+                    />
                   </ListCardStack>
                 }
+                footer={
+                  <ReportTableFooterRow
+                    label={FOOTER_LABEL}
+                    cells={["—", "—", formatMoney(outstandingTotals.remaining), "—"]}
+                  />
+                }
               >
-                {report.outstandingBills.items.map((bill) => (
+                {outstandingItems.map((bill) => (
                   <tr key={bill.id}>
                     <td className="font-mono text-sm">{bill.receiptNo}</td>
                     <td>{bill.supplierName}</td>
@@ -152,9 +230,37 @@ function SupplierPayableReportContent() {
           <ReportSection
             title="Payment history"
             description="Supplier payments recorded during the selected period."
-            count={report.paymentHistory.length}
+            count={paymentItems.length}
+            action={
+              paymentItems.length > 0 ? (
+                <ReportExportButton
+                  fileName={buildReportExportFileName(
+                    "supplier-payables",
+                    "payments",
+                    report.period.label,
+                  )}
+                  sheetName="Payments"
+                  mode="loaded"
+                  rows={paymentItems}
+                  columns={[
+                    { header: "Date", getValue: (row) => formatDateOnly(row.paymentDate) },
+                    { header: "Supplier", getValue: (row) => row.supplierName },
+                    { header: "Purchase", getValue: (row) => row.purchaseReceiptNo },
+                    { header: "Amount", getValue: (row) => Number(row.amount) },
+                    { header: "Method", getValue: (row) => row.paymentMethod },
+                  ]}
+                  getFooterRow={(rows) => [
+                    "Total",
+                    "",
+                    "",
+                    Number(sumDecimalStrings(rows.map((row) => row.amount))),
+                    "",
+                  ]}
+                />
+              ) : undefined
+            }
           >
-            {report.paymentHistory.length > 0 ? (
+            {paymentItems.length > 0 ? (
               <ReportDataTable
                 headers={[
                   { label: "Date", thClassName: tableCenterColumnClass },
@@ -165,7 +271,7 @@ function SupplierPayableReportContent() {
                 ]}
                 mobileCards={
                   <ListCardStack>
-                    {report.paymentHistory.map((p) => (
+                    {paymentItems.map((p) => (
                       <ListCard
                         key={p.id}
                         title={p.supplierName}
@@ -177,10 +283,18 @@ function SupplierPayableReportContent() {
                         ]}
                       />
                     ))}
+                    <ReportTableMobileTotalCard
+                      fields={[{ label: "Amount", value: formatMoney(paymentTotals.amount) }]}
+                    />
                   </ListCardStack>
                 }
+                footer={
+                  <ReportTableFooterRow
+                    cells={["—", "—", formatMoney(paymentTotals.amount), "—"]}
+                  />
+                }
               >
-                {report.paymentHistory.map((p) => (
+                {paymentItems.map((p) => (
                   <tr key={p.id}>
                     <td className={tableCenterCellClass}>{formatDateOnly(p.paymentDate)}</td>
                     <td>{p.supplierName}</td>

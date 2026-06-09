@@ -200,7 +200,7 @@ export function TableOrderSlip({
             <p className="mt-1 max-w-[14rem] text-xs text-[var(--color-muted)]">
               {isBilling
                 ? "Resume editing to clear this order and free the table."
-                : "Tap dishes in the menu to add them here."}
+                : "Use Add on each dish in the menu to add them here."}
             </p>
           </div>
         ) : (

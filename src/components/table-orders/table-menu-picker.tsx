@@ -86,7 +86,7 @@ export function TableMenuPicker({
           <div className="min-w-0">
             <p className="text-sm font-semibold text-[var(--color-foreground)]">Menu</p>
             <p className="truncate text-xs text-[var(--color-muted)]">
-              {loading ? "Loading dishes…" : `${filtered.length} available · tap to add`}
+              {loading ? "Loading dishes…" : `${filtered.length} available · use Add on each dish`}
             </p>
           </div>
         </div>

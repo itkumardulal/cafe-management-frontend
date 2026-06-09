@@ -134,17 +134,14 @@ function MenuSlideTile({
   const inOrder = qty > 0;
 
   return (
-    <button
-      type="button"
-      disabled={disabled || outOfStock}
-      onClick={onAdd}
+    <article
       className={cn(
-        "w-[9.5rem] shrink-0 snap-start flex-col overflow-hidden rounded-xl border text-left sm:w-[10.5rem]",
-        "flex bg-[var(--color-surface)] transition-all duration-200 motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-[var(--shadow-md)] active:scale-[0.98]",
-        outOfStock && "cursor-not-allowed opacity-50",
+        "flex w-[9.5rem] shrink-0 snap-start flex-col overflow-hidden rounded-xl border text-left sm:w-[10.5rem]",
+        "bg-[var(--color-surface)]",
+        outOfStock && "opacity-50",
         inOrder
           ? "border-[var(--color-primary)] bg-[color-mix(in_srgb,var(--color-primary)_5%,var(--color-surface))] ring-1 ring-[color-mix(in_srgb,var(--color-primary)_18%,transparent)]"
-          : "border-[var(--color-border)] hover:border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))]",
+          : "border-[var(--color-border)]",
       )}
     >
       <div className="relative aspect-[4/3] w-full bg-[var(--color-cream-100)]">
@@ -165,15 +162,33 @@ function MenuSlideTile({
         <p className="line-clamp-2 min-h-[2.25rem] text-xs font-semibold leading-snug text-[var(--color-foreground)]">
           {item.name}
         </p>
-        <p className="font-mono text-xs font-semibold tabular-nums text-[var(--color-primary)] dark:text-[var(--color-primary-hover)]">
-          {formatMoney(item.sellPricePerUnit)}
-        </p>
-        {item.trackStock ? (
-          <p className="text-[10px] font-medium text-[var(--color-muted)]">
-            {outOfStock ? "Out of stock" : `${item.quantityOnHand} left`}
-          </p>
-        ) : null}
+        <div className="mt-auto flex items-end justify-between gap-1.5 pt-0.5">
+          <div className="min-w-0">
+            <p className="font-mono text-xs font-semibold tabular-nums text-[var(--color-primary)] dark:text-[var(--color-primary-hover)]">
+              {formatMoney(item.sellPricePerUnit)}
+            </p>
+            {item.trackStock ? (
+              <p className="text-[10px] font-medium text-[var(--color-muted)]">
+                {outOfStock ? "Out of stock" : `${item.quantityOnHand} left`}
+              </p>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            disabled={disabled || outOfStock}
+            onClick={onAdd}
+            aria-label={`Add ${item.name}`}
+            className={cn(
+              "shrink-0 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors",
+              disabled || outOfStock
+                ? "cursor-not-allowed border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-muted)] opacity-50"
+                : "border-transparent bg-[var(--color-danger)] text-white hover:bg-[color-mix(in_srgb,var(--color-danger)_88%,#000)]",
+            )}
+          >
+            Add
+          </button>
+        </div>
       </div>
-    </button>
+    </article>
   );
 }

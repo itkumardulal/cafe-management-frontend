@@ -1,25 +1,32 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useMemo } from "react";
 import { Badge } from "@/src/components/ui/badge";
 import { EmptyState } from "@/src/components/ui/empty-state";
 import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
 import { ReportDataTable } from "@/src/features/reports/components/report-data-table";
+import { ReportExportButton } from "@/src/features/reports/components/report-export-button";
 import {
   ReportSection,
   ReportSummaryCard,
   ReportSummaryStrip,
 } from "@/src/features/reports/components/report-detail-shell";
-import { ReportPageLayout } from "@/src/features/reports/components/report-page-layout";
 import { ReportStaffLeaderboard } from "@/src/features/reports/components/report-staff-leaderboard";
+import { ReportTableFooterRow } from "@/src/features/reports/components/report-table-footer-row";
+import { ReportTableMobileTotalCard } from "@/src/features/reports/components/report-table-mobile-total-card";
+import { ReportPageLayout } from "@/src/features/reports/components/report-page-layout";
 import { ReportDetailSkeleton } from "@/src/features/reports/components/reports-skeleton";
 import { useReportPeriodNavigation } from "@/src/features/reports/components/reports-hub-content";
 import { useReportLoader } from "@/src/features/reports/hooks/use-report-loader";
+import { buildReportExportFileName } from "@/src/features/reports/lib/build-report-export-file-name";
+import { sumDecimalStrings } from "@/src/features/reports/lib/report-table-totals";
 import type { DiscountReport } from "@/src/features/reports/types/reports.types";
 import { cn } from "@/src/lib/cn";
 import { formatDateOnly, formatMoney } from "@/src/lib/format-display";
 import { operationsApi } from "@/src/services/operations-api";
 import { tableCenterCellClass, tableCenterColumnClass } from "@/src/components/ui/table";
+
+const FOOTER_LABEL = "Total";
 
 function DiscountReportContent() {
   const { periodParams, effectivePeriodParams, setPeriodParams } = useReportPeriodNavigation();
@@ -30,6 +37,14 @@ function DiscountReportContent() {
   );
 
   const discountPct = Number(report?.summary.discountAsPercentOfSales ?? 0);
+  const items = report?.items ?? [];
+  const totals = useMemo(
+    () => ({
+      discount: sumDecimalStrings(items.map((item) => item.discountAmount)),
+      billTotal: sumDecimalStrings(items.map((item) => item.grandTotal)),
+    }),
+    [items],
+  );
 
   return (
     <ReportPageLayout
@@ -73,11 +88,40 @@ function DiscountReportContent() {
     >
       {loading ? (
         <ReportDetailSkeleton columns={5} />
-      ) : report && report.items.length > 0 ? (
+      ) : report && items.length > 0 ? (
         <ReportSection
           title="Discount transactions"
           description="Every bill with a discount applied."
           count={report.meta.total}
+          action={
+            <ReportExportButton
+              fileName={buildReportExportFileName("discounts", "transactions", report.period.label)}
+              sheetName="Discounts"
+              mode="fetchAll"
+              fetchAllPages={async (page, limit) => {
+                const data = await operationsApi.reports.discounts({
+                  ...effectivePeriodParams,
+                  page,
+                  limit,
+                });
+                return { items: data.items, total: data.meta.total };
+              }}
+              columns={[
+                { header: "Receipt", getValue: (row) => row.receiptNo },
+                { header: "Date", getValue: (row) => formatDateOnly(row.saleAt) },
+                { header: "Staff", getValue: (row) => row.staff?.fullName ?? "Unknown" },
+                { header: "Discount", getValue: (row) => Number(row.discountAmount) },
+                { header: "Bill total", getValue: (row) => Number(row.grandTotal) },
+              ]}
+              getFooterRow={(rows) => [
+                "Total",
+                "",
+                "",
+                Number(sumDecimalStrings(rows.map((row) => row.discountAmount))),
+                Number(sumDecimalStrings(rows.map((row) => row.grandTotal))),
+              ]}
+            />
+          }
         >
           <ReportDataTable
             headers={[
@@ -89,7 +133,7 @@ function DiscountReportContent() {
             ]}
             mobileCards={
               <ListCardStack>
-                {report.items.map((item) => (
+                {items.map((item) => (
                   <ListCard
                     key={item.id}
                     title={item.receiptNo}
@@ -105,10 +149,28 @@ function DiscountReportContent() {
                     ]}
                   />
                 ))}
+                <ReportTableMobileTotalCard
+                  label={FOOTER_LABEL}
+                  fields={[
+                    { label: "Discount", value: formatMoney(totals.discount) },
+                    { label: "Bill total", value: formatMoney(totals.billTotal) },
+                  ]}
+                />
               </ListCardStack>
             }
+            footer={
+              <ReportTableFooterRow
+                label={FOOTER_LABEL}
+                cells={[
+                  "—",
+                  "—",
+                  formatMoney(totals.discount),
+                  formatMoney(totals.billTotal),
+                ]}
+              />
+            }
           >
-            {report.items.map((item) => (
+            {items.map((item) => (
               <tr key={item.id}>
                 <td className="font-mono text-sm">{item.receiptNo}</td>
                 <td className={tableCenterCellClass}>{formatDateOnly(item.saleAt)}</td>

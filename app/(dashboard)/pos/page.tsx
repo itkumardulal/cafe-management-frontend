@@ -15,7 +15,8 @@ import {
 } from "lucide-react";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createPortal } from "react-dom";
+import { ThermalPrintHost } from "@/src/features/printing/components/thermal-print-host";
+import { useThermalPrint } from "@/src/features/printing/hooks/use-thermal-print";
 import {
   buildInitialPaymentsFromCheckout,
   PosCheckoutPaymentSection,
@@ -97,6 +98,8 @@ function parseMoneyInput(str: string) {
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]";
 
+const AUTO_PRINT_STORAGE_KEY = "pos.autoPrintReceipt";
+
 const actionIconClass = cn(
   "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-muted)] transition-colors hover:border-[var(--color-primary)]/30 hover:bg-[var(--color-cream-100)] hover:text-[var(--color-foreground)]",
   focusRing,
@@ -151,19 +154,13 @@ function MenuItemCard({
     item.trackStock && (!Number.isFinite(stock!) || (stock ?? 0) <= 0);
 
   return (
-    <button
-      type="button"
-      disabled={outOfStock}
-      onClick={onAdd}
+    <article
       className={cn(
         "flex flex-col overflow-hidden rounded-xl border bg-[var(--color-surface)] text-left transition-all",
-        focusRing,
-        outOfStock
-          ? "cursor-not-allowed opacity-50"
-          : "hover:shadow-md active:scale-[0.99]",
+        outOfStock && "opacity-50",
         inCart
           ? "border-[var(--color-primary)] shadow-sm"
-          : "border-[var(--color-border)] hover:border-[var(--color-primary)]/35",
+          : "border-[var(--color-border)]",
       )}
     >
       <div className="relative aspect-[5/4] w-full bg-[var(--color-cream-100)]">
@@ -189,18 +186,35 @@ function MenuItemCard({
         <p className="line-clamp-2 min-h-[2.5rem] text-sm font-medium leading-snug text-foreground">
           {item.name}
         </p>
-        <div className="mt-auto flex items-center justify-between gap-1">
-          <span className="text-sm font-bold tabular-nums text-[var(--color-primary)]">
-            {formatMoney(item.sellPricePerUnit)}
-          </span>
-          {item.trackStock ? (
-            <span className="text-[10px] tabular-nums text-muted">
-              {outOfStock ? "Out of stock" : `${item.quantityOnHand} left`}
-            </span>
-          ) : null}
+        <div className="mt-auto flex items-end justify-between gap-2 pt-1">
+          <div className="min-w-0">
+            <p className="text-sm font-bold tabular-nums text-[var(--color-primary)]">
+              {formatMoney(item.sellPricePerUnit)}
+            </p>
+            {item.trackStock ? (
+              <p className="text-[10px] tabular-nums text-muted">
+                {outOfStock ? "Out of stock" : `${item.quantityOnHand} left`}
+              </p>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            disabled={outOfStock}
+            onClick={onAdd}
+            aria-label={`Add ${item.name}`}
+            className={cn(
+              "shrink-0 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors",
+              focusRing,
+              outOfStock
+                ? "cursor-not-allowed border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-muted)] opacity-50"
+                : "border-transparent bg-[var(--color-danger)] text-white hover:bg-[color-mix(in_srgb,var(--color-danger)_88%,#000)]",
+            )}
+          >
+            Add
+          </button>
         </div>
       </div>
-    </button>
+    </article>
   );
 }
 
@@ -298,8 +312,7 @@ function PosPageContent() {
   const [viewOpen, setViewOpen] = useState(false);
   const [viewSale, setViewSale] = useState<PosSaleReceiptData | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
-  const [printSale, setPrintSale] = useState<PosSaleReceiptData | null>(null);
-  const printAfterRender = useRef(false);
+  const [autoPrintReceipt, setAutoPrintReceipt] = useState(false);
   const [successSale, setSuccessSale] = useState<{ id: string; receiptNo: string } | null>(null);
   const [customerOpen, setCustomerOpen] = useState(false);
   const needsCustomerDetails =
@@ -312,6 +325,24 @@ function PosPageContent() {
       setCustomerOpen(true);
     }
   }, [needsCustomerDetails]);
+
+  useEffect(() => {
+    setAutoPrintReceipt(localStorage.getItem(AUTO_PRINT_STORAGE_KEY) === "true");
+  }, []);
+
+  const { printDocument, isPrinting, requestPrint, printLoaded } =
+    useThermalPrint<PosSaleReceiptData>({
+      onError: (error) =>
+        appToast.error(getApiErrorMessage(error, "Failed to load receipt for printing")),
+    });
+
+  const toggleAutoPrintReceipt = () => {
+    setAutoPrintReceipt((prev) => {
+      const next = !prev;
+      localStorage.setItem(AUTO_PRINT_STORAGE_KEY, String(next));
+      return next;
+    });
+  };
 
   const categories = useMemo(() => {
     const set = new Set(catalog.map((c) => c.categoryName));
@@ -663,6 +694,9 @@ function PosPageContent() {
         return;
       }
       setSuccessSale({ id: result.id, receiptNo: result.receiptNo });
+      if (localStorage.getItem(AUTO_PRINT_STORAGE_KEY) === "true") {
+        void requestPrint(() => fetchSaleDetail(result.id));
+      }
       resetCheckout();
       void dispatch(fetchSellableCatalogThunk({ force: true }));
       setSalesRefresh((n) => n + 1);
@@ -692,25 +726,9 @@ function PosPageContent() {
     }
   };
 
-  const handlePrint = async (id: string) => {
-    try {
-      const detail = await fetchSaleDetail(id);
-      printAfterRender.current = true;
-      setPrintSale(detail);
-    } catch (error) {
-      appToast.error(getApiErrorMessage(error, "Failed to load receipt for printing"));
-    }
+  const handlePrint = (id: string) => {
+    void requestPrint(() => fetchSaleDetail(id));
   };
-
-  useEffect(() => {
-    if (!printSale || !printAfterRender.current) return;
-    printAfterRender.current = false;
-    const timer = window.setTimeout(() => {
-      window.print();
-      setPrintSale(null);
-    }, 150);
-    return () => window.clearTimeout(timer);
-  }, [printSale]);
 
   const scrollToCheckout = () => {
     document.getElementById("pos-checkout")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -952,7 +970,7 @@ function PosPageContent() {
               <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-cream-50)]/50 px-4 py-10 text-center">
                 <ShoppingCart className="mx-auto h-8 w-8 text-muted/70" strokeWidth={1.5} />
                 <p className="mt-3 text-sm font-medium text-foreground">No items yet</p>
-                <p className="mt-1 text-xs text-muted">Tap dishes on the left to add them here</p>
+                <p className="mt-1 text-xs text-muted">Use Add on each dish in the menu to add them here</p>
               </div>
             ) : (
               <ul className="space-y-3">
@@ -1241,6 +1259,18 @@ function PosPageContent() {
             </div>
 
             <div className="shrink-0 border-t border-[var(--color-border)] bg-[var(--color-cream-50)]/60 px-3 py-2.5">
+            <label className="mb-2 flex cursor-pointer items-start gap-2 text-[10px] text-muted">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={autoPrintReceipt}
+                onChange={toggleAutoPrintReceipt}
+              />
+              <span>
+                Auto-print receipt after checkout. Use an 80mm thermal printer and disable
+                headers/footers in the print dialog.
+              </span>
+            </label>
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-medium uppercase tracking-wide text-muted">Total</p>
@@ -1252,7 +1282,7 @@ function PosPageContent() {
                 type="button"
                 size="sm"
                 className="h-9 shrink-0 px-6 font-semibold"
-                disabled={submitting || cart.length === 0}
+                disabled={submitting || cart.length === 0 || isPrinting}
                 onClick={() => void onCheckout()}
               >
                 {submitting ? "…" : "Bill"}
@@ -1336,7 +1366,11 @@ function PosPageContent() {
               Close
             </Button>
             {viewSale?.id ? (
-              <Button type="button" onClick={() => void handlePrint(viewSale.id!)}>
+              <Button
+                type="button"
+                disabled={isPrinting}
+                onClick={() => printLoaded(viewSale)}
+              >
                 <Printer className="mr-1.5 h-4 w-4" />
                 Print receipt
               </Button>
@@ -1345,14 +1379,11 @@ function PosPageContent() {
         </div>
       </Modal>
 
-      {typeof document !== "undefined" && printSale
-        ? createPortal(
-            <div id="pos-sale-print-host" className="hidden print:flex">
-              <PosSaleReceipt sale={printSale} id="pos-sale-receipt-print" />
-            </div>,
-            document.body,
-          )
-        : null}
+      <ThermalPrintHost open={printDocument != null}>
+        {printDocument ? (
+          <PosSaleReceipt sale={printDocument} id="pos-sale-receipt-print" />
+        ) : null}
+      </ThermalPrintHost>
     </section>
   );
 }

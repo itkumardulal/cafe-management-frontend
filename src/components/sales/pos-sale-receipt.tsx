@@ -1,7 +1,19 @@
 "use client";
 
 import type { SaleDetailResponse } from "@/src/lib/ar-types";
-import { formatDateTime, formatMoney } from "@/src/lib/format-display";
+import { SALE_PAYMENT_TERMS_OPTIONS } from "@/src/lib/ar-display";
+import { ThermalCreditBlock } from "@/src/features/printing/components/thermal-credit-block";
+import { ThermalDivider } from "@/src/features/printing/components/thermal-divider";
+import { ThermalLineItems } from "@/src/features/printing/components/thermal-line-items";
+import { ThermalPaymentBlock } from "@/src/features/printing/components/thermal-payment-block";
+import { ThermalReceiptHeader } from "@/src/features/printing/components/thermal-receipt-header";
+import { ThermalReceiptMeta } from "@/src/features/printing/components/thermal-receipt-meta";
+import { ThermalReceiptShell } from "@/src/features/printing/components/thermal-receipt-shell";
+import { ThermalRow } from "@/src/features/printing/components/thermal-row";
+import { serviceLabel } from "@/src/features/printing/lib/pos-labels";
+import { formatMoneyCompact } from "@/src/features/printing/lib/thermal-money";
+import { formatCompactDateTime, wrapThermalText } from "@/src/features/printing/lib/thermal-text";
+import { DEFAULT_PAPER_PROFILE } from "@/src/features/printing/constants/paper-profiles";
 import { cn } from "@/src/lib/cn";
 
 export type PosSaleReceiptLine = {
@@ -15,8 +27,9 @@ export type PosSaleReceiptData = SaleDetailResponse & {
   id?: string;
 };
 
-function serviceLabel(type: PosSaleReceiptData["serviceType"]) {
-  return type === "DELIVERY" ? "Delivery" : "Dine in";
+function paymentTermsLabel(preset: PosSaleReceiptData["paymentTermsPreset"]) {
+  if (!preset) return null;
+  return SALE_PAYMENT_TERMS_OPTIONS.find((o) => o.value === preset)?.label ?? null;
 }
 
 type PosSaleReceiptProps = {
@@ -39,181 +52,140 @@ export function PosSaleReceipt({ sale, cafeName, className, id }: PosSaleReceipt
   const amountReceived =
     Number(sale.cashPaidAmount ?? 0) + Number(sale.bankPaidAmount ?? 0);
 
-  return (
-    <article
-      id={id}
-      className={cn(
-        "pos-sale-receipt mx-auto w-full max-w-[72mm] bg-white px-4 py-5 text-stone-900",
-        "font-[family-name:var(--font-geist-sans,ui-sans-serif,system-ui,sans-serif)]",
-        className,
-      )}
-    >
-      <header className="text-center">
-        <div className="mx-auto mb-2 h-px w-12 bg-stone-800" aria-hidden />
-        <h1 className="text-lg font-semibold tracking-tight text-stone-900">{name}</h1>
-        {sale.cafe?.address ? (
-          <p className="mt-1 text-[10px] leading-relaxed text-stone-600">{sale.cafe.address}</p>
-        ) : null}
-        {contact ? <p className="mt-0.5 text-[10px] text-stone-500">{contact}</p> : null}
-        <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.15em] text-stone-700">
-          Sales receipt
-        </p>
-        <p className="mt-1 inline-block rounded border border-stone-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-stone-800">
-          {serviceLabel(sale.serviceType)}
-        </p>
-        {sale.serviceType === "DINE_IN" &&
-        (sale.tableNamesSnapshot || sale.tableName) ? (
-          <p className="mt-1 text-[10px] font-medium text-stone-700">
-            Table: {sale.tableNamesSnapshot ?? sale.tableName}
-          </p>
-        ) : null}
-        <div className="mx-auto mt-2 h-px w-full border-t border-dashed border-stone-400" aria-hidden />
-      </header>
+  const tableLabel =
+    sale.serviceType === "DINE_IN" && (sale.tableNamesSnapshot || sale.tableName)
+      ? `Table: ${sale.tableNamesSnapshot ?? sale.tableName}`
+      : null;
 
-      <dl className="mt-3 space-y-1 text-[10px]">
-        <div className="flex justify-between gap-2">
-          <dt className="text-stone-500">Receipt</dt>
-          <dd className="font-mono font-semibold">{sale.receiptNo}</dd>
-        </div>
-        <div className="flex justify-between gap-2">
-          <dt className="text-stone-500">Date</dt>
-          <dd className="font-medium">{formatDateTime(sale.saleAt)}</dd>
-        </div>
-        {sale.createdByName ? (
-          <div className="flex justify-between gap-2">
-            <dt className="text-stone-500">Cashier</dt>
-            <dd className="font-medium">{sale.createdByName}</dd>
-          </div>
-        ) : null}
-      </dl>
+  const paymentRows = [
+    Number(sale.cashPaidAmount) > 0
+      ? { label: "Cash", value: formatMoneyCompact(sale.cashPaidAmount) }
+      : null,
+    Number(sale.bankPaidAmount) > 0
+      ? { label: "Bank", value: formatMoneyCompact(sale.bankPaidAmount) }
+      : null,
+    hasCredit
+      ? { label: "Credit due", value: formatMoneyCompact(sale.creditAmount), bold: true }
+      : null,
+    amountReceived > 0
+      ? { label: "Amount received", value: formatMoneyCompact(amountReceived), bold: true }
+      : null,
+    Number(sale.changeAmount ?? 0) > 0
+      ? { label: "Change returned", value: formatMoneyCompact(sale.changeAmount), bold: true }
+      : null,
+  ].filter((row): row is { label: string; value: string; bold?: boolean } => row !== null);
+
+  const addressLines =
+    sale.customerAddress && sale.serviceType === "DELIVERY"
+      ? wrapThermalText(`Deliver to: ${sale.customerAddress}`, DEFAULT_PAPER_PROFILE.maxChars)
+      : sale.customerAddress
+        ? wrapThermalText(sale.customerAddress, DEFAULT_PAPER_PROFILE.maxChars)
+        : [];
+
+  return (
+    <ThermalReceiptShell id={id} className={cn(className)}>
+      <ThermalReceiptHeader
+        cafeName={name}
+        address={sale.cafe?.address}
+        contact={contact}
+        title="Sales receipt"
+        badge={serviceLabel(sale.serviceType).toUpperCase()}
+        subtitle={tableLabel}
+      />
+
+      <ThermalReceiptMeta
+        items={[
+          { label: "Receipt", value: sale.receiptNo },
+          { label: "Date", value: formatCompactDateTime(sale.saleAt) },
+          ...(sale.createdByName ? [{ label: "Cashier", value: sale.createdByName }] : []),
+        ]}
+      />
 
       {hasCustomer ? (
         <>
-          <div className="my-3 h-px border-t border-dashed border-stone-400" aria-hidden />
+          <ThermalDivider />
           <div className="text-[10px]">
-            <p className="font-semibold uppercase tracking-wide text-stone-500">Customer</p>
-            {sale.customerName ? (
-              <p className="mt-1 font-medium text-stone-900">{sale.customerName}</p>
-            ) : null}
+            <p className="font-semibold uppercase tracking-wide">Customer</p>
+            {sale.customerName ? <p className="mt-0.5 font-medium">{sale.customerName}</p> : null}
             {sale.customerPhone ? (
-              <p className="mt-0.5 font-mono text-stone-700">{sale.customerPhone}</p>
+              <p className="mt-0.5 font-mono">{sale.customerPhone}</p>
             ) : null}
-            {sale.customerAddress ? (
-              <p className="mt-1 leading-relaxed text-stone-700">
-                {sale.serviceType === "DELIVERY" ? "Deliver to: " : ""}
-                {sale.customerAddress}
+            {addressLines.map((line, idx) => (
+              <p key={idx} className="mt-0.5 leading-snug">
+                {line}
               </p>
-            ) : null}
-            {sale.customerEmail ? (
-              <p className="mt-0.5 text-stone-600">{sale.customerEmail}</p>
-            ) : null}
+            ))}
+            {sale.customerEmail ? <p className="mt-0.5">{sale.customerEmail}</p> : null}
           </div>
         </>
       ) : null}
 
-      <div className="my-3 h-px border-t border-dashed border-stone-400" aria-hidden />
+      <ThermalDivider />
 
-      <table className="w-full border-collapse text-[10px]">
-        <thead>
-          <tr className="border-b border-stone-300 text-[9px] uppercase text-stone-500">
-            <th className="pb-1.5 text-left font-semibold">Item</th>
-            <th className="pb-1.5 text-right font-semibold">Amt</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sale.lines.map((line, idx) => (
-            <tr key={idx} className="border-b border-stone-200 align-top">
-              <td className="py-2 pr-1">
-                <p className="font-medium text-stone-900">{line.menuItemName}</p>
-                <p className="mt-0.5 font-mono text-[9px] text-stone-500">
-                  {formatMoney(line.quantity)} × {formatMoney(line.unitPrice)}
-                </p>
-              </td>
-              <td className="py-2 text-right font-mono font-semibold tabular-nums">
-                {formatMoney(line.lineTotal)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <ThermalLineItems
+        variant="sale"
+        lines={sale.lines.map((line) => ({
+          name: line.menuItemName,
+          quantity: line.quantity,
+          unitPrice: line.unitPrice,
+          lineTotal: line.lineTotal,
+        }))}
+      />
 
-      <div className="my-3 h-px border-t border-dashed border-stone-400" aria-hidden />
+      <ThermalDivider />
 
       <div className="space-y-0.5 text-[10px]">
-        <div className="flex justify-between text-stone-600">
-          <span>Subtotal</span>
-          <span className="font-mono tabular-nums">{formatMoney(sale.subtotal)}</span>
-        </div>
+        <ThermalRow label="Subtotal" value={formatMoneyCompact(sale.subtotal)} />
         {Number(sale.otherChargeAmount) > 0 ? (
-          <div className="flex justify-between text-stone-600">
-            <span>{sale.serviceType === "DELIVERY" ? "Delivery fee" : "Other"}</span>
-            <span className="font-mono tabular-nums">{formatMoney(sale.otherChargeAmount)}</span>
-          </div>
+          <ThermalRow
+            label={sale.serviceType === "DELIVERY" ? "Delivery fee" : "Other"}
+            value={formatMoneyCompact(sale.otherChargeAmount)}
+          />
         ) : null}
         {Number(sale.discountAmount) > 0 ? (
-          <div className="flex justify-between text-stone-600">
-            <span>
-              Discount
-              {sale.discountPercent ? ` (${sale.discountPercent}%)` : ""}
-            </span>
-            <span className="font-mono tabular-nums">−{formatMoney(sale.discountAmount)}</span>
-          </div>
+          <ThermalRow
+            label={`Discount${sale.discountPercent ? ` (${sale.discountPercent}%)` : ""}`}
+            value={`-${formatMoneyCompact(sale.discountAmount)}`}
+          />
         ) : null}
-        <div className="flex justify-between pt-1 font-semibold text-stone-900">
-          <span>Total</span>
-          <span className="font-mono text-sm tabular-nums">{formatMoney(sale.grandTotal)}</span>
-        </div>
+        <ThermalRow
+          label="Total"
+          value={`Rs ${formatMoneyCompact(sale.grandTotal)}`}
+          bold
+          className="pt-0.5 text-[12px]"
+        />
       </div>
 
-      <div className="my-3 h-px border-t border-dashed border-stone-400" aria-hidden />
+      <ThermalPaymentBlock
+        rows={paymentRows}
+        footnote={
+          Number(sale.cashPaidAmount) > 0 && Number(sale.bankPaidAmount) > 0
+            ? "Both: cash + bank"
+            : null
+        }
+      />
 
-      <div className="space-y-0.5 text-[10px]">
-        <p className="font-semibold uppercase tracking-wide text-stone-500">Payment</p>
-        {Number(sale.cashPaidAmount) > 0 ? (
-          <div className="flex justify-between">
-            <span>Cash</span>
-            <span className="font-mono tabular-nums">{formatMoney(sale.cashPaidAmount)}</span>
-          </div>
-        ) : null}
-        {Number(sale.bankPaidAmount) > 0 ? (
-          <div className="flex justify-between">
-            <span>Bank</span>
-            <span className="font-mono tabular-nums">{formatMoney(sale.bankPaidAmount)}</span>
-          </div>
-        ) : null}
-        {hasCredit ? (
-          <div className="flex justify-between font-semibold text-stone-900">
-            <span>Credit due</span>
-            <span className="font-mono tabular-nums">{formatMoney(sale.creditAmount)}</span>
-          </div>
-        ) : null}
-        {amountReceived > 0 ? (
-          <div className="flex justify-between font-semibold text-stone-900">
-            <span>Amount received</span>
-            <span className="font-mono tabular-nums">{formatMoney(amountReceived)}</span>
-          </div>
-        ) : null}
-        {Number(sale.changeAmount ?? 0) > 0 ? (
-          <div className="flex justify-between font-semibold text-stone-900">
-            <span>Change returned</span>
-            <span className="font-mono tabular-nums">{formatMoney(sale.changeAmount)}</span>
-          </div>
-        ) : null}
-        {Number(sale.cashPaidAmount) > 0 && Number(sale.bankPaidAmount) > 0 ? (
-          <p className="pt-0.5 text-[9px] text-stone-500">Both: cash + bank</p>
-        ) : null}
-      </div>
+      {sale.paymentStatus && sale.paymentStatus !== "PAID" ? (
+        <ThermalCreditBlock
+          paymentStatus={sale.paymentStatus}
+          paidAmount={sale.paidAmount}
+          remainingAmount={sale.remainingAmount}
+          dueDate={sale.dueDate}
+          paymentTermsLabel={paymentTermsLabel(sale.paymentTermsPreset)}
+          payments={sale.payments}
+        />
+      ) : null}
 
       {sale.notes?.trim() ? (
         <>
-          <div className="my-3 h-px border-t border-dashed border-stone-400" aria-hidden />
-          <p className="text-[10px] text-stone-700">{sale.notes.trim()}</p>
+          <ThermalDivider />
+          <p className="text-[10px] leading-snug">{sale.notes.trim()}</p>
         </>
       ) : null}
 
-      <footer className="mt-4 border-t border-stone-300 pt-3 text-center">
-        <p className="text-[11px] font-medium text-stone-800">Thank you — visit again</p>
+      <footer className="mt-3 border-t border-black pt-2 text-center">
+        <p className="text-[11px] font-medium">Thank you — visit again</p>
       </footer>
-    </article>
+    </ThermalReceiptShell>
   );
 }

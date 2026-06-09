@@ -1,5 +1,6 @@
 "use client";
 
+import axios from "axios";
 import { Combine, RefreshCw, Split } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -44,6 +45,29 @@ type OrderLine = {
 
 const BOARD_POLL_MS = 12_000;
 
+const vacantFloorTable = (table: FloorTable): FloorTable => ({
+  ...table,
+  status: "VACANT",
+  sessionId: null,
+  sessionTableNames: [],
+  subtotal: null,
+  lineCount: 0,
+  lastItemName: null,
+});
+
+function markSessionClearedOnBoard(
+  tables: FloorTable[],
+  session: Pick<TableOrderSessionDetail, "id" | "tables">,
+): FloorTable[] {
+  const tableIds = new Set(session.tables.map((t) => t.tableId));
+  return tables.map((t) => {
+    if (tableIds.has(t.tableId) || t.sessionId === session.id) {
+      return vacantFloorTable(t);
+    }
+    return t;
+  });
+}
+
 function sessionToLines(session: TableOrderSessionDetail): OrderLine[] {
   return session.lines.map((l) => ({
     key: l.menuItemId,
@@ -79,15 +103,15 @@ export default function TableOrdersPage() {
   const [lastAddedKey, setLastAddedKey] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadBoard = useCallback(async (silent = false) => {
+  const loadBoard = useCallback(async (silent = false, force = false) => {
     if (!silent) setBoardLoading(true);
     try {
-      const data = await operationsApi.tableOrders.board();
+      const data = await operationsApi.tableOrders.board({ force });
       setBoard(data.items);
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to load tables"));
     } finally {
-      setBoardLoading(false);
+      if (!silent) setBoardLoading(false);
     }
   }, []);
 
@@ -160,24 +184,57 @@ export default function TableOrdersPage() {
     setCategoryFilter("");
   }, []);
 
+  const resolveSession = useCallback(async (sessionId: string) => {
+    try {
+      return await operationsApi.tableOrders.getSession(sessionId);
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }, []);
+
   const handleTableClick = async (item: FloorTable) => {
     try {
+      if (item.status === "IN_BILLING") {
+        if (item.sessionId) router.push(`/pos?sessionId=${item.sessionId}`);
+        return;
+      }
+
       if (item.status === "VACANT") {
         if (item.sessionId) {
-          const detail = await operationsApi.tableOrders.getSession(item.sessionId);
-          await openSession(detail);
-          return;
+          const detail = await resolveSession(item.sessionId);
+          if (detail) {
+            await openSession(detail);
+            return;
+          }
+          setBoard((prev) =>
+            prev.map((t) => (t.tableId === item.tableId ? vacantFloorTable(t) : t)),
+          );
         }
         const created = await operationsApi.tableOrders.createSession({
           tableId: item.tableId,
         });
         await openSession(created);
-        void loadBoard(true);
+        await loadBoard(true, true);
         return;
       }
+
       if (item.sessionId) {
-        const detail = await operationsApi.tableOrders.getSession(item.sessionId);
-        await openSession(detail);
+        const detail = await resolveSession(item.sessionId);
+        if (detail) {
+          await openSession(detail);
+          return;
+        }
+        setBoard((prev) =>
+          prev.map((t) => (t.tableId === item.tableId ? vacantFloorTable(t) : t)),
+        );
+        const created = await operationsApi.tableOrders.createSession({
+          tableId: item.tableId,
+        });
+        await openSession(created);
+        await loadBoard(true, true);
       }
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to open table order"));
@@ -198,16 +255,17 @@ export default function TableOrdersPage() {
           })),
         });
         if (isDeletedSessionUpdate(updated)) {
+          setBoard((prev) => markSessionClearedOnBoard(prev, currentSession));
           setSession(null);
           setOrderLines([]);
           setLastAddedKey(null);
-          void loadBoard(true);
+          await loadBoard(true, true);
           appToast.success("Order cleared — table is vacant");
           return;
         }
         setSession(updated);
         setOrderLines(sessionToLines(updated));
-        void loadBoard(true);
+        await loadBoard(true, true);
       } catch (error) {
         appToast.error(getApiErrorMessage(error, "Failed to save order"));
         const fresh = await operationsApi.tableOrders.getSession(currentSession.id);
@@ -316,7 +374,7 @@ export default function TableOrdersPage() {
       await openSession(updated);
       setMergeOpen(false);
       setMergeSelected([]);
-      void loadBoard(true);
+      await loadBoard(true, true);
       appToast.success("Tables merged into one order");
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to merge tables"));
@@ -334,7 +392,7 @@ export default function TableOrdersPage() {
       await openSession(updated);
       setUnmergeOpen(false);
       setUnmergeTargetId(null);
-      void loadBoard(true);
+      await loadBoard(true, true);
       appToast.success("Table separated from this order");
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to unmerge table"));
@@ -349,7 +407,7 @@ export default function TableOrdersPage() {
     try {
       const updated = await operationsApi.tableOrders.cancelBilling(session.id);
       await openSession(updated);
-      void loadBoard(true);
+      await loadBoard(true, true);
       appToast.success("Billing cancelled — you can edit the order again");
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to cancel billing"));
@@ -377,6 +435,11 @@ export default function TableOrdersPage() {
           })),
         });
         if (isDeletedSessionUpdate(saved)) {
+          setBoard((prev) => markSessionClearedOnBoard(prev, current));
+          setSession(null);
+          setOrderLines([]);
+          setLastAddedKey(null);
+          await loadBoard(true, true);
           appToast.error("Add at least one item before generating the bill");
           return;
         }
@@ -409,7 +472,7 @@ export default function TableOrdersPage() {
               type="button"
               size="sm"
               variant="ghost"
-              onClick={() => void loadBoard()}
+              onClick={() => void loadBoard(false, true)}
               disabled={boardLoading}
             >
               <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", boardLoading && "animate-spin")} />
@@ -456,7 +519,7 @@ export default function TableOrdersPage() {
               size="sm"
               variant="ghost"
               className="h-8 w-8 p-0"
-              onClick={() => void loadBoard()}
+              onClick={() => void loadBoard(false, true)}
               disabled={boardLoading}
               aria-label="Refresh floor plan"
             >

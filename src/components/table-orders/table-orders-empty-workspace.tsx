@@ -2,7 +2,7 @@ import { ConciergeBell } from "lucide-react";
 
 const steps = [
   { n: 1, title: "Select table", text: "Tap a vacant or serving table on the floor plan." },
-  { n: 2, title: "Add dishes", text: "Search the menu and tap items to build the order." },
+  { n: 2, title: "Add dishes", text: "Search the menu and use Add on each dish to build the order." },
   { n: 3, title: "Send to POS", text: "Generate bill when guests are ready to pay." },
 ] as const;
 

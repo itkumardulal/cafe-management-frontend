@@ -1,26 +1,33 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense } from "react";
+import { Suspense, useMemo } from "react";
 import { Badge } from "@/src/components/ui/badge";
 import { EmptyState } from "@/src/components/ui/empty-state";
 import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
 import { ReportDataTable } from "@/src/features/reports/components/report-data-table";
+import { ReportExportButton } from "@/src/features/reports/components/report-export-button";
 import {
   ReportInsightCard,
   ReportSection,
   ReportSummaryCard,
   ReportSummaryStrip,
 } from "@/src/features/reports/components/report-detail-shell";
+import { ReportTableFooterRow } from "@/src/features/reports/components/report-table-footer-row";
+import { ReportTableMobileTotalCard } from "@/src/features/reports/components/report-table-mobile-total-card";
 import { ReportPageLayout } from "@/src/features/reports/components/report-page-layout";
 import { ReportDetailSkeleton } from "@/src/features/reports/components/reports-skeleton";
 import { useReportPeriodNavigation } from "@/src/features/reports/components/reports-hub-content";
 import { useReportLoader } from "@/src/features/reports/hooks/use-report-loader";
+import { buildReportExportFileName } from "@/src/features/reports/lib/build-report-export-file-name";
+import { sumDecimalStrings } from "@/src/features/reports/lib/report-table-totals";
 import type { BankReport } from "@/src/features/reports/types/reports.types";
 import { cn } from "@/src/lib/cn";
 import { formatDateOnly, formatMoney } from "@/src/lib/format-display";
 import { operationsApi } from "@/src/services/operations-api";
 import { tableCenterCellClass, tableCenterColumnClass } from "@/src/components/ui/table";
+
+const FOOTER_LABEL = "Total";
 
 function BankBalancesReportContent() {
   const { periodParams, effectivePeriodParams, setPeriodParams } = useReportPeriodNavigation();
@@ -31,6 +38,24 @@ function BankBalancesReportContent() {
   );
 
   const netChange = Number(report?.summary.netChangeInPeriod ?? 0);
+  const accounts = report?.accounts ?? [];
+  const transactions = report?.transactions.items ?? [];
+
+  const accountTotals = useMemo(
+    () => ({
+      opening: sumDecimalStrings(accounts.map((a) => a.openingBalance)),
+      periodStart: sumDecimalStrings(accounts.map((a) => a.balanceAtPeriodStart)),
+      periodIn: sumDecimalStrings(accounts.map((a) => a.periodDeposits)),
+      periodOut: sumDecimalStrings(accounts.map((a) => a.periodWithdrawals)),
+      current: sumDecimalStrings(accounts.map((a) => a.currentBalance)),
+    }),
+    [accounts],
+  );
+
+  const transactionTotal = useMemo(
+    () => sumDecimalStrings(transactions.map((row) => row.amount)),
+    [transactions],
+  );
 
   const typeBadge = (type: "DEPOSIT" | "WITHDRAWAL") => (
     <Badge size="sm" variant={type === "DEPOSIT" ? "success" : "danger"}>
@@ -102,9 +127,41 @@ function BankBalancesReportContent() {
           <ReportSection
             title="Account balances"
             description="Opening balance, period movement, and current balance per account."
-            count={report.accounts.length}
+            count={accounts.length}
+            action={
+              accounts.length > 0 ? (
+                <ReportExportButton
+                  fileName={buildReportExportFileName("banks", "accounts", report.period.label)}
+                  sheetName="Accounts"
+                  mode="loaded"
+                  rows={accounts}
+                  columns={[
+                    { header: "Bank", getValue: (row) => row.bankName },
+                    { header: "Account holder", getValue: (row) => row.accountHolderName },
+                    { header: "Account #", getValue: (row) => row.accountNumber },
+                    { header: "Status", getValue: (row) => (row.isActive ? "Active" : "Inactive") },
+                    { header: "Opening", getValue: (row) => Number(row.openingBalance) },
+                    { header: "At period start", getValue: (row) => Number(row.balanceAtPeriodStart) },
+                    { header: "Period in", getValue: (row) => Number(row.periodDeposits) },
+                    { header: "Period out", getValue: (row) => Number(row.periodWithdrawals) },
+                    { header: "Current", getValue: (row) => Number(row.currentBalance) },
+                  ]}
+                  getFooterRow={() => [
+                    "Total",
+                    "",
+                    "",
+                    "",
+                    Number(accountTotals.opening),
+                    Number(accountTotals.periodStart),
+                    Number(accountTotals.periodIn),
+                    Number(accountTotals.periodOut),
+                    Number(accountTotals.current),
+                  ]}
+                />
+              ) : undefined
+            }
           >
-            {report.accounts.length > 0 ? (
+            {accounts.length > 0 ? (
               <ReportDataTable
                 headers={[
                   "Bank",
@@ -118,7 +175,7 @@ function BankBalancesReportContent() {
                 ]}
                 mobileCards={
                   <ListCardStack>
-                    {report.accounts.map((account) => (
+                    {accounts.map((account) => (
                       <ListCard
                         key={account.id}
                         title={account.bankName}
@@ -140,10 +197,31 @@ function BankBalancesReportContent() {
                         ]}
                       />
                     ))}
+                    <ReportTableMobileTotalCard
+                      fields={[
+                        { label: "Opening", value: formatMoney(accountTotals.opening) },
+                        { label: "Period in", value: formatMoney(accountTotals.periodIn) },
+                        { label: "Period out", value: formatMoney(accountTotals.periodOut) },
+                        { label: "Current", value: formatMoney(accountTotals.current) },
+                      ]}
+                    />
                   </ListCardStack>
                 }
+                footer={
+                  <ReportTableFooterRow
+                    cells={[
+                      "—",
+                      "—",
+                      formatMoney(accountTotals.opening),
+                      formatMoney(accountTotals.periodStart),
+                      formatMoney(accountTotals.periodIn),
+                      formatMoney(accountTotals.periodOut),
+                      formatMoney(accountTotals.current),
+                    ]}
+                  />
+                }
               >
-                {report.accounts.map((account) => (
+                {accounts.map((account) => (
                   <tr key={account.id}>
                     <td>
                       <div className="font-medium">{account.bankName}</div>
@@ -194,8 +272,52 @@ function BankBalancesReportContent() {
             title="Transactions in period"
             description="Deposits and withdrawals recorded during the selected period."
             count={report.transactions.meta.total}
+            action={
+              transactions.length > 0 ? (
+                <ReportExportButton
+                  fileName={buildReportExportFileName("banks", "transactions", report.period.label)}
+                  sheetName="Transactions"
+                  mode="fetchAll"
+                  fetchAllPages={async (page, limit) => {
+                    const data = await operationsApi.reports.banks({
+                      ...effectivePeriodParams,
+                      page,
+                      limit,
+                    });
+                    return {
+                      items: data.transactions.items,
+                      total: data.transactions.meta.total,
+                    };
+                  }}
+                  columns={[
+                    { header: "Date", getValue: (row) => formatDateOnly(row.transactionDate) },
+                    {
+                      header: "Bank account",
+                      getValue: (row) => `${row.bankName} (${row.accountNumber})`,
+                    },
+                    { header: "Type", getValue: (row) => (row.type === "DEPOSIT" ? "Deposit" : "Withdrawal") },
+                    { header: "Amount", getValue: (row) => Number(row.amount) },
+                    { header: "Reference", getValue: (row) => row.referenceNumber?.trim() || "—" },
+                    {
+                      header: "Voucher",
+                      getValue: (row) => row.proofAttachmentUrl ?? "—",
+                    },
+                    { header: "Recorded by", getValue: (row) => row.createdByName ?? "—" },
+                  ]}
+                  getFooterRow={(rows) => [
+                    "Total",
+                    "",
+                    "",
+                    Number(sumDecimalStrings(rows.map((row) => row.amount))),
+                    "",
+                    "",
+                    "",
+                  ]}
+                />
+              ) : undefined
+            }
           >
-            {report.transactions.items.length > 0 ? (
+            {transactions.length > 0 ? (
               <ReportDataTable
                 headers={[
                   { label: "Date", thClassName: tableCenterColumnClass },
@@ -208,7 +330,7 @@ function BankBalancesReportContent() {
                 ]}
                 mobileCards={
                   <ListCardStack>
-                    {report.transactions.items.map((row) => (
+                    {transactions.map((row) => (
                       <ListCard
                         key={row.id}
                         title={`${row.bankName} · ${row.accountNumber}`}
@@ -221,10 +343,20 @@ function BankBalancesReportContent() {
                         ]}
                       />
                     ))}
+                    <ReportTableMobileTotalCard
+                      label={FOOTER_LABEL}
+                      fields={[{ label: "Amount", value: formatMoney(transactionTotal) }]}
+                    />
                   </ListCardStack>
                 }
+                footer={
+                  <ReportTableFooterRow
+                    label={FOOTER_LABEL}
+                    cells={["—", "—", formatMoney(transactionTotal), "—", "—", "—"]}
+                  />
+                }
               >
-                {report.transactions.items.map((row) => (
+                {transactions.map((row) => (
                   <tr key={row.id}>
                     <td className={cn(tableCenterCellClass, "whitespace-nowrap text-muted")}>
                       {formatDateOnly(row.transactionDate)}

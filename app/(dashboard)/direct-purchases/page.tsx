@@ -1,8 +1,9 @@
 "use client";
 
 import { AlertCircle, Printer, Receipt, Trash2 } from "lucide-react";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { ThermalPrintHost } from "@/src/features/printing/components/thermal-print-host";
+import { useThermalPrint } from "@/src/features/printing/hooks/use-thermal-print";
 import { DateRangeFilter } from "@/src/components/shared/date-range-filter";
 import { DetailInfoCard } from "@/src/components/shared/detail-info-card";
 import { DetailLineItemsSection } from "@/src/components/shared/detail-line-items-section";
@@ -174,8 +175,11 @@ function DirectPurchasesContent() {
   const [viewOpen, setViewOpen] = useState(false);
   const [viewLoading, setViewLoading] = useState(false);
   const [viewPurchase, setViewPurchase] = useState<ViewPurchaseData | null>(null);
-  const [printPurchase, setPrintPurchase] = useState<DirectPurchaseReceiptData | null>(null);
-  const printAfterRender = useRef(false);
+  const { printDocument, isPrinting, requestPrint, printLoaded } =
+    useThermalPrint<DirectPurchaseReceiptData>({
+      onError: (error) =>
+        appToast.error(getApiErrorMessage(error, "Failed to load receipt for printing")),
+    });
 
   const grandTotal = useMemo(
     () => lines.reduce((sum, line) => sum + lineTotal(line.quantity, line.ratePerUnit), 0),
@@ -457,27 +461,9 @@ function DirectPurchasesContent() {
     }
   };
 
-  const handlePrint = async (id: string) => {
-    try {
-      const detail = await fetchPurchaseDetail(id);
-      printAfterRender.current = true;
-      setPrintPurchase(detail);
-    } catch (error) {
-      appToast.error(getApiErrorMessage(error, "Failed to load receipt for printing"));
-    }
+  const handlePrint = (id: string) => {
+    void requestPrint(() => fetchPurchaseDetail(id));
   };
-
-  useEffect(() => {
-    if (!printPurchase || !printAfterRender.current) {
-      return;
-    }
-    printAfterRender.current = false;
-    const timer = window.setTimeout(() => {
-      window.print();
-      setPrintPurchase(null);
-    }, 150);
-    return () => window.clearTimeout(timer);
-  }, [printPurchase]);
 
   return (
     <>
@@ -882,10 +868,8 @@ function DirectPurchasesContent() {
             {viewPurchase ? (
               <Button
                 type="button"
-                onClick={() => {
-                  printAfterRender.current = true;
-                  setPrintPurchase(viewPurchase);
-                }}
+                disabled={isPrinting}
+                onClick={() => printLoaded(viewPurchase)}
               >
                 <span className="inline-flex items-center gap-1.5">
                   <Printer size={16} aria-hidden />
@@ -897,18 +881,15 @@ function DirectPurchasesContent() {
         </div>
       </Modal>
 
-      {typeof document !== "undefined" && printPurchase
-        ? createPortal(
-            <div id="dp-purchase-print-host" className="hidden print:flex">
-              <DirectPurchaseReceipt
-                id="dp-purchase-receipt"
-                purchase={printPurchase}
-                cafeName={cafeNameFallback}
-              />
-            </div>,
-            document.body,
-          )
-        : null}
+      <ThermalPrintHost open={printDocument != null}>
+        {printDocument ? (
+          <DirectPurchaseReceipt
+            id="dp-purchase-receipt"
+            purchase={printDocument}
+            cafeName={cafeNameFallback}
+          />
+        ) : null}
+      </ThermalPrintHost>
 
       <Modal
         open={open}

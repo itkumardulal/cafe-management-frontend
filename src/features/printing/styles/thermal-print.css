@@ -1,0 +1,34 @@
+@page {
+  margin: 0;
+}
+
+@media print {
+  body.thermal-print-active * {
+    visibility: hidden;
+  }
+
+  body.thermal-print-active [data-thermal-print-host],
+  body.thermal-print-active [data-thermal-print-host] * {
+    visibility: visible;
+  }
+
+  body.thermal-print-active [data-thermal-print-host] {
+    position: fixed;
+    inset: 0;
+    z-index: 999999;
+    display: flex !important;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #fff !important;
+    overflow: visible !important;
+  }
+
+  body.thermal-print-active .thermal-receipt,
+  body.thermal-print-active .thermal-receipt * {
+    color: #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

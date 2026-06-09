@@ -64,7 +64,9 @@ export function CreateCafeAdminForm({ onSuccess, onCancel }: CreateCafeAdminForm
         }),
       );
       if (createCafeThunk.fulfilled.match(result)) {
-        appToast.success(hasPassword ? "Cafe admin created" : "Invitation sent");
+        appToast.success(
+          hasPassword ? "Cafe admin created and credentials email sent" : "Invitation sent",
+        );
         reset();
         setLogoPreview("");
         setShowPassword(false);
@@ -155,7 +157,7 @@ export function CreateCafeAdminForm({ onSuccess, onCancel }: CreateCafeAdminForm
         <Field
           id="password"
           label="Password (optional)"
-          hint="Empty = invitation link. Set = temporary password; admin changes it on first login."
+          hint="Empty = invitation link. Set = credentials emailed; admin changes password on first login."
         >
           <div className="relative">
             <Input

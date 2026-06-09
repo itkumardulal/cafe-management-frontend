@@ -46,6 +46,8 @@ export type SalesReport = {
 
 export type ProfitReport = {
   period: ReportPeriod;
+  grossSalesBeforeDiscount: string;
+  totalDiscountGiven: string;
   revenue: string;
   costOfGoodsSold: string;
   grossProfit: string;

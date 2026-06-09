@@ -26,6 +26,7 @@ import {
   tableCenterCellClass,
   tableCenterColumnClass,
 } from "@/src/components/ui/table";
+import { UserLifecycleActions } from "@/src/features/users/components/user-lifecycle-actions";
 import { staffSchema, type StaffSchemaType } from "@/src/features/users/schemas/staff.schema";
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { getApiErrorMessage } from "@/src/lib/api-error";
@@ -129,7 +130,9 @@ export default function UsersPage() {
     try {
       const result = await dispatch(createStaffThunk(payload));
       if (createStaffThunk.fulfilled.match(result)) {
-        appToast.success(values.password?.trim() ? "Staff created" : "Invitation sent");
+        appToast.success(
+          values.password?.trim() ? "Staff created and credentials email sent" : "Invitation sent",
+        );
         closeAddModal();
         setStaffRefresh((n) => n + 1);
       } else if (createStaffThunk.rejected.match(result)) {
@@ -205,13 +208,14 @@ export default function UsersPage() {
           onEdit={openEdit}
           onAddUser={openAddModal}
           canAddUser={hasRoles && !rolesLoading}
+          onLifecycleChange={() => setStaffRefresh((n) => n + 1)}
         />
       </Suspense>
 
       <Modal
         open={addOpen}
         title="Add staff member"
-        description="Leave password empty to send an invitation email, or set a temporary password (they must change it on first login)."
+        description="Leave password empty to send an invitation link, or set a temporary password to email login credentials (they must change it on first login)."
         onClose={closeAddModal}
         size="lg"
       >
@@ -239,7 +243,7 @@ export default function UsersPage() {
               id="password"
               label="Password (optional)"
               error={errors.password?.message}
-              hint="Empty = invitation link. Set = temporary password; staff changes it on first login."
+              hint="Empty = invitation link. Set = credentials emailed; staff changes password on first login."
             >
               <div className="relative">
                 <Input
@@ -326,15 +330,6 @@ export default function UsersPage() {
   );
 }
 
-async function resendInvite(staffId: string) {
-  try {
-    await api.post(`/users/staff/${staffId}/resend-invitation`);
-    appToast.success("Invitation sent");
-  } catch (error) {
-    appToast.error(getApiErrorMessage(error, "Failed to resend invitation"));
-  }
-}
-
 function RoleBadge({ role }: { role?: { id: string; name: string } | null }) {
   if (!role?.name) {
     return <span className="text-xs text-muted">—</span>;
@@ -346,14 +341,40 @@ function RoleBadge({ role }: { role?: { id: string; name: string } | null }) {
   );
 }
 
+function StaffLifecycleActions({
+  item,
+  onEdit,
+  onLifecycleChange,
+}: {
+  item: StaffRecord;
+  onEdit: (member: StaffRecord) => void;
+  onLifecycleChange: () => void;
+}) {
+  return (
+    <UserLifecycleActions
+      status={item.status}
+      isActive={item.isActive}
+      displayName={item.fullName}
+      onResendInvite={() => api.post(`/users/staff/${item.id}/resend-invitation`).then(() => undefined)}
+      onEdit={() => onEdit(item)}
+      onDeactivate={() => operationsApi.users.staff.disable(item.id).then(() => undefined)}
+      onActivate={() => operationsApi.users.staff.enable(item.id).then(() => undefined)}
+      onDelete={() => operationsApi.users.staff.remove(item.id).then(() => undefined)}
+      onSuccess={onLifecycleChange}
+    />
+  );
+}
+
 function UsersStaffList({
   onEdit,
   onAddUser,
   canAddUser,
+  onLifecycleChange,
 }: {
   onEdit: (member: StaffRecord) => void;
   onAddUser: () => void;
   canAddUser: boolean;
+  onLifecycleChange: () => void;
 }) {
   const {
     items: staff,
@@ -440,21 +461,11 @@ function UsersStaffList({
                 { label: "Role", value: <RoleBadge role={item.staffRole} /> },
               ]}
               actions={
-                <div className="flex flex-wrap justify-end gap-2">
-                  {item.status === "INVITED" ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => void resendInvite(item.id)}
-                    >
-                      Resend invite
-                    </Button>
-                  ) : null}
-                  <Button type="button" size="sm" variant="secondary" onClick={() => onEdit(item)}>
-                    Edit
-                  </Button>
-                </div>
+                <StaffLifecycleActions
+                  item={item}
+                  onEdit={onEdit}
+                  onLifecycleChange={onLifecycleChange}
+                />
               }
             />
           ))}
@@ -500,21 +511,11 @@ function UsersStaffList({
               </td>
               <td className="px-3 py-2.5">
                 <div className={tableActionsCellClass}>
-                  <div className="flex flex-wrap justify-center gap-2">
-                    {item.status === "INVITED" ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => void resendInvite(item.id)}
-                      >
-                        Resend invite
-                      </Button>
-                    ) : null}
-                    <Button type="button" size="sm" variant="secondary" onClick={() => onEdit(item)}>
-                      Edit
-                    </Button>
-                  </div>
+                  <StaffLifecycleActions
+                    item={item}
+                    onEdit={onEdit}
+                    onLifecycleChange={onLifecycleChange}
+                  />
                 </div>
               </td>
             </tr>

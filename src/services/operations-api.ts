@@ -1,4 +1,5 @@
 import { buildGetCacheKey, fetchDeduped } from "@/src/lib/api-fetch-dedupe";
+import { syncCachesAfterMutation } from "@/src/lib/mutation-cache-sync";
 import { buildReportQueryParams } from "@/src/features/reports/types/reports.types";
 import { api } from "./api";
 
@@ -101,6 +102,7 @@ async function mutate<T>(method: "post" | "patch" | "delete", path: string, body
       : method === "post"
         ? await api.post(path, body)
         : await api.patch(path, body);
+  syncCachesAfterMutation(path);
   return response.data.data as T;
 }
 
@@ -113,13 +115,23 @@ function buildReportApiParams(
 export const operationsApi = {
   menuCategories: {
     list: (params?: ListQueryParams) =>
-      getData<Paginated<{ id: string; name: string; catalogItemCount: number; menuItemCount: number }>>(
-        "/menu-categories",
-        params,
+      getData<
+        Paginated<{
+          id: string;
+          name: string;
+          sortOrder: number;
+          catalogItemCount: number;
+          menuItemCount: number;
+        }>
+      >("/menu-categories", params),
+    options: () =>
+      getData<Array<{ id: string; name: string; sortOrder: number }>>(
+        "/menu-categories/options",
       ),
-    options: () => getData<Array<{ id: string; name: string }>>("/menu-categories/options"),
-    create: (name: string) => mutate("post", "/menu-categories", { name }),
-    update: (id: string, name: string) => mutate("patch", `/menu-categories/${id}`, { name }),
+    create: (data: { name: string; sortOrder?: number }) =>
+      mutate("post", "/menu-categories", data),
+    update: (id: string, data: { name?: string; sortOrder?: number }) =>
+      mutate("patch", `/menu-categories/${id}`, data),
     remove: (id: string) => mutate("delete", `/menu-categories/${id}`),
   },
   menuItems: {
@@ -317,7 +329,7 @@ export const operationsApi = {
       }>(`/suppliers/${id}/billing-summary`),
   },
   tableOrders: {
-    board: () =>
+    board: (options?: { force?: boolean }) =>
       getData<{
         items: Array<{
           tableId: string;
@@ -329,7 +341,7 @@ export const operationsApi = {
           lineCount: number;
           lastItemName: string | null;
         }>;
-      }>("/table-orders/board"),
+      }>("/table-orders/board", undefined, options),
     createSession: (data: { tableId: string }) =>
       mutate<TableOrderSessionDetail>("post", "/table-orders/sessions", data),
     getSession: (id: string) =>
@@ -960,6 +972,16 @@ export const operationsApi = {
             menuAccess?: Array<{ menu: { code: string; name: string } }>;
           }>
         >("/users/staff", params),
+      disable: (id: string) => mutate("patch", `/users/staff/${id}/disable`),
+      enable: (id: string) => mutate("patch", `/users/staff/${id}/enable`),
+      remove: (id: string) => mutate("delete", `/users/staff/${id}`),
+    },
+  },
+  cafes: {
+    admin: {
+      disable: (cafeId: string) => mutate("patch", `/cafes/${cafeId}/admin/disable`),
+      enable: (cafeId: string) => mutate("patch", `/cafes/${cafeId}/admin/enable`),
+      remove: (cafeId: string) => mutate("delete", `/cafes/${cafeId}/admin`),
     },
   },
   sales: {

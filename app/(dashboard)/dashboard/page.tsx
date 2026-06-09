@@ -29,7 +29,11 @@ export default function DashboardPage() {
   const user = useAppSelector((state) => state.auth.user);
   const [cafePageSize, setCafePageSize] = useState<PageSizeOption>(DEFAULT_PAGE_SIZE);
   const [cafePage, setCafePage] = useState(1);
-  const { apMetrics, arMetrics, stockAlerts } = useAppSelector((state) => state.dashboard);
+  const { apMetrics, arMetrics, stockAlerts, cafeAdminDashboardStatus } = useAppSelector(
+    (state) => state.dashboard,
+  );
+  const metricsLoading = cafeAdminDashboardStatus === "loading";
+  const metricsError = cafeAdminDashboardStatus === "error";
 
   useEffect(() => {
     if (!user?.role || user.role === "SUPER_ADMIN") {
@@ -210,22 +214,46 @@ export default function DashboardPage() {
           [
             {
               title: "Outstanding bills",
-              value: apMetrics ? formatMoney(apMetrics.outstandingBillsAmount) : "—",
+              value: metricsLoading
+                ? "Loading..."
+                : metricsError
+                  ? "Unavailable"
+                  : apMetrics
+                    ? formatMoney(apMetrics.outstandingBillsAmount)
+                    : "—",
               href: "/bill-settlement?hasOutstanding=true",
             },
             {
               title: "Overdue bills",
-              value: apMetrics ? formatMoney(apMetrics.overdueBillsAmount) : "—",
+              value: metricsLoading
+                ? "Loading..."
+                : metricsError
+                  ? "Unavailable"
+                  : apMetrics
+                    ? formatMoney(apMetrics.overdueBillsAmount)
+                    : "—",
               href: "/bill-settlement?hasOutstanding=true",
             },
             {
               title: "Suppliers with dues",
-              value: apMetrics ? String(apMetrics.suppliersWithOutstandingCount) : "—",
+              value: metricsLoading
+                ? "Loading..."
+                : metricsError
+                  ? "Unavailable"
+                  : apMetrics
+                    ? String(apMetrics.suppliersWithOutstandingCount)
+                    : "—",
               href: "/bill-settlement?hasOutstanding=true",
             },
             {
               title: "Due this week",
-              value: apMetrics ? formatMoney(apMetrics.billsDueThisWeekAmount) : "—",
+              value: metricsLoading
+                ? "Loading..."
+                : metricsError
+                  ? "Unavailable"
+                  : apMetrics
+                    ? formatMoney(apMetrics.billsDueThisWeekAmount)
+                    : "—",
               href: "/bill-settlement?activeVendors=true",
             },
           ] as const
@@ -254,24 +282,46 @@ export default function DashboardPage() {
             [
               {
                 title: "Total outstanding",
-                value: arMetrics ? formatMoney(arMetrics.totalOutstanding) : "—",
+                value: metricsLoading
+                  ? "Loading..."
+                  : metricsError
+                    ? "Unavailable"
+                    : arMetrics
+                      ? formatMoney(arMetrics.totalOutstanding)
+                      : "—",
                 href: "/customer-receivables?hasOutstanding=true",
               },
               {
                 title: "Customers with credit",
-                value: arMetrics ? String(arMetrics.customersWithCreditCount) : "—",
+                value: metricsLoading
+                  ? "Loading..."
+                  : metricsError
+                    ? "Unavailable"
+                    : arMetrics
+                      ? String(arMetrics.customersWithCreditCount)
+                      : "—",
                 href: "/customer-receivables?hasOutstanding=true",
               },
               {
                 title: "Overdue credits",
-                value: arMetrics ? formatMoney(arMetrics.overdueCreditsAmount) : "—",
+                value: metricsLoading
+                  ? "Loading..."
+                  : metricsError
+                    ? "Unavailable"
+                    : arMetrics
+                      ? formatMoney(arMetrics.overdueCreditsAmount)
+                      : "—",
                 href: "/customer-receivables",
               },
               {
                 title: "Top credit customer",
-                value: arMetrics?.topCreditCustomers[0]
-                  ? arMetrics.topCreditCustomers[0].name
-                  : "—",
+                value: metricsLoading
+                  ? "Loading..."
+                  : metricsError
+                    ? "Unavailable"
+                    : arMetrics?.topCreditCustomers[0]
+                      ? arMetrics.topCreditCustomers[0].name
+                      : "—",
                 href: arMetrics?.topCreditCustomers[0]
                   ? `/customer-receivables/${arMetrics.topCreditCustomers[0].id}`
                   : "/customer-receivables",

@@ -1,0 +1,25 @@
+@media print {
+  body.qr-print-active * {
+    visibility: hidden !important;
+  }
+
+  body.qr-print-active .qr-print-sheet,
+  body.qr-print-active .qr-print-sheet * {
+    visibility: visible !important;
+  }
+
+  body.qr-print-active .qr-print-sheet {
+    position: fixed !important;
+    inset: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: #fff !important;
+    padding: 12mm !important;
+  }
+}
+
+@page {
+  size: A5 portrait;
+  margin: 12mm;
+}

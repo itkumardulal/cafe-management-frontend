@@ -83,13 +83,18 @@ api.interceptors.response.use(
     try {
       await refreshingPromise;
       return api(originalRequest as AxiosRequestConfig);
-    } catch {
+    } catch (refreshError) {
       const { redirectToHomeAfterSessionExpired } = await import(
         "@/src/lib/session-auth"
       );
-      await redirectToHomeAfterSessionExpired(
-        "Your session has expired. Please sign in again.",
-      );
+      const { ACCOUNT_DEACTIVATED_MESSAGE } = await import("@/src/lib/auth-messages");
+      const { getApiErrorMessage } = await import("@/src/lib/api-error");
+      const refreshMessage = getApiErrorMessage(refreshError, "");
+      const sessionMessage =
+        refreshMessage === ACCOUNT_DEACTIVATED_MESSAGE
+          ? ACCOUNT_DEACTIVATED_MESSAGE
+          : "Your session has expired. Please sign in again.";
+      await redirectToHomeAfterSessionExpired(sessionMessage);
       return Promise.reject(error);
     }
   },

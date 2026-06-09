@@ -11,6 +11,7 @@ import {
 type ReportDataTableProps = {
   headers: TableHeader[];
   children: ReactNode;
+  footer?: ReactNode;
   mobileCards?: ReactNode;
   className?: string;
 };
@@ -18,6 +19,7 @@ type ReportDataTableProps = {
 export function ReportDataTable({
   headers,
   children,
+  footer,
   mobileCards,
   className,
 }: ReportDataTableProps) {
@@ -30,6 +32,7 @@ export function ReportDataTable({
       >
         <ResponsiveTable variant="embedded" headers={headers} horizontalScroll={false}>
           {children}
+          {footer}
         </ResponsiveTable>
       </Card>
     </div>

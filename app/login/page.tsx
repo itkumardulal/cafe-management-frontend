@@ -19,6 +19,7 @@ import { Input } from "@/src/components/ui/input";
 import { appToast } from "@/src/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
 import { loginThunk, logoutThunk, clearSessionExpired, type LoginRejectPayload } from "@/src/store/slices/auth.slice";
+import { clearCsrfCookie } from "@/src/lib/clear-csrf-cookie";
 import { resetSessionRedirectGuard } from "@/src/lib/session-auth";
 
 const LOGIN_LOCK_KEY = "auth:login-lock-until";
@@ -62,6 +63,7 @@ function LoginForm() {
 
   useEffect(() => {
     resetSessionRedirectGuard();
+    clearCsrfCookie();
     dispatch(clearSessionExpired());
   }, [dispatch]);
 

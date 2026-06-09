@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "../src/features/printing/styles/thermal-print.css";
 
 /*
  * Design contract: tokens and responsive matrix are locked in
@@ -547,41 +548,3 @@
   }
 }
 
-/* Raw material purchase receipt — print only the receipt host */
-@media print {
-  body * {
-    visibility: hidden;
-  }
-
-  #rm-purchase-print-host,
-  #rm-purchase-print-host * {
-    visibility: visible;
-  }
-
-  #rm-purchase-print-host {
-    position: fixed;
-    inset: 0;
-    z-index: 999999;
-    display: flex !important;
-    align-items: flex-start;
-    justify-content: center;
-    background: #fff;
-    padding: 1rem;
-  }
-
-  #pos-sale-print-host,
-  #pos-sale-print-host * {
-    visibility: visible;
-  }
-
-  #pos-sale-print-host {
-    position: fixed;
-    inset: 0;
-    z-index: 999999;
-    display: flex !important;
-    align-items: flex-start;
-    justify-content: center;
-    background: #fff;
-    padding: 1rem;
-  }
-}

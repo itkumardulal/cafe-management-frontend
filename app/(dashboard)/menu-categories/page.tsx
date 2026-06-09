@@ -28,11 +28,13 @@ import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { cn } from "@/src/lib/cn";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { appToast } from "@/src/lib/toast";
+import { DigitalMenuQrCard } from "@/src/components/admin/digital-menu-qr-card";
+import { NumberInput } from "@/src/components/ui/number-input";
 import { operationsApi } from "@/src/services/operations-api";
 import { useAppDispatch } from "@/src/store/hooks";
 import { invalidateMenuCategoryOptions } from "@/src/store/slices/reference-data.slice";
 
-type Category = { id: string; name: string; menuItemCount: number };
+type Category = { id: string; name: string; sortOrder: number; menuItemCount: number };
 
 function MenuCategoriesContent() {
   const dispatch = useAppDispatch();
@@ -58,13 +60,14 @@ function MenuCategoriesContent() {
   } = usePaginatedList<Category>({
     queryKey: "menu-categories",
     fetchFn: (p) => operationsApi.menuCategories.list(p),
-    defaultSort: { sortBy: "name", sortOrder: "asc" },
+    defaultSort: { sortBy: "sortOrder", sortOrder: "asc" },
     errorMessage: "Failed to load categories",
   });
 
   const [catModal, setCatModal] = useState<"create" | "edit" | null>(null);
   const [editCat, setEditCat] = useState<Category | null>(null);
   const [catName, setCatName] = useState("");
+  const [catSortOrder, setCatSortOrder] = useState("0");
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -72,11 +75,13 @@ function MenuCategoriesContent() {
     setCatModal("create");
     setEditCat(null);
     setCatName("");
+    setCatSortOrder("0");
   };
 
   const openEdit = (cat: Category) => {
     setEditCat(cat);
     setCatName(cat.name);
+    setCatSortOrder(String(cat.sortOrder ?? 0));
     setCatModal("edit");
   };
 
@@ -110,15 +115,23 @@ function MenuCategoriesContent() {
 
   const saveCategory = async () => {
     try {
+      const sortOrder = Math.max(0, Number.parseInt(catSortOrder, 10) || 0);
       if (catModal === "edit" && editCat) {
-        await operationsApi.menuCategories.update(editCat.id, catName.trim());
+        await operationsApi.menuCategories.update(editCat.id, {
+          name: catName.trim(),
+          sortOrder,
+        });
         appToast.success("Category updated");
       } else {
-        await operationsApi.menuCategories.create(catName.trim());
+        await operationsApi.menuCategories.create({
+          name: catName.trim(),
+          sortOrder,
+        });
         appToast.success("Category created");
       }
       setCatModal(null);
       setCatName("");
+      setCatSortOrder("0");
       await refetch();
       dispatch(invalidateMenuCategoryOptions());
     } catch (error) {
@@ -138,6 +151,8 @@ function MenuCategoriesContent() {
         }
       />
 
+      <DigitalMenuQrCard />
+
       <PaginatedListSection
         loading={loading}
         isFetching={isFetching}
@@ -149,7 +164,7 @@ function MenuCategoriesContent() {
         searchPlaceholder={searchPlaceholder}
         isSearching={isSearching}
         searchResultSummary={searchResultSummary}
-        tableColumns={3}
+        tableColumns={4}
         emptyTitle="No Menu Categories Found"
         emptyDescription="Create your first menu category to organize menu items."
         emptyIcon={Tags}
@@ -167,6 +182,7 @@ function MenuCategoriesContent() {
         mobileSort={
           <MobileSortSelect
             options={[
+              { label: "Sort order", sortBy: "sortOrder", sortOrder: "asc" },
               { label: "Name (A–Z)", sortBy: "name", sortOrder: "asc" },
               { label: "Name (Z–A)", sortBy: "name", sortOrder: "desc" },
             ]}
@@ -182,6 +198,7 @@ function MenuCategoriesContent() {
                 key={cat.id}
                 title={cat.name}
                 fields={[
+                  { label: "Sort order", value: String(cat.sortOrder ?? 0) },
                   {
                     label: "Menu items",
                     value: `${cat.menuItemCount} item${cat.menuItemCount === 1 ? "" : "s"}`,
@@ -214,6 +231,19 @@ function MenuCategoriesContent() {
                   />
                 ),
               },
+              {
+                label: "Sort order",
+                headerContent: (
+                  <SortableTableHeader
+                    label="Sort order"
+                    sortKey="sortOrder"
+                    currentSortBy={params.sortBy}
+                    currentSortOrder={params.sortOrder}
+                    onSort={toggleSort}
+                  />
+                ),
+                thClassName: tableCenterColumnClass,
+              },
               { label: "Menu items", thClassName: tableCenterColumnClass },
               {
                 label: "Actions",
@@ -227,6 +257,9 @@ function MenuCategoriesContent() {
             {categories.map((cat) => (
               <tr key={cat.id} className="border-t border-[var(--color-border)] last:border-b-0">
                 <td className="px-4 py-3.5 text-sm font-medium text-foreground">{cat.name}</td>
+                <td className={cn("px-4 py-3.5 text-sm text-muted", tableCenterCellClass)}>
+                  {cat.sortOrder ?? 0}
+                </td>
                 <td className={cn("px-4 py-3.5 text-sm text-muted", tableCenterCellClass)}>{cat.menuItemCount}</td>
                 <td className="px-4 py-3.5">
                   <div className={tableActionsCellClass}>
@@ -283,6 +316,20 @@ function MenuCategoriesContent() {
           <Field id="catName" label="Name" required>
             <Input value={catName} onChange={(e) => setCatName(e.target.value)} placeholder="e.g. Momos" />
           </Field>
+          <Field
+            id="catSortOrder"
+            label="Sort order"
+            hint="Lower numbers appear first on the customer menu"
+          >
+            <NumberInput
+              value={catSortOrder}
+              onValueChange={setCatSortOrder}
+              decimals={0}
+              allowNegative={false}
+              min={0}
+              placeholder="0"
+            />
+          </Field>
           <FormFooter>
             <Button type="button" variant="secondary" onClick={() => setCatModal(null)}>
               Cancel
@@ -301,7 +348,7 @@ function MenuCategoriesFallback() {
   return (
     <div className="space-y-4">
       <CardListSkeleton />
-      <TableSkeleton columns={3} className="hidden md:block" />
+      <TableSkeleton columns={4} className="hidden md:block" />
       <PaginationSkeleton />
     </div>
   );
