@@ -1,0 +1,9 @@
+# Netlify deploy: set "Base directory" to `frontend` in the Netlify UI.
+# Proxies /api/* to Railway so auth cookies are set on the Netlify domain
+# (required for middleware cookie checks on protected routes like /dashboard).
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://cafe-management-backend-production.up.railway.app/api/:splat"
+  status = 200
+  force = true
