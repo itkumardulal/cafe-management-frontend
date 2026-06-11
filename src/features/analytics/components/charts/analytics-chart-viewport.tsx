@@ -48,3 +48,4 @@ export function AnalyticsChartViewport({ children, className }: AnalyticsChartVi
     </div>
   );
 }
+
