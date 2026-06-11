@@ -20,6 +20,7 @@ import { PurchasePaymentTypeSection } from "@/src/components/purchases/purchase-
 import { PaymentStatusBadge } from "@/src/components/purchases/ap-status-badges";
 import { SortableTableHeader } from "@/src/components/ui/sortable-table-header";
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
+import { useUploadEntityId } from "@/src/hooks/use-upload-entity-id";
 import { ViewModalSkeleton } from "@/src/components/skeletons/view-modal-skeleton";
 import { PaginationSkeleton } from "@/src/components/skeletons/pagination-skeleton";
 import { TableSkeleton } from "@/src/components/skeletons/table-skeleton";
@@ -167,7 +168,7 @@ function DirectPurchasesContent() {
   const [payRemarks, setPayRemarks] = useState("");
   const [bankScreenshotUrl, setBankScreenshotUrl] = useState("");
   const [bankScreenshotUploading, setBankScreenshotUploading] = useState(false);
-  const [uploadEntityId, setUploadEntityId] = useState("");
+  const { entityId: uploadEntityId, resetForCreate: resetUploadEntityId } = useUploadEntityId();
   const [splitResultOpen, setSplitResultOpen] = useState(false);
   const [createdBills, setCreatedBills] = useState<
     { id: string; supplierId?: string | null; receiptNo: string; supplierName?: string | null }[]
@@ -237,7 +238,7 @@ function DirectPurchasesContent() {
 
   const openCreate = () => {
     resetFormState();
-    setUploadEntityId(crypto.randomUUID());
+    resetUploadEntityId();
     setOpen(true);
   };
 
@@ -1197,7 +1198,6 @@ function DirectPurchasesContent() {
                     module="direct-purchases"
                     entityId={uploadEntityId}
                     dropTitle="Drop screenshot here"
-                    recommendedSize="PNG or JPG, max 5MB"
                     previewAlt="Bank transfer proof preview"
                     uploadedLabel="Proof attached"
                     onUploadingChange={setBankScreenshotUploading}

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState } from "react";
+import { useUploadEntityId } from "@/src/hooks/use-upload-entity-id";
 import { ArrowLeftRight } from "lucide-react";
 import { ImageUploadField } from "@/src/components/shared/image-upload-field";
 import { DateRangeFilter } from "@/src/components/shared/date-range-filter";
@@ -140,7 +141,8 @@ function BankTransactionsContent() {
   const [deleteTarget, setDeleteTarget] = useState<TransactionRow | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState(emptyForm);
-  const [uploadEntityId, setUploadEntityId] = useState("");
+  const { entityId: uploadEntityId, resetForCreate: resetUploadEntityId, setForEdit: setUploadEntityForEdit } =
+    useUploadEntityId();
   const [proofUploading, setProofUploading] = useState(false);
 
   const loadBankAccounts = useCallback(async () => {
@@ -195,7 +197,7 @@ function BankTransactionsContent() {
       transactionDate: new Date().toISOString().slice(0, 10),
       bankAccountId: bankAccounts[0]?.id ?? "",
     });
-    setUploadEntityId(crypto.randomUUID());
+    resetUploadEntityId();
     setProofUploading(false);
     setOpen(true);
   };
@@ -211,7 +213,7 @@ function BankTransactionsContent() {
       proofAttachmentUrl: row.proofAttachmentUrl ?? "",
       notes: row.notes ?? "",
     });
-    setUploadEntityId(row.id);
+    setUploadEntityForEdit(row.id);
     setProofUploading(false);
     setOpen(true);
   };
@@ -763,7 +765,6 @@ function BankTransactionsContent() {
             module="bank-transactions"
             entityId={uploadEntityId}
             dropTitle="Drop voucher or screenshot here"
-            recommendedSize="PNG or JPG, max 5MB"
             previewAlt="Bank voucher preview"
             uploadedLabel="Voucher attached"
             onUploadingChange={setProofUploading}

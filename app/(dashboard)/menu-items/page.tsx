@@ -23,6 +23,7 @@ import { CardListSkeleton } from "@/src/components/skeletons/card-list-skeleton"
 import { PaginationSkeleton } from "@/src/components/skeletons/pagination-skeleton";
 import { TableSkeleton } from "@/src/components/skeletons/table-skeleton";
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
+import { useUploadEntityId } from "@/src/hooks/use-upload-entity-id";
 import { cn } from "@/src/lib/cn";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { appToast } from "@/src/lib/toast";
@@ -119,7 +120,8 @@ function MenuItemsContent() {
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
-  const [imageUploadEntityId, setImageUploadEntityId] = useState("");
+  const { entityId: imageUploadEntityId, resetForCreate: resetImageUploadEntityId, setForEdit: setImageUploadEntityForEdit } =
+    useUploadEntityId();
   const [form, setForm] = useState(emptyForm);
   const [linkOptions, setLinkOptions] = useState<
     Array<{
@@ -190,7 +192,7 @@ function MenuItemsContent() {
 
   const openCreate = () => {
     setEditId(null);
-    setImageUploadEntityId(crypto.randomUUID());
+    resetImageUploadEntityId();
     setForm(emptyForm);
     setLinkOptions([]);
     setOpen(true);
@@ -198,7 +200,7 @@ function MenuItemsContent() {
 
   const openEdit = (item: MenuItemRow) => {
     setEditId(item.id);
-    setImageUploadEntityId(item.id);
+    setImageUploadEntityForEdit(item.id);
     setForm({
       menuCategoryId: item.menuCategoryId,
       name: item.name,
@@ -780,7 +782,6 @@ function MenuItemsContent() {
               id="itemImage"
               label="Item image"
               required
-              hint="PNG, JPG, or JPEG, max 5MB"
               value={form.imageUrl}
               onChange={(url) => setForm((f) => ({ ...f, imageUrl: url }))}
               assetType="module"

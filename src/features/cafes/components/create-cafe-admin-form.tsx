@@ -33,6 +33,7 @@ export function CreateCafeAdminForm({ onSuccess, onCancel }: CreateCafeAdminForm
   const [logoPreview, setLogoPreview] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
   const {
     register,
     handleSubmit,
@@ -124,7 +125,6 @@ export function CreateCafeAdminForm({ onSuccess, onCancel }: CreateCafeAdminForm
           id="logoUpload"
           label="Cafe logo"
           error={errors.logo?.message}
-          hint="Upload PNG, JPG, or JPEG up to 5MB"
           className="sm:col-span-2"
           value={logoPreview}
           onChange={(url) => {
@@ -135,6 +135,7 @@ export function CreateCafeAdminForm({ onSuccess, onCancel }: CreateCafeAdminForm
           dropTitle="Drag & drop logo here"
           previewAlt="Cafe logo preview"
           uploadedLabel="Logo uploaded"
+          onUploadingChange={setLogoUploading}
         />
         <input type="hidden" {...register("logo")} />
       </div>
@@ -181,10 +182,10 @@ export function CreateCafeAdminForm({ onSuccess, onCancel }: CreateCafeAdminForm
       </div>
 
       <FormFooter>
-        <Button type="button" variant="secondary" onClick={closeAndReset} disabled={submitting}>
+        <Button type="button" variant="secondary" onClick={closeAndReset} disabled={submitting || logoUploading}>
           Cancel
         </Button>
-        <Button type="submit" loading={submitting}>
+        <Button type="submit" loading={submitting} disabled={logoUploading}>
           Create cafe admin
         </Button>
       </FormFooter>
