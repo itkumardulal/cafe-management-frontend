@@ -10,7 +10,7 @@ import { Card } from "@/src/components/ui/card";
 import { EmptyState } from "@/src/components/ui/empty-state";
 import { Pagination } from "@/src/components/ui/pagination";
 import { Select } from "@/src/components/ui/select";
-import { formatMoney } from "@/src/lib/format-display";
+import { CafeAnalyticsDashboard } from "@/src/features/analytics/components/cafe-analytics-dashboard";
 import { DEFAULT_PAGE_SIZE, getStoredPageSize, setStoredPageSize, type PageSizeOption } from "@/src/lib/pagination-storage";
 import { appToast } from "@/src/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
@@ -19,35 +19,19 @@ import {
   fetchManagedCafesThunk,
   setCafe,
 } from "@/src/store/slices/cafe.slice";
-import {
-  fetchCafeAdminDashboardThunk,
-  fetchStockAlertsThunk,
-} from "@/src/store/slices/dashboard.slice";
 
 export default function DashboardPage() {
   const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
   const [cafePageSize, setCafePageSize] = useState<PageSizeOption>(DEFAULT_PAGE_SIZE);
   const [cafePage, setCafePage] = useState(1);
-  const { apMetrics, arMetrics, stockAlerts, cafeAdminDashboardStatus } = useAppSelector(
-    (state) => state.dashboard,
-  );
-  const metricsLoading = cafeAdminDashboardStatus === "loading";
-  const metricsError = cafeAdminDashboardStatus === "error";
-
-  useEffect(() => {
-    if (!user?.role || user.role === "SUPER_ADMIN") {
-      return;
-    }
-    void dispatch(fetchCafeAdminDashboardThunk());
-    void dispatch(fetchStockAlertsThunk());
-  }, [dispatch, user?.role]);
   const {
     selectedCafeId,
     managedCafes,
     selectedCafeOverview,
     managedCafesStatus,
     overviewStatus,
+    overviewLoadedCafeId,
   } = useAppSelector((state) => state.cafe);
   const loading =
     (managedCafesStatus === "loading" && managedCafes.length === 0) ||
@@ -100,9 +84,31 @@ export default function DashboardPage() {
     if (!selectedCafeId || user?.role !== "SUPER_ADMIN") {
       return;
     }
-    void dispatch(fetchCafeOverviewThunk(selectedCafeId))
-      .unwrap()
-      .catch(() => appToast.error("Failed to load cafe overview"));
+    const overviewCached =
+      overviewStatus === "loaded" &&
+      overviewLoadedCafeId === selectedCafeId &&
+      selectedCafeOverview !== null;
+    if (overviewCached) {
+      return;
+    }
+
+    let cancelled = false;
+    void dispatch(fetchCafeOverviewThunk(selectedCafeId)).then((result) => {
+      if (cancelled) {
+        return;
+      }
+      if (
+        fetchCafeOverviewThunk.rejected.match(result) &&
+        !result.meta.aborted &&
+        !result.meta.condition
+      ) {
+        appToast.error(result.payload ?? "Failed to load cafe overview");
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [dispatch, selectedCafeId, user?.role]);
 
   if (user?.role === "SUPER_ADMIN") {
@@ -200,188 +206,5 @@ export default function DashboardPage() {
     );
   }
 
-  return (
-    <section className="page-shell page-content">
-      <div className="space-y-1">
-        <h1 className="heading-display text-foreground">Dashboard</h1>
-        <p className="text-muted sm:text-base">
-          Logged in as <span className="font-medium">{user?.fullName}</span> ({user?.role})
-        </p>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {(
-          [
-            {
-              title: "Outstanding bills",
-              value: metricsLoading
-                ? "Loading..."
-                : metricsError
-                  ? "Unavailable"
-                  : apMetrics
-                    ? formatMoney(apMetrics.outstandingBillsAmount)
-                    : "—",
-              href: "/bill-settlement?hasOutstanding=true",
-            },
-            {
-              title: "Overdue bills",
-              value: metricsLoading
-                ? "Loading..."
-                : metricsError
-                  ? "Unavailable"
-                  : apMetrics
-                    ? formatMoney(apMetrics.overdueBillsAmount)
-                    : "—",
-              href: "/bill-settlement?hasOutstanding=true",
-            },
-            {
-              title: "Suppliers with dues",
-              value: metricsLoading
-                ? "Loading..."
-                : metricsError
-                  ? "Unavailable"
-                  : apMetrics
-                    ? String(apMetrics.suppliersWithOutstandingCount)
-                    : "—",
-              href: "/bill-settlement?hasOutstanding=true",
-            },
-            {
-              title: "Due this week",
-              value: metricsLoading
-                ? "Loading..."
-                : metricsError
-                  ? "Unavailable"
-                  : apMetrics
-                    ? formatMoney(apMetrics.billsDueThisWeekAmount)
-                    : "—",
-              href: "/bill-settlement?activeVendors=true",
-            },
-          ] as const
-        ).map((item, index) => (
-          <motion.div
-            key={item.title}
-            className="h-full"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.05 }}
-          >
-            <Link href={item.href} className="block h-full">
-              <Card density="compact" className="flex h-full flex-col space-y-2 transition-shadow hover:shadow-md">
-                <p className="text-xs uppercase tracking-wide text-subtle">{item.title}</p>
-                <p className="text-2xl font-semibold text-foreground tabular-nums">{item.value}</p>
-              </Card>
-            </Link>
-          </motion.div>
-        ))}
-      </div>
-
-      <div className="space-y-2">
-        <h2 className="text-sm font-semibold text-foreground">Customer receivables</h2>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {(
-            [
-              {
-                title: "Total outstanding",
-                value: metricsLoading
-                  ? "Loading..."
-                  : metricsError
-                    ? "Unavailable"
-                    : arMetrics
-                      ? formatMoney(arMetrics.totalOutstanding)
-                      : "—",
-                href: "/customer-receivables?hasOutstanding=true",
-              },
-              {
-                title: "Customers with credit",
-                value: metricsLoading
-                  ? "Loading..."
-                  : metricsError
-                    ? "Unavailable"
-                    : arMetrics
-                      ? String(arMetrics.customersWithCreditCount)
-                      : "—",
-                href: "/customer-receivables?hasOutstanding=true",
-              },
-              {
-                title: "Overdue credits",
-                value: metricsLoading
-                  ? "Loading..."
-                  : metricsError
-                    ? "Unavailable"
-                    : arMetrics
-                      ? formatMoney(arMetrics.overdueCreditsAmount)
-                      : "—",
-                href: "/customer-receivables",
-              },
-              {
-                title: "Top credit customer",
-                value: metricsLoading
-                  ? "Loading..."
-                  : metricsError
-                    ? "Unavailable"
-                    : arMetrics?.topCreditCustomers[0]
-                      ? arMetrics.topCreditCustomers[0].name
-                      : "—",
-                href: arMetrics?.topCreditCustomers[0]
-                  ? `/customer-receivables/${arMetrics.topCreditCustomers[0].id}`
-                  : "/customer-receivables",
-              },
-            ] as const
-          ).map((item, index) => (
-            <motion.div
-              key={item.title}
-              className="h-full"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 + index * 0.05 }}
-            >
-              <Link href={item.href} className="block h-full">
-                <Card
-                  density="compact"
-                  className="flex h-full flex-col space-y-2 transition-shadow hover:shadow-md"
-                >
-                  <p className="text-xs uppercase tracking-wide text-subtle">{item.title}</p>
-                  <p className="text-lg font-semibold text-foreground tabular-nums">{item.value}</p>
-                  {item.title === "Top credit customer" &&
-                  arMetrics?.topCreditCustomers[0] ? (
-                    <p className="text-xs text-muted font-mono tabular-nums">
-                      {formatMoney(arMetrics.topCreditCustomers[0].outstandingAmount)}
-                    </p>
-                  ) : null}
-                </Card>
-              </Link>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-
-      {stockAlerts && stockAlerts.counts.low + stockAlerts.counts.out > 0 ? (
-        <Card density="comfortable" className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-foreground">Low stock</h2>
-            <Link href="/inventory?filter=low" className="text-sm text-[var(--color-primary)] hover:underline">
-              View inventory
-            </Link>
-          </div>
-          <p className="text-sm text-muted">
-            {stockAlerts.counts.out} out of stock, {stockAlerts.counts.low} running low
-          </p>
-          <ul className="space-y-1 text-sm">
-            {stockAlerts.low.map((item) => (
-              <li key={`${item.kind}-${item.id}`} className="flex justify-between gap-2">
-                <span>
-                  {item.name}
-                  <span className="ml-1 text-xs text-muted">
-                    ({item.kind === "INVENTORY" ? "Inventory" : "Menu"})
-                  </span>
-                </span>
-                <span className="tabular-nums text-muted">{item.quantityOnHand}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      ) : null}
-
-    </section>
-  );
+  return <CafeAnalyticsDashboard />;
 }

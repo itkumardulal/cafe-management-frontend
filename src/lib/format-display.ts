@@ -13,8 +13,21 @@ export function formatMoney(value: number | string | null | undefined) {
   return `Rs ${formatted}`;
 }
 
-export function formatDateOnly(isoOrDate: string | null | undefined) {
+export function formatDateOnly(isoOrDate: string | Date | null | undefined) {
   if (isoOrDate == null || isoOrDate === "") {
+    return "—";
+  }
+  if (isoOrDate instanceof Date) {
+    if (Number.isNaN(isoOrDate.getTime())) {
+      return "—";
+    }
+    return isoOrDate.toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  }
+  if (typeof isoOrDate !== "string") {
     return "—";
   }
   const d = new Date(isoOrDate.includes("T") ? isoOrDate : `${isoOrDate}T12:00:00`);

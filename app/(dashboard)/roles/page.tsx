@@ -27,7 +27,7 @@ import {
 } from "@/src/components/ui/table";
 import { PermissionChips } from "@/src/features/users/components/permission-chips";
 import { PermissionsPicker } from "@/src/features/users/components/permissions-picker";
-import { ensureRequiredPermission } from "@/src/features/users/lib/permissions.config";
+import { normalizePermissionCodes } from "@/src/features/users/lib/permissions.config";
 import {
   staffRoleSchema,
   type StaffRoleSchemaType,
@@ -84,11 +84,11 @@ function StaffRolesContent() {
     defaultValues: {
       name: "",
       description: "",
-      accessMenuCodes: ["DASHBOARD"],
+      accessMenuCodes: [],
     },
   });
 
-  const accessMenuCodes = watch("accessMenuCodes") ?? ["DASHBOARD"];
+  const accessMenuCodes = watch("accessMenuCodes") ?? [];
 
   useEffect(() => {
     if (authUser?.role === "CAFE_ADMIN") {
@@ -127,12 +127,12 @@ function StaffRolesContent() {
     setModalOpen(false);
     setEditing(null);
     setMenusChanged(false);
-    reset({ name: "", description: "", accessMenuCodes: ["DASHBOARD"] });
+    reset({ name: "", description: "", accessMenuCodes: [] });
   };
 
   const openCreate = () => {
     setEditing(null);
-    reset({ name: "", description: "", accessMenuCodes: ["DASHBOARD"] });
+    reset({ name: "", description: "", accessMenuCodes: [] });
     setMenusChanged(false);
     setModalOpen(true);
   };
@@ -143,7 +143,7 @@ function StaffRolesContent() {
     reset({
       name: role.name,
       description: role.description ?? "",
-      accessMenuCodes: ensureRequiredPermission(codes),
+      accessMenuCodes: normalizePermissionCodes(codes),
     });
     setMenusChanged(false);
     setModalOpen(true);
@@ -154,7 +154,7 @@ function StaffRolesContent() {
     const payload = {
       name: values.name.trim(),
       description: values.description?.trim() || undefined,
-      accessMenuCodes: ensureRequiredPermission(values.accessMenuCodes ?? []),
+      accessMenuCodes: normalizePermissionCodes(values.accessMenuCodes ?? []),
     };
 
     try {
@@ -415,6 +415,7 @@ function StaffRolesContent() {
             <PermissionsPicker
               menus={assignableMenus}
               value={accessMenuCodes}
+              description="Pick sidebar areas for this role. Dashboard is optional — not every staff member needs analytics access."
               onChange={(codes) => {
                 setMenusChanged(true);
                 setValue("accessMenuCodes", codes, { shouldDirty: true, shouldValidate: true });

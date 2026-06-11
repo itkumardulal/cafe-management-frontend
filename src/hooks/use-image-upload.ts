@@ -93,10 +93,7 @@ export function useImageUpload(params: UseImageUploadParams) {
         return;
       }
 
-      if (
-        params.assetType === "module" &&
-        (!params.module || !params.entityId)
-      ) {
+      if (params.assetType === "module" && !params.module) {
         setStatus("error");
         setErrorMessage(IMAGE_UPLOAD_MESSAGES.sessionNotReady);
         setBusy(false);

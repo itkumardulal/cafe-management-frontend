@@ -1,7 +1,7 @@
 import { Badge } from "@/src/components/ui/badge";
 import { cn } from "@/src/lib/cn";
 import type { StaffMenuAccess } from "@/src/store/types/user.types";
-import { REQUIRED_PERMISSION_CODE } from "@/src/features/users/lib/permissions.config";
+import { DASHBOARD_PERMISSION_CODE } from "@/src/features/users/lib/permissions.config";
 
 type PermissionChipsProps = {
   menuAccess?: StaffMenuAccess[];
@@ -19,8 +19,8 @@ export function PermissionChips({
   }
 
   const sorted = [...menuAccess].sort((a, b) => {
-    if (a.menu.code === REQUIRED_PERMISSION_CODE) return -1;
-    if (b.menu.code === REQUIRED_PERMISSION_CODE) return 1;
+    if (a.menu.code === DASHBOARD_PERMISSION_CODE) return -1;
+    if (b.menu.code === DASHBOARD_PERMISSION_CODE) return 1;
     return a.menu.name.localeCompare(b.menu.name);
   });
 

@@ -40,10 +40,10 @@ function dispatchReduxInvalidations(path: string) {
     invalidateSellableCatalog,
     invalidateStockRemovalRefs,
   } = require("@/src/store/slices/reference-data.slice") as typeof import("@/src/store/slices/reference-data.slice");
-  const {
-    invalidateCafeAdminDashboard,
-    invalidateStockAlerts,
-  } = require("@/src/store/slices/dashboard.slice") as typeof import("@/src/store/slices/dashboard.slice");
+  const { invalidateStockAlerts } =
+    require("@/src/store/slices/dashboard.slice") as typeof import("@/src/store/slices/dashboard.slice");
+  const { invalidateAnalytics } =
+    require("@/src/store/slices/analytics.slice") as typeof import("@/src/store/slices/analytics.slice");
 
   if (
     path.startsWith("/menu-items") ||
@@ -60,10 +60,13 @@ function dispatchReduxInvalidations(path: string) {
     path.startsWith("/stock-removals") ||
     path.startsWith("/menu-items") ||
     path.startsWith("/raw-material-purchases") ||
-    path.startsWith("/direct-purchases")
+    path.startsWith("/direct-purchases") ||
+    path.startsWith("/expense") ||
+    path.startsWith("/customer-receivables")
   ) {
     store.dispatch(invalidateStockAlerts());
-    store.dispatch(invalidateCafeAdminDashboard());
+    store.dispatch(invalidateAnalytics());
+    invalidateGetCache("/analytics");
   }
 
   if (

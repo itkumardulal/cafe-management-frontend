@@ -29,11 +29,13 @@ export async function uploadImage(
   formData.append("assetType", params.assetType);
 
   if (params.assetType === "module") {
-    if (!params.module || !params.entityId) {
+    if (!params.module) {
       throw new Error(IMAGE_UPLOAD_MESSAGES.sessionNotReady);
     }
     formData.append("module", params.module);
-    formData.append("entityId", params.entityId);
+    if (params.entityId) {
+      formData.append("entityId", params.entityId);
+    }
   }
 
   if (params.assetType === "profile" && params.userId) {

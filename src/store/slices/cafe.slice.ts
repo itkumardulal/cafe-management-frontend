@@ -71,7 +71,11 @@ export const fetchCafeOverviewThunk = createAsyncThunk<
     if (overviewStatus === "loading" && overviewLoadedCafeId === cafeId) {
       return false;
     }
-    if (overviewStatus === "loaded" && overviewLoadedCafeId === cafeId) {
+    if (
+      overviewStatus === "loaded" &&
+      overviewLoadedCafeId === cafeId &&
+      getState().cafe.selectedCafeOverview
+    ) {
       return false;
     }
     return true;

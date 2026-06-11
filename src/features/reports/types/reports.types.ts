@@ -1,4 +1,12 @@
-export type ReportPeriodKey = "today" | "this_week" | "this_month" | "custom";
+export type ReportPeriodKey =
+  | "today"
+  | "yesterday"
+  | "last_7_days"
+  | "last_30_days"
+  | "this_week"
+  | "this_month"
+  | "last_month"
+  | "custom";
 
 export type ReportPeriodParams = {
   period?: ReportPeriodKey;

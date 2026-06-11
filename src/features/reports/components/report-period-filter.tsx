@@ -15,8 +15,11 @@ import {
 
 const PERIOD_OPTIONS: Array<{ key: ReportPeriodKey; label: string }> = [
   { key: "today", label: "Today" },
-  { key: "this_week", label: "This week" },
+  { key: "yesterday", label: "Yesterday" },
+  { key: "last_7_days", label: "Last 7 days" },
+  { key: "last_30_days", label: "Last 30 days" },
   { key: "this_month", label: "This month" },
+  { key: "last_month", label: "Last month" },
   { key: "custom", label: "Custom" },
 ];
 
@@ -161,7 +164,7 @@ export function ReportPeriodFilter({
 
   const segmented = (
     <div
-      className="inline-flex shrink-0 flex-wrap gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-cream-100)] p-1"
+      className="inline-flex max-w-full shrink-0 gap-1 overflow-x-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-cream-100)] p-1 sm:flex-wrap sm:overflow-x-visible"
       role="tablist"
       aria-label="Report period"
     >
@@ -172,7 +175,7 @@ export function ReportPeriodFilter({
           role="tab"
           aria-selected={activeTab === opt.key}
           className={cn(
-            "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+            "shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
             activeTab === opt.key
               ? "bg-[var(--color-surface)] text-[var(--color-foreground)] shadow-sm"
               : "text-[var(--color-muted)] hover:text-[var(--color-foreground)]",

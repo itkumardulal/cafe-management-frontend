@@ -138,14 +138,17 @@ function LoginForm() {
     }
     const payload = result.payload as LoginRejectPayload | undefined;
     if (payload?.status === 429) {
-      const lockMs = (payload.retryAfterSeconds ?? 900) * 1000;
+      const lockMs = (payload.retryAfterSeconds ?? 60) * 1000;
       const until = Date.now() + lockMs;
       if (typeof window !== "undefined") {
         window.localStorage.setItem(LOGIN_LOCK_KEY, String(until));
       }
       setLockUntilMs(until);
       setNowMs(Date.now());
-      const throttledMessage = `Too many requests. Sign in disabled for ${Math.ceil(lockMs / 60000)} minutes.`;
+      const throttledMessage =
+        lockMs >= 60_000
+          ? `Too many requests. Sign in disabled for ${Math.ceil(lockMs / 60000)} minutes.`
+          : `Too many requests. Sign in disabled for ${Math.ceil(lockMs / 1000)} seconds.`;
       appToast.error(throttledMessage);
       setApiError(throttledMessage);
       return;

@@ -25,6 +25,9 @@ import { operationsApi } from "@/src/services/operations-api";
 
 const FILTER_KEYS = ["hasOutstanding", "fullySettled", "activeCustomers"] as const;
 
+const actionLinkClass =
+  "inline-flex shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm font-medium text-[var(--color-foreground)] transition-colors hover:bg-[var(--color-cream-100)] hover:border-[var(--color-input)]";
+
 export default function CustomerReceivablesPage() {
   return (
     <section className="page-shell page-content space-y-4">
@@ -221,10 +224,8 @@ function CustomerReceivablesContent() {
                   },
                 ]}
                 actions={
-                  <Link href={`/customer-receivables/${row.id}`}>
-                    <Button type="button" size="sm" variant="secondary">
-                      View customer
-                    </Button>
+                  <Link href={`/customer-receivables/${row.id}`} className={actionLinkClass}>
+                    View customer
                   </Link>
                 }
               />
@@ -242,7 +243,7 @@ function CustomerReceivablesContent() {
             { label: "Paid", thClassName: tableCenterColumnClass },
             { label: "Open bills", thClassName: tableCenterColumnClass },
             "Last visit",
-            { label: "Actions", thClassName: tableActionsColumnClass },
+            { label: "Actions", thClassName: cn(tableActionsColumnClass, "w-[1%] whitespace-nowrap") },
           ]}
         >
           {items.map((row) => (
@@ -260,12 +261,12 @@ function CustomerReceivablesContent() {
               </td>
               <td className={tableCenterCellClass}>{row.creditBillsCount}</td>
               <td>{row.lastVisitAt ? formatDateOnly(row.lastVisitAt) : "—"}</td>
-              <td className={tableActionsCellClass}>
-                <Link href={`/customer-receivables/${row.id}`}>
-                  <Button type="button" size="sm" variant="secondary">
+              <td className="whitespace-nowrap px-4 py-3">
+                <div className={tableActionsCellClass}>
+                  <Link href={`/customer-receivables/${row.id}`} className={actionLinkClass}>
                     View
-                  </Button>
-                </Link>
+                  </Link>
+                </div>
               </td>
             </tr>
           ))}

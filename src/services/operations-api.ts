@@ -112,6 +112,21 @@ function buildReportApiParams(
   return buildReportQueryParams(params as import("@/src/features/reports/types/reports.types").ReportPeriodParams);
 }
 
+function buildAnalyticsApiParams(
+  params?: import("@/src/features/analytics/types/analytics.types").AnalyticsPeriodParams & {
+    cursor?: string;
+    limit?: number;
+  },
+): Record<string, string | undefined> {
+  const { buildAnalyticsQueryParams } =
+    require("@/src/features/analytics/types/analytics.types") as typeof import("@/src/features/analytics/types/analytics.types");
+  return {
+    ...buildAnalyticsQueryParams(params),
+    cursor: params?.cursor,
+    limit: params?.limit != null ? String(params.limit) : undefined,
+  };
+}
+
 export const operationsApi = {
   menuCategories: {
     list: (params?: ListQueryParams) =>
@@ -672,6 +687,23 @@ export const operationsApi = {
       getData<import("@/src/features/reports/types/reports.types").BankReport>(
         "/reports/banks",
         { ...buildReportApiParams(params), page: params?.page ?? 1, limit: params?.limit ?? 50 },
+      ),
+  },
+  analytics: {
+    overview: (params?: import("@/src/features/analytics/types/analytics.types").AnalyticsPeriodParams) =>
+      getData<import("@/src/features/analytics/types/analytics.types").AnalyticsOverview>(
+        "/analytics/overview",
+        buildAnalyticsApiParams(params),
+      ),
+    activityFeed: (
+      params?: import("@/src/features/analytics/types/analytics.types").AnalyticsPeriodParams & {
+        cursor?: string;
+        limit?: number;
+      },
+    ) =>
+      getData<import("@/src/features/analytics/types/analytics.types").AnalyticsActivityFeed>(
+        "/analytics/activity-feed",
+        buildAnalyticsApiParams(params),
       ),
   },
   dashboard: {

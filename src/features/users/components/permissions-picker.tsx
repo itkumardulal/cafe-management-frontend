@@ -5,8 +5,8 @@ import { cn } from "@/src/lib/cn";
 import type { AssignableMenu } from "@/src/store/types/user.types";
 import {
   buildGroupedMenus,
-  ensureRequiredPermission,
-  REQUIRED_PERMISSION_CODE,
+  DASHBOARD_PERMISSION_CODE,
+  normalizePermissionCodes,
 } from "@/src/features/users/lib/permissions.config";
 
 type PermissionsPickerProps = {
@@ -22,15 +22,12 @@ export function PermissionsPicker({
   value,
   onChange,
   className,
-  description = "Choose which sections appear in the sidebar for this role. Dashboard is always included.",
+  description = "Choose which sections appear in the sidebar for this role. Dashboard is optional — select at least one area.",
 }: PermissionsPickerProps) {
-  const selected = useMemo(() => ensureRequiredPermission(value), [value]);
+  const selected = useMemo(() => normalizePermissionCodes(value), [value]);
   const groups = useMemo(() => buildGroupedMenus(menus), [menus]);
 
   const toggleCode = (code: string) => {
-    if (code === REQUIRED_PERMISSION_CODE) {
-      return;
-    }
     if (selected.includes(code)) {
       onChange(selected.filter((item) => item !== code));
       return;
@@ -40,11 +37,10 @@ export function PermissionsPicker({
 
   const setGroupSelection = (groupCodes: string[], enabled: boolean) => {
     if (enabled) {
-      onChange(ensureRequiredPermission([...selected, ...groupCodes]));
+      onChange(normalizePermissionCodes([...selected, ...groupCodes]));
       return;
     }
-    const removable = groupCodes.filter((code) => code !== REQUIRED_PERMISSION_CODE);
-    onChange(selected.filter((code) => !removable.includes(code)));
+    onChange(selected.filter((code) => !groupCodes.includes(code)));
   };
 
   const isGroupFullySelected = (groupCodes: string[]) =>
@@ -106,7 +102,6 @@ export function PermissionsPicker({
           const groupItems = (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {group.menus.map((menu) => {
-                const isRequired = menu.code === REQUIRED_PERMISSION_CODE;
                 const checked = selected.includes(menu.code);
 
                 return (
@@ -117,19 +112,17 @@ export function PermissionsPicker({
                       checked
                         ? "border-[var(--color-primary)]/40 bg-[var(--color-primary-soft)]"
                         : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-nav-idle)]",
-                      isRequired && "cursor-default opacity-90",
                     )}
                   >
                     <input
                       type="checkbox"
                       checked={checked}
-                      disabled={isRequired}
                       onChange={() => toggleCode(menu.code)}
                       className="h-4 w-4 rounded border-[var(--color-input)]"
                     />
                     <span className="text-[var(--color-foreground)]">{menu.name}</span>
-                    {isRequired ? (
-                      <span className="ml-auto text-[11px] text-muted">Required</span>
+                    {menu.code === DASHBOARD_PERMISSION_CODE ? (
+                      <span className="ml-auto text-[11px] text-muted">Optional</span>
                     ) : null}
                   </label>
                 );

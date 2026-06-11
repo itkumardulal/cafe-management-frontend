@@ -4,18 +4,10 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { operationsApi } from "@/src/services/operations-api";
 import { logoutThunk, sessionExpiredThunk } from "@/src/store/slices/auth.slice";
 import type { FetchForceArg } from "@/src/store/types/fetch-args";
-import type {
-  ApMetrics,
-  ArMetrics,
-  DashboardState,
-  StockAlertsPreview,
-} from "@/src/store/types/dashboard.types";
+import type { DashboardState, StockAlertsPreview } from "@/src/store/types/dashboard.types";
 
 const initialState: DashboardState = {
-  apMetrics: null,
-  arMetrics: null,
   stockAlerts: null,
-  cafeAdminDashboardStatus: "idle",
   stockAlertsStatus: "idle",
 };
 
@@ -44,30 +36,6 @@ function shouldFetchStockAlerts(
   return status !== "loaded" && status !== "loading";
 }
 
-export const fetchCafeAdminDashboardThunk = createAsyncThunk<
-  { apMetrics: ApMetrics; arMetrics: ArMetrics },
-  FetchForceArg,
-  { rejectValue: string; state: { dashboard: DashboardState } }
->("dashboard/fetchCafeAdmin", async (_, { rejectWithValue }) => {
-  try {
-    const [apMetrics, arMetrics] = await Promise.all([
-      operationsApi.dashboard.cafeMetrics(),
-      operationsApi.dashboard.customerReceivables(),
-    ]);
-    return { apMetrics, arMetrics };
-  } catch {
-    return rejectWithValue("Failed to load dashboard");
-  }
-}, {
-  condition: (arg, { getState }) => {
-    if (arg && typeof arg === "object" && arg.force) {
-      return true;
-    }
-    const status = getState().dashboard.cafeAdminDashboardStatus;
-    return status !== "loaded" && status !== "loading";
-  },
-});
-
 /** Sidebar badge + dashboard low-stock card — single owner for /stock-alerts. */
 export const fetchStockAlertsThunk = createAsyncThunk<
   StockAlertsPreview,
@@ -91,26 +59,12 @@ const dashboardSlice = createSlice({
   name: "dashboard",
   initialState,
   reducers: {
-    invalidateCafeAdminDashboard(state) {
-      state.cafeAdminDashboardStatus = "idle";
-    },
     invalidateStockAlerts(state) {
       state.stockAlertsStatus = "idle";
     },
   },
   extraReducers: (builder) => {
     builder
-      .addCase(fetchCafeAdminDashboardThunk.pending, (state) => {
-        state.cafeAdminDashboardStatus = "loading";
-      })
-      .addCase(fetchCafeAdminDashboardThunk.fulfilled, (state, action) => {
-        state.cafeAdminDashboardStatus = "loaded";
-        state.apMetrics = action.payload.apMetrics;
-        state.arMetrics = action.payload.arMetrics;
-      })
-      .addCase(fetchCafeAdminDashboardThunk.rejected, (state) => {
-        state.cafeAdminDashboardStatus = "error";
-      })
       .addCase(fetchStockAlertsThunk.pending, (state) => {
         state.stockAlertsStatus = "loading";
       })
@@ -126,5 +80,5 @@ const dashboardSlice = createSlice({
   },
 });
 
-export const { invalidateCafeAdminDashboard, invalidateStockAlerts } = dashboardSlice.actions;
+export const { invalidateStockAlerts } = dashboardSlice.actions;
 export default dashboardSlice.reducer;

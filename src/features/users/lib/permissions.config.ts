@@ -1,6 +1,7 @@
 import type { AssignableMenu } from "@/src/store/types/user.types";
 
-export const REQUIRED_PERMISSION_CODE = "DASHBOARD";
+/** Prefer showing Dashboard first in permission chips when present. */
+export const DASHBOARD_PERMISSION_CODE = "DASHBOARD";
 
 const PERMISSION_GROUPS: Array<{
   id: string;
@@ -8,7 +9,6 @@ const PERMISSION_GROUPS: Array<{
   description?: string;
   codes: string[];
 }> = [
-  { id: "overview", label: "Overview", codes: ["DASHBOARD"] },
   {
     id: "menuSales",
     label: "Menu & sales",
@@ -44,16 +44,14 @@ const PERMISSION_GROUPS: Array<{
   },
   {
     id: "reports",
-    label: "Reports",
-    description: "Business analytics",
-    codes: ["REPORTS"],
+    label: "Reports & dashboard",
+    description: "Business analytics and KPI overview (dashboard is optional)",
+    codes: ["REPORTS", "DASHBOARD"],
   },
 ];
 
-export function ensureRequiredPermission(codes: string[]): string[] {
-  const next = new Set(codes);
-  next.add(REQUIRED_PERMISSION_CODE);
-  return [...next];
+export function normalizePermissionCodes(codes: string[]): string[] {
+  return [...new Set(codes)];
 }
 
 export function buildGroupedMenus(menus: AssignableMenu[]) {

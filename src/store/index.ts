@@ -4,6 +4,7 @@ import userReducer from "./slices/user.slice";
 import menuReducer from "./slices/menu.slice";
 import cafeReducer from "./slices/cafe.slice";
 import dashboardReducer from "./slices/dashboard.slice";
+import analyticsReducer from "./slices/analytics.slice";
 import referenceDataReducer from "./slices/reference-data.slice";
 
 export const store = configureStore({
@@ -13,6 +14,7 @@ export const store = configureStore({
     menu: menuReducer,
     cafe: cafeReducer,
     dashboard: dashboardReducer,
+    analytics: analyticsReducer,
     referenceData: referenceDataReducer,
   },
 });
