@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "../src/features/printing/styles/thermal-print.css";
 
+/* Match app theme toggle (html.dark) — not OS prefers-color-scheme alone */
+@custom-variant dark (&:is(.dark *));
+
 /*
  * Design contract: tokens and responsive matrix are locked in
  * docs/DESIGN_CONTRACT.md — update that doc when changing breakpoints or semantics.
@@ -297,6 +300,34 @@
     color: var(--color-warning);
   }
 
+  .tone-success-text {
+    color: var(--color-success);
+  }
+
+  .tone-success-surface {
+    background-color: color-mix(in srgb, var(--color-success) 12%, var(--color-surface));
+  }
+
+  .tone-success-chip {
+    border: 1px solid color-mix(in srgb, var(--color-success) 28%, var(--color-border));
+    background-color: color-mix(in srgb, var(--color-success) 12%, var(--color-surface));
+    color: var(--color-success);
+  }
+
+  .tone-danger-text {
+    color: var(--color-danger);
+  }
+
+  .tone-danger-surface {
+    background-color: color-mix(in srgb, var(--color-danger) 12%, var(--color-surface));
+  }
+
+  .tone-danger-chip {
+    border: 1px solid color-mix(in srgb, var(--color-danger) 28%, var(--color-border));
+    background-color: color-mix(in srgb, var(--color-danger) 12%, var(--color-surface));
+    color: var(--color-danger);
+  }
+
   .menu-chip {
     color: var(--color-nav-idle);
     background: var(--color-cream-100);
@@ -454,6 +485,73 @@
 
   .dark .sidebar-nav-scroll::-webkit-scrollbar-thumb:hover {
     background-color: color-mix(in srgb, var(--color-subtle) 55%, transparent);
+  }
+
+  /* Sidebar navigation links — flat tree style, no inset rail clash */
+  .sidebar-nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    min-height: 2.5rem;
+    border-radius: var(--radius-lg);
+    padding: 0.5rem 0.625rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--color-nav-idle);
+    transition:
+      color var(--motion-quick),
+      background-color var(--motion-quick);
+  }
+
+  .sidebar-nav-link:hover {
+    background-color: var(--color-cream-100);
+    color: var(--color-nav-idle-hover);
+  }
+
+  .sidebar-nav-link-active {
+    background-color: var(--color-primary-soft);
+    color: var(--color-foreground);
+    font-weight: 500;
+  }
+
+  .sidebar-nav-link-active:hover {
+    background-color: color-mix(in srgb, var(--color-primary-soft) 82%, var(--color-primary) 18%);
+    color: var(--color-foreground);
+  }
+
+  .sidebar-nav-link-active .sidebar-nav-icon {
+    color: var(--color-primary);
+    opacity: 1;
+  }
+
+  .sidebar-nav-link-tree-active {
+    position: relative;
+  }
+
+  .sidebar-nav-link-tree-active::before {
+    content: "";
+    position: absolute;
+    left: -0.625rem;
+    top: 50%;
+    width: 2px;
+    height: 1.125rem;
+    border-radius: 999px;
+    background-color: var(--color-primary);
+    transform: translate(-50%, -50%);
+  }
+
+  .sidebar-nav-tree {
+    margin-left: 0.4375rem;
+    padding-left: 0.625rem;
+    border-left: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+  }
+
+  .sidebar-nav-tree-active {
+    border-left-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-border));
+  }
+
+  .sidebar-nav-group-active {
+    color: var(--color-foreground);
   }
 
   .skeleton-shimmer {

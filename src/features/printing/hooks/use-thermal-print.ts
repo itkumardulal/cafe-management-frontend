@@ -21,6 +21,36 @@ function waitForNextFrame() {
   });
 }
 
+function waitForReceiptImages(timeoutMs = 2500) {
+  const host = document.querySelector("[data-thermal-print-host]");
+  if (!host) return Promise.resolve();
+
+  const images = Array.from(host.querySelectorAll("img"));
+  if (images.length === 0) return Promise.resolve();
+
+  const waitForImage = (img: HTMLImageElement) =>
+    new Promise<void>((resolve) => {
+      if (img.complete && img.naturalHeight > 0) {
+        resolve();
+        return;
+      }
+      const done = () => {
+        img.removeEventListener("load", done);
+        img.removeEventListener("error", done);
+        resolve();
+      };
+      img.addEventListener("load", done);
+      img.addEventListener("error", done);
+    });
+
+  return Promise.race([
+    Promise.all(images.map(waitForImage)).then(() => undefined),
+    new Promise<void>((resolve) => {
+      window.setTimeout(resolve, timeoutMs);
+    }),
+  ]);
+}
+
 export function useThermalPrint<T>(options: UseThermalPrintOptions = {}) {
   const { onError, onAfterPrint } = options;
   const [printDocument, setPrintDocument] = useState<T | null>(null);
@@ -39,6 +69,8 @@ export function useThermalPrint<T>(options: UseThermalPrintOptions = {}) {
 
   const runPrint = useCallback(async () => {
     activatePrintMode("thermal");
+    await waitForNextFrame();
+    await waitForReceiptImages();
     await waitForNextFrame();
     window.print();
   }, []);

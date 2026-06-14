@@ -22,6 +22,12 @@ const LIST_PREFIXES = [
   "/inventory",
 ];
 
+function invalidateBankLedgerCaches() {
+  invalidateGetCache("/bank-transactions");
+  invalidateGetCache("/bank-accounts");
+  invalidateGetCache("/bank-accounts/options");
+}
+
 function invalidateListCaches(path: string) {
   for (const prefix of LIST_PREFIXES) {
     if (path.startsWith(prefix)) {
@@ -69,12 +75,24 @@ function dispatchReduxInvalidations(path: string) {
     invalidateGetCache("/analytics");
   }
 
+  if (path.startsWith("/sales") || path.startsWith("/customer-receivables")) {
+    invalidateBankLedgerCaches();
+  }
+
+  if (path.startsWith("/sales")) {
+    invalidateGetCache("/table-orders");
+  }
+
   if (
     path.startsWith("/raw-material-purchases") ||
     path.startsWith("/direct-purchases") ||
     path.startsWith("/supplier-bills")
   ) {
     store.dispatch(invalidateBillSettlementAging());
+  }
+
+  if (path.startsWith("/direct-purchases") || path.startsWith("/menu-items")) {
+    invalidateGetCache("/direct-purchases/link-options");
   }
 
   if (path.startsWith("/stock-removals")) {

@@ -164,7 +164,7 @@ export function ReportPeriodFilter({
 
   const segmented = (
     <div
-      className="inline-flex max-w-full shrink-0 gap-1 overflow-x-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-cream-100)] p-1 sm:flex-wrap sm:overflow-x-visible"
+      className="inline-flex max-w-full gap-0.5 overflow-x-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-cream-100)] p-1 shadow-sm sm:flex-wrap sm:overflow-x-visible"
       role="tablist"
       aria-label="Report period"
     >
@@ -175,10 +175,10 @@ export function ReportPeriodFilter({
           role="tab"
           aria-selected={activeTab === opt.key}
           className={cn(
-            "shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+            "shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-all",
             activeTab === opt.key
-              ? "bg-[var(--color-surface)] text-[var(--color-foreground)] shadow-sm"
-              : "text-[var(--color-muted)] hover:text-[var(--color-foreground)]",
+              ? "bg-[var(--color-surface)] text-[var(--color-foreground)] shadow-sm ring-1 ring-[var(--color-border)]"
+              : "text-[var(--color-muted)] hover:bg-[var(--color-surface)]/60 hover:text-[var(--color-foreground)]",
           )}
           onClick={() => {
             if (opt.key === "custom") {

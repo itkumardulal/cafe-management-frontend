@@ -37,10 +37,12 @@ import {
   fetchAnalyticsOverviewThunk,
 } from "@/src/store/slices/analytics.slice";
 import { fetchStockAlertsThunk } from "@/src/store/slices/dashboard.slice";
+import { canAccessStockAlerts } from "@/src/lib/stock-alerts-access";
 
 export function CafeAnalyticsDashboard() {
   const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
+  const menus = useAppSelector((state) => state.menu.items);
   const { periodParams, effectivePeriodParams, setPeriodParams } = useAnalyticsPeriod();
   const { cache, status, error } = useAppSelector((state) => state.analytics);
 
@@ -51,13 +53,17 @@ export function CafeAnalyticsDashboard() {
   useEffect(() => {
     if (!effectivePeriodParams) return;
     void dispatch(fetchAnalyticsOverviewThunk(effectivePeriodParams));
-    void dispatch(fetchStockAlertsThunk());
-  }, [dispatch, effectivePeriodParams]);
+    if (canAccessStockAlerts(user?.role, menus)) {
+      void dispatch(fetchStockAlertsThunk());
+    }
+  }, [dispatch, effectivePeriodParams, menus, user?.role]);
 
   const handleRefresh = () => {
     if (!effectivePeriodParams) return;
     void dispatch(fetchAnalyticsOverviewForceThunk(effectivePeriodParams));
-    void dispatch(fetchStockAlertsThunk({ force: true }));
+    if (canAccessStockAlerts(user?.role, menus)) {
+      void dispatch(fetchStockAlertsThunk({ force: true }));
+    }
   };
 
   if (loading) {

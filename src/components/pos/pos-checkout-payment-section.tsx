@@ -1,15 +1,24 @@
 "use client";
 
+import Link from "next/link";
 import { AlertCircle, Banknote, Building2, CheckCircle2, Split } from "lucide-react";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
+import { Select } from "@/src/components/ui/select";
 import { cn } from "@/src/lib/cn";
 import type { CheckoutPaymentType, SalePaymentMethod } from "@/src/lib/ar-types";
 import { formatMoney } from "@/src/lib/format-display";
 import { parseMoneyInput, roundMoneyStr } from "@/src/lib/money-input";
 
-type TenderMode = "CASH" | "BANK" | "CHEQUE" | "SPLIT";
+export type BankAccountOption = {
+  id: string;
+  bankName: string;
+  accountNumber: string;
+  label: string;
+};
+
+type TenderMode = "CASH" | "BANK" | "SPLIT";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]";
@@ -35,12 +44,9 @@ type Props = {
   onCashPaidStrChange: (v: string) => void;
   bankPaidStr: string;
   onBankPaidStrChange: (v: string) => void;
-  chequeBankName: string;
-  onChequeBankNameChange: (v: string) => void;
-  chequeNumber: string;
-  onChequeNumberChange: (v: string) => void;
-  bankReference: string;
-  onBankReferenceChange: (v: string) => void;
+  bankAccountId: string;
+  onBankAccountIdChange: (v: string) => void;
+  bankAccounts: BankAccountOption[];
   disabled?: boolean;
   allowCredit?: boolean;
 };
@@ -52,14 +58,11 @@ export function buildInitialPaymentsFromCheckout(params: {
   tenderMode: TenderMode;
   cashPaid: number;
   bankPaid: number;
-  chequeBankName: string;
-  chequeNumber: string;
-  bankReference: string;
+  bankAccountId: string;
 }): Array<{
   amount: number;
   paymentMethod: SalePaymentMethod;
-  referenceNumber?: string;
-  chequeBankName?: string;
+  bankAccountId?: string;
 }> {
   const { checkoutPaymentType, paidAmount, tenderMode } = params;
   if (checkoutPaymentType === "CREDIT" || paidAmount < 0.005) {
@@ -67,12 +70,13 @@ export function buildInitialPaymentsFromCheckout(params: {
   }
 
   const amount = paidAmount;
+  const bankAccountId = params.bankAccountId.trim() || undefined;
 
   if (tenderMode === "SPLIT") {
     const rows: Array<{
       amount: number;
       paymentMethod: SalePaymentMethod;
-      referenceNumber?: string;
+      bankAccountId?: string;
     }> = [];
     if (params.cashPaid > 0.005) {
       rows.push({ amount: params.cashPaid, paymentMethod: "CASH" });
@@ -81,7 +85,7 @@ export function buildInitialPaymentsFromCheckout(params: {
       rows.push({
         amount: params.bankPaid,
         paymentMethod: "BANK_TRANSFER",
-        referenceNumber: params.bankReference.trim() || undefined,
+        bankAccountId,
       });
     }
     return rows;
@@ -90,23 +94,17 @@ export function buildInitialPaymentsFromCheckout(params: {
   if (tenderMode === "CASH") {
     return [{ amount, paymentMethod: "CASH" }];
   }
-  if (tenderMode === "BANK") {
-    return [
-      {
-        amount,
-        paymentMethod: "BANK_TRANSFER",
-        referenceNumber: params.bankReference.trim() || undefined,
-      },
-    ];
-  }
   return [
     {
       amount,
-      paymentMethod: "CHEQUE",
-      chequeBankName: params.chequeBankName.trim(),
-      referenceNumber: params.chequeNumber.trim(),
+      paymentMethod: "BANK_TRANSFER",
+      bankAccountId,
     },
   ];
+}
+
+function needsBankAccount(tenderMode: TenderMode, bankPaid: number): boolean {
+  return tenderMode === "BANK" || (tenderMode === "SPLIT" && bankPaid > 0.005);
 }
 
 export function PosCheckoutPaymentSection({
@@ -121,18 +119,16 @@ export function PosCheckoutPaymentSection({
   onCashPaidStrChange,
   bankPaidStr,
   onBankPaidStrChange,
-  chequeBankName,
-  onChequeBankNameChange,
-  chequeNumber,
-  onChequeNumberChange,
-  bankReference,
-  onBankReferenceChange,
+  bankAccountId,
+  onBankAccountIdChange,
+  bankAccounts,
   disabled,
   allowCredit = true,
 }: Props) {
   const paidResult = parseMoneyInput(paidAmountStr);
   const cashResult = parseMoneyInput(cashPaidStr);
   const bankResult = parseMoneyInput(bankPaidStr);
+  const bankPaidAmount = bankResult.invalid ? 0 : bankResult.amount;
 
   const paidNow =
     checkoutPaymentType === "FULLY_PAID"
@@ -166,9 +162,6 @@ export function PosCheckoutPaymentSection({
       } else if (tenderMode === "BANK") {
         onCashPaidStrChange("0");
         onBankPaidStrChange(roundMoneyStr(grandTotal));
-      } else if (tenderMode === "CHEQUE") {
-        onCashPaidStrChange("0");
-        onBankPaidStrChange("0");
       }
     } else if (checkoutPaymentType === "CREDIT") {
       onPaidAmountStrChange("0");
@@ -182,6 +175,7 @@ export function PosCheckoutPaymentSection({
     onPaidAmountStrChange,
     onCashPaidStrChange,
     onBankPaidStrChange,
+    cashPaidStr,
   ]);
 
   const splitSum =
@@ -190,14 +184,13 @@ export function PosCheckoutPaymentSection({
   const tenderBalanced =
     checkoutPaymentType === "CREDIT" ||
     tenderMode === "CASH" ||
-    tenderMode === "BANK" ||
-    tenderMode === "CHEQUE"
+    tenderMode === "BANK"
       ? true
       : Math.abs(splitSum - paidNow) < 0.005;
 
-  const chequeValid =
-    tenderMode !== "CHEQUE" ||
-    (chequeBankName.trim().length >= 2 && chequeNumber.trim().length >= 1);
+  const bankAccountRequired = needsBankAccount(tenderMode, bankPaidAmount);
+  const bankAccountValid =
+    !bankAccountRequired || (bankAccountId.trim().length > 0 && bankAccounts.length > 0);
 
   const partialValid =
     checkoutPaymentType !== "PARTIALLY_PAID" ||
@@ -218,7 +211,7 @@ export function PosCheckoutPaymentSection({
       ? Math.max(0, Math.round((paidNow - grandTotal) * 100) / 100)
       : 0;
 
-  const statusOk = paymentBalanced && tenderBalanced && chequeValid;
+  const statusOk = paymentBalanced && tenderBalanced && bankAccountValid;
 
   const segmentClass = (active: boolean) =>
     cn(
@@ -241,6 +234,33 @@ export function PosCheckoutPaymentSection({
         : []),
     ] as const
   ) satisfies ReadonlyArray<readonly [CheckoutPaymentType, string]>;
+
+  const bankAccountField = bankAccountRequired ? (
+    <Field id="pos-bank-account" label="Bank account" required>
+      {bankAccounts.length === 0 ? (
+        <p className="text-sm text-muted">
+          No active bank accounts.{" "}
+          <Link href="/banks" className="font-medium text-[var(--color-primary)] hover:underline">
+            Add a bank account
+          </Link>
+        </p>
+      ) : (
+        <Select
+          searchable
+          value={bankAccountId}
+          onChange={(e) => onBankAccountIdChange(e.target.value)}
+          disabled={disabled}
+        >
+          <option value="">Choose account</option>
+          {bankAccounts.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.label}
+            </option>
+          ))}
+        </Select>
+      )}
+    </Field>
+  ) : null;
 
   return (
     <div className="space-y-3">
@@ -304,12 +324,11 @@ export function PosCheckoutPaymentSection({
         <>
           <div>
             <p className="mb-1 text-xs text-muted">Payment method</p>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {(
                 [
                   { key: "CASH" as const, label: "Cash", icon: Banknote },
                   { key: "BANK" as const, label: "Bank", icon: Building2 },
-                  { key: "CHEQUE" as const, label: "Cheque", icon: Building2 },
                   { key: "SPLIT" as const, label: "Split", icon: Split },
                 ] as const
               ).map(({ key, label, icon: Icon }) => (
@@ -359,48 +378,13 @@ export function PosCheckoutPaymentSection({
                   className="h-10 font-mono tabular-nums"
                 />
               </Field>
-              <Field id="pos-split-bank-ref" label="Bank reference (optional)" className="sm:col-span-2">
-                <Input
-                  value={bankReference}
-                  onChange={(e) => onBankReferenceChange(e.target.value)}
-                  disabled={disabled}
-                  placeholder="Transaction ID"
-                />
-              </Field>
+              {bankPaidAmount > 0.005 ? (
+                <div className="sm:col-span-2">{bankAccountField}</div>
+              ) : null}
             </div>
           ) : null}
 
-          {tenderMode === "BANK" ? (
-            <Field id="pos-bank-ref" label="Bank reference (optional)">
-              <Input
-                value={bankReference}
-                onChange={(e) => onBankReferenceChange(e.target.value)}
-                disabled={disabled}
-                placeholder="Transaction ID"
-              />
-            </Field>
-          ) : null}
-
-          {tenderMode === "CHEQUE" ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field id="pos-cheque-bank" label="Bank name" required>
-                <Input
-                  value={chequeBankName}
-                  onChange={(e) => onChequeBankNameChange(e.target.value)}
-                  disabled={disabled}
-                  placeholder="e.g. Nabil Bank"
-                />
-              </Field>
-              <Field id="pos-cheque-no" label="Cheque number" required>
-                <Input
-                  value={chequeNumber}
-                  onChange={(e) => onChequeNumberChange(e.target.value)}
-                  disabled={disabled}
-                  placeholder="Cheque no."
-                />
-              </Field>
-            </div>
-          ) : null}
+          {tenderMode === "BANK" ? bankAccountField : null}
         </>
       ) : null}
 
@@ -430,18 +414,20 @@ export function PosCheckoutPaymentSection({
         {statusOk ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
         <span className="leading-snug">
           {statusOk
-            ? creditPreview > 0.005
+            ? hasCredit
               ? `On credit: ${formatMoney(creditPreview)}`
               : "Payment matches total"
-            : !chequeValid
-              ? "Enter bank name and cheque number"
-            : !fullPaidValid
-              ? "Collected amount cannot be less than total"
-              : !partialValid
-                ? "Partial payment must be greater than zero and less than total"
-                : !tenderBalanced
-                  ? "Cash and bank must add up to amount collected"
-                  : "Complete payment details"}
+            : !bankAccountValid
+              ? bankAccounts.length === 0
+                ? "Add a bank account before accepting bank payments"
+                : "Select a bank account"
+              : !fullPaidValid
+                ? "Collected amount cannot be less than total"
+                : !partialValid
+                  ? "Partial payment must be greater than zero and less than total"
+                  : !tenderBalanced
+                    ? "Cash and bank must add up to amount collected"
+                    : "Complete payment details"}
         </span>
       </div>
     </div>
@@ -455,12 +441,13 @@ export function useCheckoutPaymentValidation(params: {
   tenderMode: TenderMode;
   cashPaidStr: string;
   bankPaidStr: string;
-  chequeBankName: string;
-  chequeNumber: string;
+  bankAccountId: string;
+  bankAccountsCount: number;
 }): boolean {
   const paidResult = parseMoneyInput(params.paidAmountStr);
   const cashResult = parseMoneyInput(params.cashPaidStr);
   const bankResult = parseMoneyInput(params.bankPaidStr);
+  const bankPaid = bankResult.invalid ? 0 : bankResult.amount;
 
   const paidNow =
     params.checkoutPaymentType === "FULLY_PAID"
@@ -490,8 +477,8 @@ export function useCheckoutPaymentValidation(params: {
   }
 
   if (paidNow > 0.005) {
-    if (params.tenderMode === "CHEQUE") {
-      if (params.chequeBankName.trim().length < 2 || !params.chequeNumber.trim()) {
+    if (needsBankAccount(params.tenderMode, bankPaid)) {
+      if (!params.bankAccountId.trim() || params.bankAccountsCount === 0) {
         return false;
       }
     }

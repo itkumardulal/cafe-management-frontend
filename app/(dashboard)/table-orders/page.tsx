@@ -122,7 +122,7 @@ export default function TableOrdersPage() {
   }, [dispatch, sellableCatalogStatus]);
 
   useEffect(() => {
-    void loadBoard();
+    void loadBoard(false, true);
     const id = setInterval(() => void loadBoard(true), BOARD_POLL_MS);
     return () => clearInterval(id);
   }, [loadBoard]);

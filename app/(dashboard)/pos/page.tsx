@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Eye,
+  FileText,
   Minus,
   Plus,
   Printer,
@@ -21,6 +22,7 @@ import {
   buildInitialPaymentsFromCheckout,
   PosCheckoutPaymentSection,
   useCheckoutPaymentValidation,
+  type BankAccountOption,
 } from "@/src/components/pos/pos-checkout-payment-section";
 import { PosSaleDetail } from "@/src/components/sales/pos-sale-detail";
 import type { CheckoutPaymentType } from "@/src/lib/ar-types";
@@ -42,8 +44,8 @@ import {
   tableActionsColumnClass,
 } from "@/src/components/ui/table";
 import { getApiErrorMessage } from "@/src/lib/api-error";
+import { invalidateGetCache } from "@/src/lib/api-fetch-dedupe";
 import { cn } from "@/src/lib/cn";
-import { PosRecentSales } from "@/src/components/pos/pos-recent-sales";
 import { formatDateTime, formatMoney } from "@/src/lib/format-display";
 import { roundMoneyStr } from "@/src/lib/money-input";
 import { normalizePhone } from "@/src/lib/phone-normalize";
@@ -281,7 +283,6 @@ function PosPageContent() {
   );
   const tablesLoading = diningTableOptionsStatus === "loading" && tableOptions.length === 0;
   const tablesError = diningTableOptionsStatus === "error";
-  const [salesRefresh, setSalesRefresh] = useState(0);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [search, setSearch] = useState("");
 
@@ -290,10 +291,9 @@ function PosPageContent() {
   const [checkoutPaymentType, setCheckoutPaymentType] =
     useState<CheckoutPaymentType>("FULLY_PAID");
   const [paidAmountStr, setPaidAmountStr] = useState("");
-  const [tenderMode, setTenderMode] = useState<"CASH" | "BANK" | "CHEQUE" | "SPLIT">("CASH");
-  const [chequeBankName, setChequeBankName] = useState("");
-  const [chequeNumber, setChequeNumber] = useState("");
-  const [bankReference, setBankReference] = useState("");
+  const [tenderMode, setTenderMode] = useState<"CASH" | "BANK" | "SPLIT">("CASH");
+  const [bankAccountId, setBankAccountId] = useState("");
+  const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
   const [tableId, setTableId] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -328,6 +328,18 @@ function PosPageContent() {
 
   useEffect(() => {
     setAutoPrintReceipt(localStorage.getItem(AUTO_PRINT_STORAGE_KEY) === "true");
+  }, []);
+
+  useEffect(() => {
+    void operationsApi.bankAccounts
+      .options()
+      .then((items) => {
+        setBankAccounts(items);
+        if (items.length === 1) {
+          setBankAccountId(items[0]!.id);
+        }
+      })
+      .catch(() => setBankAccounts([]));
   }, []);
 
   const { printDocument, isPrinting, requestPrint, printLoaded } =
@@ -434,7 +446,6 @@ function PosPageContent() {
     if (checkoutPaymentType === "FULLY_PAID") {
       if (tenderMode === "CASH") return cashPaidResult.invalid ? 0 : cashPaidResult.amount;
       if (tenderMode === "BANK") return grandTotalPreview;
-      if (tenderMode === "CHEQUE") return grandTotalPreview;
       return (cashPaidResult.invalid ? 0 : cashPaidResult.amount) +
         (bankPaidResult.invalid ? 0 : bankPaidResult.amount);
     }
@@ -464,8 +475,8 @@ function PosPageContent() {
     tenderMode,
     cashPaidStr,
     bankPaidStr,
-    chequeBankName,
-    chequeNumber,
+    bankAccountId,
+    bankAccountsCount: bankAccounts.length,
   });
 
   useEffect(() => {
@@ -626,9 +637,7 @@ function PosPageContent() {
     setCheckoutPaymentType("FULLY_PAID");
     setPaidAmountStr("");
     setTenderMode("CASH");
-    setChequeBankName("");
-    setChequeNumber("");
-    setBankReference("");
+    setBankAccountId(bankAccounts[0]?.id ?? "");
     setTableId("");
   };
 
@@ -657,9 +666,7 @@ function PosPageContent() {
         tenderMode,
         cashPaid: cashPaidResult.amount,
         bankPaid: bankPaidResult.amount,
-        chequeBankName,
-        chequeNumber,
-        bankReference,
+        bankAccountId,
       });
 
       const result = await operationsApi.sales.create({
@@ -690,6 +697,7 @@ function PosPageContent() {
         creditPreview > 0.005 ? ` · Credit due: ${formatMoney(creditPreview)}` : "";
       appToast.success(`Sale ${result.receiptNo} recorded${creditMsg}`);
       if (billingFromSession) {
+        invalidateGetCache("/table-orders");
         router.replace("/table-orders");
         return;
       }
@@ -699,7 +707,6 @@ function PosPageContent() {
       }
       resetCheckout();
       void dispatch(fetchSellableCatalogThunk({ force: true }));
-      setSalesRefresh((n) => n + 1);
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to complete sale"));
     } finally {
@@ -772,10 +779,24 @@ function PosPageContent() {
           <p className="mt-0.5 text-xs text-muted">
             {billingFromSession
               ? "Complete payment for the table order"
-              : "Menu and checkout on one screen · scroll for recent sales"}
+              : "Menu and checkout on one screen"}
           </p>
         </div>
-        {successSale ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {!billingFromSession ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => router.push("/invoices")}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <FileText size={15} strokeWidth={1.75} aria-hidden />
+                Invoices
+              </span>
+            </Button>
+          ) : null}
+          {successSale ? (
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--color-primary)]/35 bg-[var(--color-primary)]/8 px-3 py-1.5 text-sm shadow-sm">
             <CheckCircle2 className="h-4 w-4 shrink-0 text-[var(--color-primary)]" />
             <span>
@@ -801,7 +822,8 @@ function PosPageContent() {
               Dismiss
             </button>
           </div>
-        ) : null}
+          ) : null}
+        </div>
       </div>
 
       <div className="flex h-[calc(100dvh-7.25rem)] min-h-0 shrink-0 flex-col overflow-hidden lg:h-[calc(100dvh-7.5rem)]">
@@ -1199,12 +1221,9 @@ function PosPageContent() {
                   onCashPaidStrChange={setCashPaidStr}
                   bankPaidStr={bankPaidStr}
                   onBankPaidStrChange={setBankPaidStr}
-                  chequeBankName={chequeBankName}
-                  onChequeBankNameChange={setChequeBankName}
-                  chequeNumber={chequeNumber}
-                  onChequeNumberChange={setChequeNumber}
-                  bankReference={bankReference}
-                  onBankReferenceChange={setBankReference}
+                  bankAccountId={bankAccountId}
+                  onBankAccountIdChange={setBankAccountId}
+                  bankAccounts={bankAccounts}
                   disabled={submitting || otherChargeResult.invalid || grandTotalPreview <= 0}
                 />
               </section>
@@ -1314,17 +1333,6 @@ function PosPageContent() {
         ) : null}
       </div>
 
-      <section
-        id="pos-recent-sales"
-        className="mt-6 border-t border-[var(--color-border)] pt-6 pb-10"
-      >
-        <PosRecentSales
-          key={salesRefresh}
-          onView={(id) => void openView(id)}
-          onPrint={(id) => void handlePrint(id)}
-        />
-      </section>
-
       <Modal
         open={viewOpen}
         size="lg"
@@ -1349,7 +1357,6 @@ function PosPageContent() {
               sale={viewSale}
               onSaleUpdated={(updated) => {
                 setViewSale(updated);
-                setSalesRefresh((n) => n + 1);
               }}
             />
           ) : null}

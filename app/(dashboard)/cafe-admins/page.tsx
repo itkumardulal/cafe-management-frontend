@@ -17,6 +17,10 @@ import {
 import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
 import { PageHeader } from "@/src/components/shared/page-header";
 import { CreateCafeAdminForm } from "@/src/features/cafes/components/create-cafe-admin-form";
+import {
+  EditCafeAdminForm,
+  type EditCafeAdminRecord,
+} from "@/src/features/cafes/components/edit-cafe-admin-form";
 import { UserLifecycleActions } from "@/src/features/users/components/user-lifecycle-actions";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
 import { cn } from "@/src/lib/cn";
@@ -27,9 +31,6 @@ import { operationsApi } from "@/src/services/operations-api";
 import { fetchManagedCafesThunk } from "@/src/store/slices/cafe.slice";
 import { EmptyState } from "@/src/components/ui/empty-state";
 
-const CAFE_ADMIN_DELETE_WARNING =
-  "This cafe will have no admin login. Staff accounts and historical records are unaffected. You can create a new admin later.";
-
 type CafeAdminRow = {
   id: string;
   cafeId: string;
@@ -37,15 +38,21 @@ type CafeAdminRow = {
   cafeEmail: string;
   adminName: string;
   adminEmail: string;
+  slug: string;
+  address?: string | null;
+  contactNumber?: string | null;
+  logo?: string | null;
   isActive: boolean;
   status?: UserStatus;
 };
 
 function CafeAdminLifecycleActions({
   row,
+  onEdit,
   onLifecycleChange,
 }: {
   row: CafeAdminRow;
+  onEdit: (row: CafeAdminRow) => void;
   onLifecycleChange: () => void;
 }) {
   return (
@@ -56,10 +63,9 @@ function CafeAdminLifecycleActions({
       onResendInvite={() =>
         api.post(`/cafes/${row.cafeId}/admin/resend-invitation`).then(() => undefined)
       }
+      onEdit={() => onEdit(row)}
       onDeactivate={() => operationsApi.cafes.admin.disable(row.cafeId).then(() => undefined)}
       onActivate={() => operationsApi.cafes.admin.enable(row.cafeId).then(() => undefined)}
-      onDelete={() => operationsApi.cafes.admin.remove(row.cafeId).then(() => undefined)}
-      deleteWarning={CAFE_ADMIN_DELETE_WARNING}
       onSuccess={onLifecycleChange}
     />
   );
@@ -73,6 +79,7 @@ function CafeAdminsPageContent() {
   const { managedCafes, managedCafesStatus } = useAppSelector((state) => state.cafe);
   const loading = managedCafesStatus === "loading" && managedCafes.length === 0;
   const [addOpen, setAddOpen] = useState(false);
+  const [editRecord, setEditRecord] = useState<EditCafeAdminRecord | null>(null);
 
   useEffect(() => {
     if (user?.role === "SUPER_ADMIN") {
@@ -95,10 +102,27 @@ function CafeAdminsPageContent() {
       cafeEmail: cafe.email,
       adminName: admin.fullName,
       adminEmail: admin.email,
+      slug: cafe.slug,
+      address: cafe.address,
+      contactNumber: cafe.contactNumber,
+      logo: cafe.logo,
       isActive: admin.isActive,
       status: admin.status,
     })),
   );
+
+  const openEdit = (row: CafeAdminRow) => {
+    setEditRecord({
+      cafeId: row.cafeId,
+      cafeName: row.cafeName,
+      adminName: row.adminName,
+      adminEmail: row.adminEmail,
+      slug: row.slug,
+      address: row.address,
+      contactNumber: row.contactNumber,
+      logo: row.logo,
+    });
+  };
 
   const refreshList = () => {
     void dispatch(fetchManagedCafesThunk({ force: true }));
@@ -150,7 +174,11 @@ function CafeAdminsPageContent() {
                   { label: "Admin email", value: row.adminEmail },
                 ]}
                 actions={
-                  <CafeAdminLifecycleActions row={row} onLifecycleChange={refreshList} />
+                  <CafeAdminLifecycleActions
+                    row={row}
+                    onEdit={openEdit}
+                    onLifecycleChange={refreshList}
+                  />
                 }
               />
             ))}
@@ -181,7 +209,11 @@ function CafeAdminsPageContent() {
                   </td>
                   <td className="px-3 py-2.5">
                     <div className={tableActionsCellClass}>
-                      <CafeAdminLifecycleActions row={row} onLifecycleChange={refreshList} />
+                      <CafeAdminLifecycleActions
+                        row={row}
+                        onEdit={openEdit}
+                        onLifecycleChange={refreshList}
+                      />
                     </div>
                   </td>
                 </tr>
@@ -190,6 +222,27 @@ function CafeAdminsPageContent() {
           </Card>
         </>
       ) : null}
+
+      <Modal
+        open={editRecord !== null}
+        title="Edit cafe admin"
+        description="Update cafe profile and admin account details."
+        onClose={() => setEditRecord(null)}
+        size="xl"
+        mobileVariant="fullscreen"
+      >
+        {editRecord ? (
+          <EditCafeAdminForm
+            key={editRecord.cafeId}
+            record={editRecord}
+            onSuccess={() => {
+              setEditRecord(null);
+              refreshList();
+            }}
+            onCancel={() => setEditRecord(null)}
+          />
+        ) : null}
+      </Modal>
 
       <Modal
         open={addOpen}

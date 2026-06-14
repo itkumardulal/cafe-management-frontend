@@ -196,7 +196,7 @@ export default function UsersPage() {
           <p className="mt-1 text-muted">
             You need at least one staff role before adding team members.{" "}
             <Link href="/roles" className="font-medium text-[var(--color-primary)] underline-offset-2 hover:underline">
-              Go to Staff Roles
+              Go to User Roles
             </Link>
           </p>
         </Card>
@@ -359,7 +359,6 @@ function StaffLifecycleActions({
       onEdit={() => onEdit(item)}
       onDeactivate={() => operationsApi.users.staff.disable(item.id).then(() => undefined)}
       onActivate={() => operationsApi.users.staff.enable(item.id).then(() => undefined)}
-      onDelete={() => operationsApi.users.staff.remove(item.id).then(() => undefined)}
       onSuccess={onLifecycleChange}
     />
   );

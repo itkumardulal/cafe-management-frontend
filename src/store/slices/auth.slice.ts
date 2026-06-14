@@ -5,6 +5,8 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import type { AuthUser } from "@/src/types/auth";
 import { api } from "@/src/services/api";
 import type { AuthState, LoginPayload } from "@/src/store/types/auth.state";
+import type { RefreshFailure } from "@/src/lib/session-errors";
+import { isRecoverableRefreshPayload } from "@/src/lib/session-errors";
 import { authPublicApi } from "@/src/services/auth-public-api";
 
 const initialState: AuthState = {
@@ -80,14 +82,86 @@ export const meThunk = createAsyncThunk<
   },
 );
 
-export const refreshSessionThunk = createAsyncThunk<AuthUser, void, { rejectValue: string }>(
+export const reloadProfileThunk = createAsyncThunk<
+  AuthUser,
+  void,
+  { rejectValue: string }
+>("auth/reloadProfile", async (_, { rejectWithValue }) => {
+  try {
+    const response = await api.get("/auth/me");
+    return response.data.data as AuthUser;
+  } catch {
+    return rejectWithValue("Session invalid");
+  }
+});
+
+export const bootstrapSessionThunk = createAsyncThunk<
+  AuthUser,
+  void,
+  { rejectValue: RefreshFailure; state: { auth: AuthState } }
+>(
+  "auth/bootstrap",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await authPublicApi.get("/auth/me");
+      return response.data.data as AuthUser;
+    } catch {
+      try {
+        const response = await authPublicApi.post("/auth/refresh");
+        return response.data.data as AuthUser;
+      } catch (error) {
+        if (!axios.isAxiosError(error)) {
+          return rejectWithValue({ message: "Session invalid" });
+        }
+        const messageRaw = error.response?.data?.message;
+        const message =
+          typeof messageRaw === "string"
+            ? messageRaw
+            : Array.isArray(messageRaw) && messageRaw.length > 0
+              ? messageRaw.join(", ")
+              : "Session invalid";
+        return rejectWithValue({
+          message,
+          status: error.response?.status,
+          isNetwork: !error.response,
+        });
+      }
+    }
+  },
+  {
+    condition: (_, { getState }) => {
+      const { initialized, loading } = getState().auth;
+      return !initialized && !loading;
+    },
+  },
+);
+
+export const refreshSessionThunk = createAsyncThunk<
+  AuthUser,
+  void,
+  { rejectValue: RefreshFailure }
+>(
   "auth/refresh",
   async (_, { rejectWithValue }) => {
     try {
       const response = await api.post("/auth/refresh");
       return response.data.data as AuthUser;
-    } catch {
-      return rejectWithValue("Refresh failed");
+    } catch (error) {
+      if (!axios.isAxiosError(error)) {
+        return rejectWithValue({ message: "Refresh failed" });
+      }
+      const messageRaw = error.response?.data?.message;
+      const message =
+        typeof messageRaw === "string"
+          ? messageRaw
+          : Array.isArray(messageRaw) && messageRaw.length > 0
+            ? messageRaw.join(", ")
+            : "Refresh failed";
+      return rejectWithValue({
+        message,
+        status: error.response?.status,
+        isNetwork: !error.response,
+      });
     }
   },
 );
@@ -106,11 +180,8 @@ export const logoutThunk = createAsyncThunk<void, void, { rejectValue: string }>
 export const sessionExpiredThunk = createAsyncThunk<void, void>(
   "auth/sessionExpired",
   async () => {
-    try {
-      await authPublicApi.post("/auth/logout");
-    } catch {
-      // Session already invalid — local cleanup still runs.
-    }
+    // Local session cleanup only — do not revoke refresh tokens here.
+    // The backend already clears cookies when refresh is rejected.
   },
 );
 
@@ -157,13 +228,32 @@ const authSlice = createSlice({
         state.user = null;
         state.initialized = true;
       })
-      .addCase(refreshSessionThunk.fulfilled, (state, action) => {
+      .addCase(reloadProfileThunk.fulfilled, (state, action) => {
         state.user = action.payload;
         state.error = null;
       })
-      .addCase(refreshSessionThunk.rejected, (state) => {
-        state.user = null;
+      .addCase(bootstrapSessionThunk.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(bootstrapSessionThunk.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload;
         state.initialized = true;
+        state.sessionExpired = false;
+        state.error = null;
+      })
+      .addCase(bootstrapSessionThunk.rejected, (state, action) => {
+        state.loading = false;
+        state.user = null;
+        if (!isRecoverableRefreshPayload(action.payload)) {
+          state.initialized = true;
+        }
+      })
+      .addCase(refreshSessionThunk.fulfilled, (state, action) => {
+        state.user = action.payload;
+        state.sessionExpired = false;
+        state.error = null;
       })
       .addCase(logoutThunk.fulfilled, (state) => {
         state.user = null;

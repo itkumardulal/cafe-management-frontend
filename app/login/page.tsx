@@ -20,6 +20,7 @@ import { appToast } from "@/src/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
 import { loginThunk, logoutThunk, clearSessionExpired, type LoginRejectPayload } from "@/src/store/slices/auth.slice";
 import { clearCsrfCookie } from "@/src/lib/clear-csrf-cookie";
+import { safeRedirectPath } from "@/src/lib/safe-redirect-path";
 import { resetSessionRedirectGuard } from "@/src/lib/session-auth";
 
 const LOGIN_LOCK_KEY = "auth:login-lock-until";
@@ -42,7 +43,9 @@ function LoginForm() {
   const [lockUntilMs, setLockUntilMs] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const activated = searchParams.get("activated") === "1";
+  const sessionExpired = searchParams.get("expired") === "1";
   const emailFromQuery = searchParams.get("email") ?? "";
+  const nextPath = safeRedirectPath(searchParams.get("next"));
   const lockRemainingMs = Math.max(0, lockUntilMs - nowMs);
   const isLocked = lockRemainingMs > 0;
 
@@ -66,6 +69,12 @@ function LoginForm() {
     clearCsrfCookie();
     dispatch(clearSessionExpired());
   }, [dispatch]);
+
+  useEffect(() => {
+    if (sessionExpired) {
+      appToast.error("Your session has expired. Please sign in again.");
+    }
+  }, [sessionExpired]);
 
   useEffect(() => {
     if (emailFromQuery) {
@@ -131,9 +140,11 @@ function LoginForm() {
     );
     if (loginThunk.fulfilled.match(result)) {
       const authUser = result.payload;
-      router.replace(
-        authUser.mustChangePassword ? "/change-password-first" : "/dashboard",
-      );
+      if (authUser.mustChangePassword) {
+        router.replace("/change-password-first");
+        return;
+      }
+      router.replace(nextPath ?? "/dashboard");
       return;
     }
     const payload = result.payload as LoginRejectPayload | undefined;

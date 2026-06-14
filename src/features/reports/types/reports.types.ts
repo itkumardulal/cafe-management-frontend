@@ -251,9 +251,20 @@ export type SupplierPayableReport = {
   }>;
 };
 
+export type BankReportParams = ReportPeriodParams & {
+  bankAccountId?: string;
+};
+
 export type BankReport = {
   period: ReportPeriod;
   snapshotNote: string;
+  selectedBankAccountId: string | null;
+  banks: Array<{
+    id: string;
+    bankName: string;
+    accountNumber: string;
+    label: string;
+  }>;
   summary: {
     totalCurrentBalance: string;
     activeAccountCount: number;

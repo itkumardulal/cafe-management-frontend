@@ -312,17 +312,17 @@ function BankTransactionsContent() {
         <div className="grid gap-3 sm:grid-cols-3">
           <ReportSummaryCard
             label="Total deposits"
-            value={`Rs. ${formatMoney(extendedMeta.totalDeposits ?? "0")}`}
+            value={formatMoney(extendedMeta.totalDeposits ?? "0")}
             tone="info"
           />
           <ReportSummaryCard
             label="Total withdrawals"
-            value={`Rs. ${formatMoney(extendedMeta.totalWithdrawals ?? "0")}`}
+            value={formatMoney(extendedMeta.totalWithdrawals ?? "0")}
             tone="warning"
           />
           <ReportSummaryCard
             label="Net change"
-            value={`Rs. ${formatMoney(extendedMeta.netChange ?? "0")}`}
+            value={formatMoney(extendedMeta.netChange ?? "0")}
             tone="neutral"
           />
         </div>
@@ -460,7 +460,7 @@ function BankTransactionsContent() {
                 fields={[
                   { label: "Date", value: formatDateOnly(row.transactionDate) },
                   { label: "Type", value: typeBadge(row.type) },
-                  { label: "Amount", value: `Rs. ${formatMoney(row.amount)}` },
+                  { label: "Amount", value: formatMoney(row.amount) },
                   { label: "Reference", value: row.referenceNumber?.trim() || "—" },
                   {
                     label: "Voucher",
@@ -544,7 +544,7 @@ function BankTransactionsContent() {
                 </td>
                 <td className={cn("px-4 py-3.5", tableCenterCellClass)}>{typeBadge(row.type)}</td>
                 <td className={cn("px-4 py-3.5 text-sm font-medium tabular-nums text-foreground", tableCenterCellClass)}>
-                  Rs. {formatMoney(row.amount)}
+                  {formatMoney(row.amount)}
                 </td>
                 <td className="px-4 py-3.5 text-sm text-muted">{row.referenceNumber?.trim() || "—"}</td>
                 <td className="px-4 py-3.5 text-sm">
@@ -615,7 +615,7 @@ function BankTransactionsContent() {
               </DetailInfoCard>
               <DetailInfoCard label="Type">{typeBadge(viewTarget.type)}</DetailInfoCard>
               <DetailInfoCard label="Amount">
-                <p className="font-medium tabular-nums">Rs. {formatMoney(viewTarget.amount)}</p>
+                <p className="font-medium tabular-nums">{formatMoney(viewTarget.amount)}</p>
               </DetailInfoCard>
               <DetailInfoCard label="Reference">
                 <p className="font-medium">{viewTarget.referenceNumber?.trim() || "—"}</p>
@@ -674,7 +674,7 @@ function BankTransactionsContent() {
       >
         <div className="space-y-5">
           <p className="text-sm text-muted">
-            Delete this {deleteTarget?.type === "DEPOSIT" ? "deposit" : "withdrawal"} of Rs.{" "}
+            Delete this {deleteTarget?.type === "DEPOSIT" ? "deposit" : "withdrawal"} of{" "}
             {formatMoney(deleteTarget?.amount)}? The account balance will be recalculated.
           </p>
           <FormFooter>

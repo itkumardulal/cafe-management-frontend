@@ -566,6 +566,7 @@ function DirectPurchasesContent() {
                 subtitle={formatDateOnly(p.purchaseDate)}
                 badge={<PaymentStatusBadge status={p.paymentStatus} />}
                 fields={[
+                  { label: "Item", value: p.itemNameSummary ?? "—" },
                   { label: "Total", value: formatMoney(p.grandTotal) },
                   { label: "Lines", value: String(p.lineCount ?? 0) },
                 ]}
@@ -618,18 +619,7 @@ function DirectPurchasesContent() {
                   />
                 ),
               },
-              {
-                label: "Recorded",
-                headerContent: (
-                  <SortableTableHeader
-                    label="Recorded"
-                    sortKey="createdAt"
-                    currentSortBy={params.sortBy}
-                    currentSortOrder={params.sortOrder}
-                    onSort={toggleSort}
-                  />
-                ),
-              },
+              { label: "Item name" },
               { label: "Lines", thClassName: tableCenterColumnClass },
               { label: "Grand total", thClassName: tableCenterColumnClass },
               { label: "Payment", thClassName: tableCenterColumnClass },
@@ -647,8 +637,8 @@ function DirectPurchasesContent() {
                 <td className="px-4 py-3.5 text-sm text-muted whitespace-nowrap">
                   {formatDateOnly(p.purchaseDate)}
                 </td>
-                <td className="px-4 py-3.5 text-sm text-muted whitespace-nowrap">
-                  <span title={p.createdAt}>{formatDateTime(p.createdAt)}</span>
+                <td className="px-4 py-3.5 text-sm text-foreground">
+                  {p.itemNameSummary ?? "—"}
                 </td>
                 <td className={cn("px-4 py-3.5 text-sm tabular-nums text-muted", tableCenterCellClass)}>
                   {p.lineCount ?? 0}

@@ -30,6 +30,7 @@ export const LIST_SEARCH_PLACEHOLDERS: Record<string, string> = {
   'stock-removals': 'Search by receipt, staff, or notes…',
   'stock-movements': 'Search by item name…',
   'pos-sales': 'Search by receipt, customer name, or phone…',
+  invoices: 'Search by receipt, customer name, or phone…',
   'customer-receivables': 'Search customer name or phone…',
   users: 'Search by name, email, or staff ID…',
 };

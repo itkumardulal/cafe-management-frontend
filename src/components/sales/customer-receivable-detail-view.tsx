@@ -1,7 +1,7 @@
 "use client";
 
-import { Fragment, useState } from "react";
 import Link from "next/link";
+import { Fragment, useEffect, useState } from "react";
 import {
   ArrowLeft,
   ChevronDown,
@@ -11,6 +11,7 @@ import {
   History,
   MapPin,
   Phone,
+  Printer,
   Receipt,
   User,
 } from "lucide-react";
@@ -34,12 +35,19 @@ import type {
   SalePaymentMethod,
 } from "@/src/lib/ar-types";
 import {
-  SALE_PAYMENT_METHOD_OPTIONS,
+  RECEIVABLE_PAYMENT_METHOD_OPTIONS,
   formatSalePaymentMethod,
 } from "@/src/lib/ar-display";
 import { cn } from "@/src/lib/cn";
 import { formatDateOnly, formatDateTime, formatMoney } from "@/src/lib/format-display";
 import { parseMoneyInput } from "@/src/lib/money-input";
+
+export type ReceivableBankAccountOption = {
+  id: string;
+  bankName: string;
+  accountNumber: string;
+  label: string;
+};
 
 type Props = {
   detail: CustomerReceivableDetail;
@@ -53,12 +61,17 @@ type Props = {
   onAmountStrChange: (v: string) => void;
   paymentMethod: SalePaymentMethod;
   onPaymentMethodChange: (m: SalePaymentMethod) => void;
+  bankAccountId: string;
+  onBankAccountIdChange: (v: string) => void;
+  bankAccounts: ReceivableBankAccountOption[];
   remarks: string;
   onRemarksChange: (v: string) => void;
   preview: FifoAllocationPreview | null;
   previewLoading: boolean;
   saving: boolean;
   onSubmit: () => void;
+  onPrintPayment?: (paymentId: string, kind: CustomerReceivableDetail["paymentHistory"][number]["kind"]) => void;
+  printingPaymentId?: string | null;
 };
 
 export function CustomerReceivableDetailView({
@@ -68,25 +81,43 @@ export function CustomerReceivableDetailView({
   onAmountStrChange,
   paymentMethod,
   onPaymentMethodChange,
+  bankAccountId,
+  onBankAccountIdChange,
+  bankAccounts,
   remarks,
   onRemarksChange,
   preview,
   previewLoading,
   saving,
   onSubmit,
+  onPrintPayment,
+  printingPaymentId,
 }: Props) {
   const { customer, purchaseHistory, paymentHistory } = detail;
   const outstanding = Number(customer.outstandingAmount);
   const [expandedBill, setExpandedBill] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (paymentMethod === "CHEQUE") {
+      onPaymentMethodChange("CASH");
+    }
+  }, [paymentMethod, onPaymentMethodChange]);
+
   const parsed = parseMoneyInput(amountStr);
   const paymentAmount = parsed.invalid ? 0 : parsed.amount;
-  const postPaymentOutstanding = Math.max(0, outstanding - paymentAmount);
+  const appliedAmount = Math.min(paymentAmount, outstanding);
+  const changeAmount =
+    paymentAmount > outstanding
+      ? Math.max(0, Math.round((paymentAmount - outstanding) * 100) / 100)
+      : 0;
+  const postPaymentOutstanding = Math.max(0, outstanding - appliedAmount);
   const canPay =
     outstanding > 0.005 &&
     !parsed.invalid &&
     parsed.amount > 0 &&
-    parsed.amount <= outstanding + 0.005;
+    appliedAmount > 0.005 &&
+    (paymentMethod !== "BANK_TRANSFER" ||
+      (bankAccountId.trim().length > 0 && bankAccounts.length > 0));
   const mobilePresetAmounts = [
     Math.min(outstanding, 500),
     Math.min(outstanding, 1000),
@@ -275,13 +306,41 @@ export function CustomerReceivableDetailView({
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="font-mono font-medium">{p.receiptNo}</span>
-                      <span className="font-mono font-semibold tabular-nums">
-                        {formatMoney(p.amount)}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-semibold tabular-nums">
+                          {formatMoney(p.amount)}
+                        </span>
+                        {p.kind === "CRP" &&
+                        p.changeAmount &&
+                        Number(p.changeAmount) > 0.005 ? (
+                          <span className="rounded-md bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-800 dark:bg-sky-950/50 dark:text-sky-300">
+                            Change {formatMoney(p.changeAmount)}
+                          </span>
+                        ) : null}
+                        {onPrintPayment ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            className="h-8 gap-1.5 px-2.5"
+                            disabled={printingPaymentId === p.id}
+                            onClick={() => onPrintPayment(p.id, p.kind)}
+                          >
+                            <Printer className="h-3.5 w-3.5" aria-hidden />
+                            Print
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
                     <p className="text-xs text-muted">
                       {formatDateTime(p.paidAt)} · {formatSalePaymentMethod(p.paymentMethod)}
                       {p.kind === "CRP" ? " · FIFO settlement" : ""}
+                      {p.kind === "CRP" &&
+                      p.amountReceived &&
+                      p.changeAmount &&
+                      Number(p.changeAmount) > 0.005
+                        ? ` · Received ${formatMoney(p.amountReceived)}`
+                        : ""}
                     </p>
                     {p.allocations && p.allocations.length > 0 ? (
                       <ul className="mt-2 space-y-0.5 border-t border-[var(--color-border)] pt-2 text-xs text-muted">
@@ -315,22 +374,38 @@ export function CustomerReceivableDetailView({
                 {formatMoney(customer.outstandingAmount)}
               </p>
               {paymentAmount > 0 && !parsed.invalid ? (
-                <p className="mt-1 text-xs text-muted">
-                  After payment:{" "}
-                  <span className="font-mono tabular-nums text-foreground">
-                    {formatMoney(postPaymentOutstanding)}
-                  </span>
-                </p>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+                  <div>
+                    <p className="text-muted">Applied</p>
+                    <p className="font-mono font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
+                      {formatMoney(appliedAmount)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted">After payment</p>
+                    <p className="font-mono font-semibold tabular-nums text-foreground">
+                      {formatMoney(postPaymentOutstanding)}
+                    </p>
+                  </div>
+                  {changeAmount > 0.005 ? (
+                    <div className="col-span-2 sm:col-span-1">
+                      <p className="text-muted">Change</p>
+                      <p className="font-mono font-semibold tabular-nums text-sky-700 dark:text-sky-300">
+                        {formatMoney(changeAmount)}
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
               ) : null}
             </div>
 
             <div className="space-y-3">
-              <Field id="crp-payment-amount" label="Payment amount" required>
+              <Field id="crp-payment-amount" label="Amount received" required>
                 <Input
                   value={amountStr}
                   onChange={(e) => onAmountStrChange(e.target.value)}
                   inputMode="decimal"
-                  placeholder="0.00"
+                  placeholder="Cash handed by customer"
                 />
               </Field>
               <div className="flex flex-wrap gap-1.5">
@@ -347,24 +422,6 @@ export function CustomerReceivableDetailView({
                   </Button>
                 ))}
               </div>
-              <Field id="crp-payment-method" label="Payment method" required>
-                <Select
-                  searchable={false}
-                  value={paymentMethod}
-                  onChange={(e) =>
-                    onPaymentMethodChange(e.target.value as SalePaymentMethod)
-                  }
-                >
-                  {SALE_PAYMENT_METHOD_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field id="crp-payment-remarks" label="Remarks">
-                <Input value={remarks} onChange={(e) => onRemarksChange(e.target.value)} />
-              </Field>
 
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-cream-50)]/50 p-3">
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
@@ -389,6 +446,67 @@ export function CustomerReceivableDetailView({
                 )}
               </div>
 
+              <Field id="crp-payment-method" label="Payment method" required>
+                <Select
+                  searchable={false}
+                  value={paymentMethod}
+                  onChange={(e) =>
+                    onPaymentMethodChange(e.target.value as SalePaymentMethod)
+                  }
+                >
+                  {RECEIVABLE_PAYMENT_METHOD_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              {paymentMethod === "BANK_TRANSFER" ? (
+                <Field id="crp-bank-account" label="Bank account" required>
+                  {bankAccounts.length === 0 ? (
+                    <p className="text-sm text-muted">
+                      No active bank accounts.{" "}
+                      <Link
+                        href="/banks"
+                        className="font-medium text-[var(--color-primary)] hover:underline"
+                      >
+                        Add a bank account
+                      </Link>
+                    </p>
+                  ) : (
+                    <Select
+                      searchable
+                      value={bankAccountId}
+                      onChange={(e) => onBankAccountIdChange(e.target.value)}
+                    >
+                      <option value="">Choose account</option>
+                      {bankAccounts.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.label}
+                        </option>
+                      ))}
+                    </Select>
+                  )}
+                </Field>
+              ) : null}
+              <Field id="crp-payment-remarks" label="Remarks">
+                <Input value={remarks} onChange={(e) => onRemarksChange(e.target.value)} />
+              </Field>
+
+              {canPay && changeAmount > 0.005 ? (
+                <div className="rounded-xl border border-sky-200 bg-sky-50/80 px-3 py-2.5 dark:border-sky-900/50 dark:bg-sky-950/30">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-300">
+                    Change to return
+                  </p>
+                  <p className="mt-0.5 font-mono text-xl font-bold tabular-nums text-sky-700 dark:text-sky-300">
+                    {formatMoney(changeAmount)}
+                  </p>
+                  <p className="mt-1 text-xs text-muted">
+                    Received {formatMoney(paymentAmount)} · Applied {formatMoney(appliedAmount)}
+                  </p>
+                </div>
+              ) : null}
+
               <Button
                 type="button"
                 className="w-full"
@@ -400,7 +518,9 @@ export function CustomerReceivableDetailView({
               {canPay ? (
                 <p className="flex items-center gap-1 text-xs text-muted">
                   <CircleCheckBig className="h-3.5 w-3.5 text-emerald-600" />
-                  Payment will settle oldest unpaid bills first.
+                  {changeAmount > 0.005
+                    ? `${formatMoney(appliedAmount)} will settle bills · return ${formatMoney(changeAmount)} change`
+                    : "Payment will settle oldest unpaid bills first."}
                 </p>
               ) : null}
             </div>

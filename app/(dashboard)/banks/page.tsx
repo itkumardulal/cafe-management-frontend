@@ -209,7 +209,7 @@ function BanksContent() {
         <div className="grid gap-3 sm:grid-cols-2">
           <ReportSummaryCard
             label="Total current balance"
-            value={`Rs. ${formatMoney(extendedMeta.totalCurrentBalance ?? "0")}`}
+            value={formatMoney(extendedMeta.totalCurrentBalance ?? "0")}
             hint="Across all active accounts"
             tone="info"
           />
@@ -268,8 +268,8 @@ function BanksContent() {
                 fields={[
                   { label: "Account number", value: row.accountNumber },
                   { label: "Account holder", value: row.accountHolderName },
-                  { label: "Opening balance", value: `Rs. ${formatMoney(row.openingBalance)}` },
-                  { label: "Current balance", value: `Rs. ${formatMoney(row.currentBalance)}` },
+                  { label: "Opening balance", value: formatMoney(row.openingBalance) },
+                  { label: "Current balance", value: formatMoney(row.currentBalance) },
                   {
                     label: "Status",
                     value: (
@@ -321,10 +321,10 @@ function BanksContent() {
                 </td>
                 <td className="px-4 py-3.5 text-sm text-muted">{row.accountHolderName}</td>
                 <td className={cn("px-4 py-3.5 text-sm tabular-nums text-muted", tableCenterCellClass)}>
-                  Rs. {formatMoney(row.openingBalance)}
+                  {formatMoney(row.openingBalance)}
                 </td>
                 <td className={cn("px-4 py-3.5 text-sm font-medium tabular-nums text-foreground", tableCenterCellClass)}>
-                  Rs. {formatMoney(row.currentBalance)}
+                  {formatMoney(row.currentBalance)}
                 </td>
                 <td className={cn("px-4 py-3.5", tableCenterCellClass)}>
                   <Badge size="sm" variant={row.isActive ? "success" : "default"}>

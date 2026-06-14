@@ -45,6 +45,8 @@ export type ApBillSummary = {
   bankPaidAmount?: string;
   creditAmount?: string;
   bankPaymentScreenshotUrl?: string | null;
+  /** Direct purchases list: comma-separated line item names. */
+  itemNameSummary?: string | null;
 };
 
 export type PurchasePaymentRow = {
@@ -143,8 +145,8 @@ export type BillSettlementSupplierDetail = {
     lines: Array<{
       id: string;
       name: string;
-      unit: string;
       quantity: string;
+      ratePerUnit: string;
       lineTotal: string;
     }>;
   }>;

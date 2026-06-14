@@ -36,6 +36,7 @@ export type RmPurchaseReceiptData = {
   lines: RmPurchaseReceiptLine[];
   cafe?: {
     cafeName: string;
+    logo?: string | null;
     address?: string | null;
     contactNumber?: string | null;
     email?: string;

@@ -1,18 +1,17 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, Coffee, LogOut } from "lucide-react";
-import { getMenuIcon } from "@/src/lib/menu-icons";
-import { motion } from "framer-motion";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { Modal } from "@/src/components/ui/modal";
 import { cn } from "@/src/lib/cn";
+import { canAccessStockAlerts } from "@/src/lib/stock-alerts-access";
 import { logoutThunk } from "@/src/store/slices/auth.slice";
 import { fetchStockAlertsThunk } from "@/src/store/slices/dashboard.slice";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
+import { SidebarNavGroups } from "./sidebar-nav-groups";
 
 type SidebarProps = {
   collapsed?: boolean;
@@ -26,6 +25,7 @@ export function Sidebar({ collapsed = false, onToggle, className }: SidebarProps
   const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
   const menus = useAppSelector((state) => state.menu.items);
+  const menusInitialized = useAppSelector((state) => state.menu.initialized);
   const stockAlerts = useAppSelector((state) => state.dashboard.stockAlerts);
   const stockAlertsStatus = useAppSelector((state) => state.dashboard.stockAlertsStatus);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -38,15 +38,32 @@ export function Sidebar({ collapsed = false, onToggle, className }: SidebarProps
     return stockAlerts.counts.low + stockAlerts.counts.out;
   }, [stockAlerts, user?.role]);
 
+  const canFetchStockAlerts = useMemo(
+    () => canAccessStockAlerts(user?.role, menus),
+    [menus, user?.role],
+  );
+
   useEffect(() => {
     if (!user?.role || user.role === "SUPER_ADMIN") {
       return;
     }
-    if (stockAlertsStatus === "loaded" || stockAlertsStatus === "loading") {
+    if (user.role === "STAFF" && !menusInitialized) {
+      return;
+    }
+    if (!canFetchStockAlerts) {
+      return;
+    }
+    if (stockAlertsStatus !== "idle") {
       return;
     }
     void dispatch(fetchStockAlertsThunk());
-  }, [dispatch, stockAlertsStatus, user?.role]);
+  }, [
+    canFetchStockAlerts,
+    dispatch,
+    menusInitialized,
+    stockAlertsStatus,
+    user?.role,
+  ]);
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -95,39 +112,15 @@ export function Sidebar({ collapsed = false, onToggle, className }: SidebarProps
       </div>
 
       <nav
-        className="sidebar-nav-scroll min-h-0 flex-1 space-y-1.5 overflow-x-hidden overflow-y-auto overscroll-contain"
+        className="sidebar-nav-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"
         aria-label="Main navigation"
       >
-        {menus.map((menu) => {
-          const active = pathname === menu.route;
-          const Icon = getMenuIcon(menu.icon);
-          return (
-            <motion.div key={menu.id} whileHover={{ x: 2 }}>
-              <Link
-                href={menu.route}
-                className={`touch-target flex min-h-11 items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition ${
-                  active
-                    ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-nav-active-text)] shadow-[inset_3px_0_0_0_var(--color-primary)]"
-                    : "text-[var(--color-nav-idle)] hover:bg-[var(--color-cream-100)] hover:text-[var(--color-nav-idle-hover)]"
-                }`}
-                title={collapsed ? menu.name : undefined}
-                aria-current={active ? "page" : undefined}
-              >
-                <Icon size={16} className="shrink-0" aria-hidden />
-                {!collapsed ? (
-                  <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                    <span className="truncate">{menu.name}</span>
-                    {menu.route === "/inventory" && stockAlertCount > 0 ? (
-                      <span className="shrink-0 rounded-full bg-[var(--color-danger)] px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                        {stockAlertCount > 99 ? "99+" : stockAlertCount}
-                      </span>
-                    ) : null}
-                  </span>
-                ) : null}
-              </Link>
-            </motion.div>
-          );
-        })}
+        <SidebarNavGroups
+          menus={menus}
+          pathname={pathname}
+          collapsed={collapsed}
+          stockAlertCount={stockAlertCount}
+        />
       </nav>
 
       <div className="mt-auto shrink-0 border-t border-[var(--color-border)] bg-[var(--color-surface)] pt-3">

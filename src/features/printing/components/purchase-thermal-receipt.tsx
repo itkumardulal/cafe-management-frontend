@@ -43,6 +43,7 @@ export type PurchaseThermalReceiptData = {
   lines: PurchaseThermalReceiptLine[];
   cafe?: {
     cafeName: string;
+    logo?: string | null;
     address?: string | null;
     contactNumber?: string | null;
     email?: string;
@@ -102,6 +103,7 @@ export function PurchaseThermalReceipt({
     <ThermalReceiptShell id={id} className={cn(className)}>
       <ThermalReceiptHeader
         cafeName={name}
+        logoUrl={purchase.cafe?.logo}
         address={purchase.cafe?.address}
         contact={contact}
         title={config.title}

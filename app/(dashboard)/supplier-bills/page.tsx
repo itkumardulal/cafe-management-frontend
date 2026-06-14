@@ -93,7 +93,7 @@ function SupplierBillsContent() {
   return (
     <>
       <PageHeader
-        title="Bill settlement"
+        title="Suppliers Payables"
         description="Track supplier dues and settle outstanding purchase bills by vendor."
       />
 
@@ -231,7 +231,7 @@ function SupplierBillsContent() {
               { label: "Outstanding", thClassName: tableCenterColumnClass },
               { label: "Actions", thClassName: tableActionsColumnClass },
             ]}
-            ariaLabel="Bill settlement vendors"
+            ariaLabel="Suppliers payables vendors"
             className="min-w-0 border-0 shadow-none [&_table]:min-w-[64rem]"
           >
             {items.map((s) => (

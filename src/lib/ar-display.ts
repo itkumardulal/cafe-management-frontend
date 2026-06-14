@@ -56,6 +56,10 @@ export const SALE_PAYMENT_METHOD_OPTIONS = [
   { value: "CHEQUE" as const, label: "Cheque" },
 ] as const;
 
+export const RECEIVABLE_PAYMENT_METHOD_OPTIONS = SALE_PAYMENT_METHOD_OPTIONS.filter(
+  (o) => o.value !== "CHEQUE",
+);
+
 export function formatSalePaymentMethod(method: string): string {
   const found = SALE_PAYMENT_METHOD_OPTIONS.find((o) => o.value === method);
   return found?.label ?? method.replace(/_/g, " ");

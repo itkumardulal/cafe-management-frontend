@@ -6,6 +6,7 @@ import {
   HandCoins,
   Landmark,
   ScanLine,
+  FileText,
   FolderTree,
   LayoutDashboard,
   LayoutGrid,
@@ -52,6 +53,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   "package-minus": PackageMinus,
   "hand-coins": HandCoins,
   "scan-line": ScanLine,
+  "file-text": FileText,
   landmark: Landmark,
   "arrow-left-right": ArrowLeftRight,
 };

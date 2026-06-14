@@ -26,6 +26,7 @@ export type SalePaymentRow = {
   receiptNo: string;
   amount: string;
   paymentMethod: SalePaymentMethod;
+  bankAccountId?: string | null;
   referenceNumber?: string | null;
   chequeBankName?: string | null;
   remarks?: string | null;
@@ -38,6 +39,7 @@ export type SalePaymentRow = {
 export type InitialSalePaymentInput = {
   amount: number;
   paymentMethod: SalePaymentMethod;
+  bankAccountId?: string;
   referenceNumber?: string;
   chequeBankName?: string;
   remarks?: string;
@@ -79,6 +81,7 @@ export type SaleDetailResponse = {
   lineCount: number;
   cafe?: {
     cafeName: string;
+    logo?: string | null;
     address?: string | null;
     contactNumber?: string | null;
     email?: string;
@@ -134,8 +137,11 @@ export type CustomerReceivableDetail = {
   paymentHistory: Array<{
     id: string;
     kind: "CRP" | "SPAY";
+    saleId?: string;
     receiptNo: string;
     amount: string;
+    amountReceived?: string;
+    changeAmount?: string;
     paymentMethod: string;
     remarks: string | null;
     paidAt: string;
@@ -143,6 +149,36 @@ export type CustomerReceivableDetail = {
     allocations?: Array<{ receiptNo: string; amount: string }>;
   }>;
 };
+
+export type CustomerReceivablePaymentReceiptData = {
+  receiptNo: string;
+  amount: string;
+  amountReceived?: string;
+  changeAmount?: string;
+  paymentMethod: string;
+  remarks: string | null;
+  paidAt: string;
+  createdByName: string | null;
+  bankAccountLabel?: string | null;
+  customer: {
+    name: string;
+    phoneNumber: string;
+    address?: string | null;
+    email?: string | null;
+  };
+  allocations: Array<{ receiptNo: string; amount: string }>;
+  cafe?: {
+    cafeName: string;
+    logo?: string | null;
+    address?: string | null;
+    contactNumber?: string | null;
+    email?: string;
+  };
+};
+
+export type CustomerReceivablePaymentPrintResponse =
+  | { printType: "sale"; sale: SaleDetailResponse }
+  | { printType: "payment"; payment: CustomerReceivablePaymentReceiptData };
 
 export type CustomerSearchHit = {
   id: string;
@@ -153,6 +189,9 @@ export type CustomerSearchHit = {
 
 export type FifoAllocationPreview = {
   customerId: string;
+  amountReceived: string;
+  appliedAmount: string;
+  changeAmount: string;
   paymentAmount: string;
   totalOutstanding: string;
   remainingOutstanding: string;

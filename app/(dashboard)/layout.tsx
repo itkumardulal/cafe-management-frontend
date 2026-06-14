@@ -6,6 +6,7 @@ import { AuthGuard } from "@/src/components/layouts/auth-guard";
 import { Header } from "@/src/components/layouts/header";
 import { MenuRouteGuard } from "@/src/components/layouts/menu-route-guard";
 import { Sidebar } from "@/src/components/layouts/sidebar";
+import { useProactiveSessionRefresh } from "@/src/hooks/use-proactive-session-refresh";
 
 const MobileNav = dynamic(() => import("@/src/components/layouts/mobile-nav").then((mod) => mod.MobileNav), {
   ssr: false,
@@ -19,6 +20,7 @@ export default function DashboardLayout({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const closeMobileNav = useCallback(() => setMobileNavOpen(false), []);
+  useProactiveSessionRefresh();
 
   return (
     <AuthGuard>

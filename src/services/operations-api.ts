@@ -18,6 +18,7 @@ export type ListQueryParams = {
 };
 
 export type DateRangeQueryParams = ListQueryParams & {
+  period?: string;
   fromDate?: string;
   toDate?: string;
 };
@@ -462,16 +463,18 @@ export const operationsApi = {
         "/direct-purchases",
         params,
       ),
-    linkOptions: () =>
-      getData<
-        Array<{
+    linkOptions: (options?: { force?: boolean }) =>
+      getData<{
+        items: Array<{
           id: string;
           name: string;
           unitType?: string | null;
           unitQuantity?: string | null;
           quantityOnHand?: string;
-        }>
-      >("/direct-purchases/link-options"),
+          ratePerUnit?: string | null;
+        }>;
+        linkedNames: string[];
+      }>("/direct-purchases/link-options", undefined, options),
     getOne: (id: string) =>
       getData<import("@/src/lib/ap-types").DirectApBillDetail>(`/direct-purchases/${id}`),
     create: (data: {
@@ -681,12 +684,17 @@ export const operationsApi = {
         { ...buildReportApiParams(params), page: params?.page, limit: params?.limit },
       ),
     banks: (
-      params?: import("@/src/features/reports/types/reports.types").ReportPeriodParams &
+      params?: import("@/src/features/reports/types/reports.types").BankReportParams &
         ListQueryParams,
     ) =>
       getData<import("@/src/features/reports/types/reports.types").BankReport>(
         "/reports/banks",
-        { ...buildReportApiParams(params), page: params?.page ?? 1, limit: params?.limit ?? 50 },
+        {
+          ...buildReportApiParams(params),
+          bankAccountId: params?.bankAccountId,
+          page: params?.page ?? 1,
+          limit: params?.limit ?? 50,
+        },
       ),
   },
   analytics: {
@@ -733,26 +741,17 @@ export const operationsApi = {
       getData<
         Paginated<{
           id: string;
+          name: string;
           displayLabel: string;
           description?: string | null;
-          monthlySheetCategory: string;
           createdAt: string;
-          salaryStaffUserId?: string | null;
-          salaryStaffName?: string | null;
         }>
       >("/expense-items", params),
-    create: (data: {
-      description?: string;
-      monthlySheetCategory?: string;
-      salaryStaffUserId?: string;
-    }) => mutate("post", "/expense-items", data),
+    create: (data: { name: string; description?: string }) =>
+      mutate("post", "/expense-items", data),
     update: (
       id: string,
-      data: {
-        description?: string;
-        monthlySheetCategory?: string;
-        salaryStaffUserId?: string;
-      },
+      data: { name?: string; description?: string },
     ) => mutate("patch", `/expense-items/${id}`, data),
     remove: (id: string) => mutate("delete", `/expense-items/${id}`),
   },
@@ -775,6 +774,15 @@ export const operationsApi = {
     remove: (id: string) => mutate("delete", `/expense-entries/${id}`),
   },
   bankAccounts: {
+    options: () =>
+      getData<
+        Array<{
+          id: string;
+          bankName: string;
+          accountNumber: string;
+          label: string;
+        }>
+      >("/bank-accounts/options"),
     list: (params?: ListQueryParams & { activeOnly?: boolean }) => {
       const { activeOnly, ...rest } = params ?? {};
       return getData<
@@ -1010,6 +1018,18 @@ export const operationsApi = {
     },
   },
   cafes: {
+    update: (
+      cafeId: string,
+      body: {
+        cafeName?: string;
+        slug?: string;
+        address?: string;
+        contactNumber?: string;
+        logo?: string;
+        email?: string;
+        adminName?: string;
+      },
+    ) => mutate<{ cafe: unknown; cafeAdmin: unknown }>("patch", `/cafes/${cafeId}`, body),
     admin: {
       disable: (cafeId: string) => mutate("patch", `/cafes/${cafeId}/admin/disable`),
       enable: (cafeId: string) => mutate("patch", `/cafes/${cafeId}/admin/enable`),
@@ -1082,6 +1102,7 @@ export const operationsApi = {
       initialPayments?: Array<{
         amount: number;
         paymentMethod: "CASH" | "BANK_TRANSFER" | "ESEWA" | "KHALTI" | "CHEQUE";
+        bankAccountId?: string;
         referenceNumber?: string;
         chequeBankName?: string;
         remarks?: string;
@@ -1181,6 +1202,7 @@ export const operationsApi = {
       customerId: string;
       amount: number;
       paymentMethod: import("@/src/lib/ar-types").SalePaymentMethod;
+      bankAccountId?: string;
       remarks?: string;
     }) =>
       mutate<import("@/src/lib/ar-types").FifoAllocationPreview>(
@@ -1192,14 +1214,22 @@ export const operationsApi = {
       customerId: string;
       amount: number;
       paymentMethod: import("@/src/lib/ar-types").SalePaymentMethod;
+      bankAccountId?: string;
       remarks?: string;
     }) =>
       mutate<{
         id: string;
         receiptNo: string;
         amount: string;
+        amountReceived: string;
+        changeAmount: string;
         allocations: Array<{ saleId: string; receiptNo: string; amount: string }>;
       }>("post", "/customer-receivables/payments", data),
+    getPaymentPrint: (paymentId: string, kind: "CRP" | "SPAY") =>
+      getData<import("@/src/lib/ar-types").CustomerReceivablePaymentPrintResponse>(
+        `/customer-receivables/payments/${paymentId}/print`,
+        { kind },
+      ),
   },
   supplierBills: {
     list: (params?: {

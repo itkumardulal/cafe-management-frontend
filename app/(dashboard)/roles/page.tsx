@@ -222,7 +222,7 @@ function StaffRolesContent() {
   return (
     <>
       <PageHeader
-        title="Staff Roles"
+        title="User Roles"
         description="Define access templates for your team. Create roles here, then assign them when adding users."
         action={
           <Button type="button" size="sm" onClick={openCreate}>

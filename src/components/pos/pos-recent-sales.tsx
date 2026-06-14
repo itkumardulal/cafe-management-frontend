@@ -1,8 +1,17 @@
 "use client";
 
-import { Suspense, useState } from "react";
-import { Eye, Printer, ScanLine } from "lucide-react";
+import { Suspense, useCallback, useMemo, useState } from "react";
+import { Eye, FileText, Printer, ScanLine } from "lucide-react";
 import { FilterDrawer } from "@/src/components/shared/filter-drawer";
+import { SalePaymentStatusBadge } from "@/src/components/sales/ar-status-badges";
+import { InvoicesQuickFilters } from "@/src/features/invoices/components/invoices-quick-filters";
+import { InvoicesSummaryStrip } from "@/src/features/invoices/components/invoices-summary-strip";
+import { ReportPeriodFilter } from "@/src/features/reports/components/report-period-filter";
+import {
+  buildReportQueryParams,
+  type ReportPeriodKey,
+  type ReportPeriodParams,
+} from "@/src/features/reports/types/reports.types";
 import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
 import { MobileSortSelect } from "@/src/components/shared/mobile-sort-select";
 import { PaginatedListSection } from "@/src/components/shared/paginated-list-section";
@@ -16,11 +25,14 @@ import {
   tableCenterColumnClass,
 } from "@/src/components/ui/table";
 import { Button } from "@/src/components/ui/button";
+import { Badge } from "@/src/components/ui/badge";
+import { Card } from "@/src/components/ui/card";
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { serviceLabel } from "@/src/features/printing/lib/pos-labels";
 import { cn } from "@/src/lib/cn";
 import { formatDateTime, formatMoney } from "@/src/lib/format-display";
 import { operationsApi } from "@/src/services/operations-api";
+import type { SalePaymentStatus } from "@/src/lib/ar-types";
 
 type SaleRow = {
   id: string;
@@ -28,15 +40,44 @@ type SaleRow = {
   saleAt: string;
   serviceType: "DINE_IN" | "DELIVERY";
   billingType: "PAID" | "CREDIT";
-  paymentStatus?: "PAID" | "PARTIAL" | "UNPAID";
+  paymentStatus?: SalePaymentStatus;
   tableName?: string | null;
   grandTotal: string;
+  changeAmount?: string;
   remainingAmount?: string;
   lineCount: number;
 };
 
 type ServiceFilter = "" | "DINE_IN" | "DELIVERY";
 type BillingFilter = "" | "PAID" | "CREDIT";
+
+const DEFAULT_PERIOD: ReportPeriodKey = "this_month";
+
+function periodToFilters(
+  existing: Record<string, string>,
+  next: ReportPeriodParams,
+): Record<string, string> {
+  const filters: Record<string, string> = {
+    ...existing,
+    period: next.period ?? DEFAULT_PERIOD,
+  };
+  if (next.period === "custom") {
+    if (next.fromDate) {
+      filters.fromDate = next.fromDate;
+    } else {
+      delete filters.fromDate;
+    }
+    if (next.toDate) {
+      filters.toDate = next.toDate;
+    } else {
+      delete filters.toDate;
+    }
+  } else {
+    delete filters.fromDate;
+    delete filters.toDate;
+  }
+  return filters;
+}
 
 function chipClass(active: boolean) {
   return cn(
@@ -56,13 +97,45 @@ function billingLabel(type: SaleRow["billingType"]) {
   return type === "PAID" ? "Paid" : "Credit";
 }
 
+function paymentBadge(row: SaleRow) {
+  if (row.billingType === "CREDIT" && row.paymentStatus) {
+    return <SalePaymentStatusBadge status={row.paymentStatus} />;
+  }
+  return (
+    <Badge variant="success" size="sm">
+      Paid
+    </Badge>
+  );
+}
+
+function serviceBadge(type: SaleRow["serviceType"]) {
+  return (
+    <Badge variant="default" size="sm">
+      {serviceLabel(type)}
+    </Badge>
+  );
+}
+
 function PosRecentSalesContent({
   onView,
   onPrint,
+  queryKey = "invoices",
+  variant = "default",
+  title,
+  description,
+  emptyTitle = "No invoices yet",
+  emptyDescription = "Completed sales from POS will appear here.",
 }: {
   onView: (id: string) => void;
   onPrint: (id: string) => void;
+  queryKey?: string;
+  variant?: "default" | "invoices";
+  title?: string;
+  description?: string;
+  emptyTitle?: string;
+  emptyDescription?: string;
 }) {
+  const isInvoicesLayout = variant === "invoices";
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [draftServiceFilter, setDraftServiceFilter] = useState<ServiceFilter>("");
   const [draftBillingFilter, setDraftBillingFilter] = useState<BillingFilter>("");
@@ -86,27 +159,55 @@ function PosRecentSalesContent({
     setSort,
     params,
     setFilter,
-    clearFilters,
+    setFilters,
   } = usePaginatedList<SaleRow>({
-    queryKey: "pos-sales",
+    queryKey,
     fetchFn: (p) => {
-      const { salesServiceType, salesBillingType, salesHasBalance, ...rest } = p;
+      const {
+        salesServiceType,
+        salesBillingType,
+        salesHasBalance,
+        period,
+        fromDate,
+        toDate,
+        ...rest
+      } = p;
+      const periodQuery = buildReportQueryParams({
+        period: (period as ReportPeriodKey | undefined) || DEFAULT_PERIOD,
+        fromDate: typeof fromDate === "string" ? fromDate : undefined,
+        toDate: typeof toDate === "string" ? toDate : undefined,
+      });
       return operationsApi.sales.list({
         ...rest,
+        ...periodQuery,
         serviceType: (salesServiceType as ServiceFilter | undefined) || undefined,
         billingType: (salesBillingType as BillingFilter | undefined) || undefined,
         hasBalance: salesHasBalance === "true" ? true : undefined,
       });
     },
     defaultSort: { sortBy: "saleAt", sortOrder: "desc" },
-    filterKeys: ["salesServiceType", "salesBillingType", "salesHasBalance"],
+    filterKeys: [
+      "period",
+      "fromDate",
+      "toDate",
+      "salesServiceType",
+      "salesBillingType",
+      "salesHasBalance",
+    ],
     urlConfig: {
       pageKey: "salesPage",
       limitKey: "salesLimit",
       searchKey: "salesSearch",
       sortByKey: "salesSortBy",
       sortOrderKey: "salesSortOrder",
-      filterKeys: ["salesServiceType", "salesBillingType", "salesHasBalance"],
+      filterKeys: [
+        "period",
+        "fromDate",
+        "toDate",
+        "salesServiceType",
+        "salesBillingType",
+        "salesHasBalance",
+      ],
     },
     errorMessage: "Failed to load sales",
   });
@@ -115,22 +216,418 @@ function PosRecentSalesContent({
   const billingFilter = (params.filters.salesBillingType ?? "") as BillingFilter;
   const openBalanceFilter = params.filters.salesHasBalance === "true";
 
+  const periodParams = useMemo<ReportPeriodParams>(
+    () => ({
+      period: (params.filters.period as ReportPeriodKey | undefined) ?? DEFAULT_PERIOD,
+      fromDate: params.filters.fromDate,
+      toDate: params.filters.toDate,
+    }),
+    [params.filters.period, params.filters.fromDate, params.filters.toDate],
+  );
+
+  const handlePeriodChange = useCallback(
+    (next: ReportPeriodParams) => {
+      setFilters(periodToFilters(params.filters, next));
+    },
+    [params.filters, setFilters],
+  );
+
+  const resetListFilters = useCallback(() => {
+    setFilters({
+      period: DEFAULT_PERIOD,
+      salesServiceType: "",
+      salesBillingType: "",
+      salesHasBalance: "",
+    });
+  }, [setFilters]);
+
   const applyFilters = () => {
-    setFilter("salesServiceType", draftServiceFilter);
-    setFilter("salesBillingType", draftBillingFilter);
-    setFilter("salesHasBalance", draftOpenBalance ? "true" : "");
+    setFilters({
+      ...params.filters,
+      salesServiceType: draftServiceFilter,
+      salesBillingType: draftBillingFilter,
+      salesHasBalance: draftOpenBalance ? "true" : "",
+    });
   };
 
-  const hasDrawerFilters = Boolean(serviceFilter || billingFilter || openBalanceFilter);
+  const hasPeriodFilter = Boolean(
+    params.filters.period && params.filters.period !== DEFAULT_PERIOD,
+  );
+  const hasListActiveFilters = hasActiveFilters || hasPeriodFilter;
+  const hasDrawerFilters = Boolean(
+    serviceFilter || billingFilter || openBalanceFilter || hasPeriodFilter,
+  );
+
+  const pageRevenue = useMemo(
+    () => sales.reduce((sum, row) => sum + Number(row.grandTotal || 0), 0),
+    [sales],
+  );
+
+  const pageChangeReturned = useMemo(
+    () => sales.reduce((sum, row) => sum + Number(row.changeAmount || 0), 0),
+    [sales],
+  );
+
+  const openBalanceCount = useMemo(
+    () => sales.filter((row) => Number(row.remainingAmount) > 0.005).length,
+    [sales],
+  );
+
+  const periodFilterBlock = (
+    <ReportPeriodFilter
+      period={periodParams}
+      onPeriodChange={handlePeriodChange}
+      compact={!isInvoicesLayout}
+    />
+  );
+
+  const quickFiltersBlock = (
+    <InvoicesQuickFilters
+      serviceFilter={serviceFilter}
+      billingFilter={billingFilter}
+      openBalanceFilter={openBalanceFilter}
+      onServiceChange={(value) => setFilter("salesServiceType", value)}
+      onBillingChange={(value) => setFilter("salesBillingType", value)}
+      onOpenBalanceToggle={() =>
+        setFilter("salesHasBalance", openBalanceFilter ? "" : "true")
+      }
+      className={isInvoicesLayout ? undefined : "hidden md:flex"}
+    />
+  );
+
+  const listSection = (
+    <PaginatedListSection
+      loading={loading}
+      isFetching={isFetching}
+      itemsCount={sales.length}
+      hasActiveFilters={hasListActiveFilters}
+      searchValue={searchInput}
+      onSearchChange={setSearch}
+      onSearchClear={clearSearch}
+      searchPlaceholder={
+        isInvoicesLayout ? "Search receipt or customer…" : searchPlaceholder
+      }
+      isSearching={isSearching}
+      searchResultSummary={searchResultSummary}
+      tableColumns={9}
+      emptyTitle={emptyTitle}
+      emptyDescription={emptyDescription}
+      emptyIcon={isInvoicesLayout ? FileText : ScanLine}
+      onClearFilters={() => {
+        clearSearch();
+        resetListFilters();
+      }}
+      currentPage={meta.page}
+      totalPages={meta.totalPages}
+      totalRecords={meta.total}
+      pageSize={meta.limit}
+      onPageChange={setPage}
+      onPageSizeChange={setPageSize}
+      toolbar={
+        isInvoicesLayout ? (
+          <div className="space-y-3">
+            {quickFiltersBlock}
+          </div>
+        ) : undefined
+      }
+      filters={
+        <FilterDrawer
+          open={filterDrawerOpen}
+          onOpenChange={(open) => {
+            setFilterDrawerOpen(open);
+            if (open) {
+              setDraftServiceFilter(serviceFilter);
+              setDraftBillingFilter(billingFilter);
+              setDraftOpenBalance(openBalanceFilter);
+            }
+          }}
+          hasActiveFilters={hasDrawerFilters}
+          onApply={applyFilters}
+          onReset={() => {
+            setDraftServiceFilter("");
+            setDraftBillingFilter("");
+            setDraftOpenBalance(false);
+            resetListFilters();
+          }}
+          title={isInvoicesLayout ? "Filter invoices" : "Filter orders"}
+        >
+          <ReportPeriodFilter
+            period={periodParams}
+            onPeriodChange={handlePeriodChange}
+            compact
+          />
+          <p className="mb-2 mt-4 text-sm font-medium text-[var(--color-foreground)]">Service type</p>
+          <div className="mb-4 flex flex-wrap gap-2">
+            {(["", "DINE_IN", "DELIVERY"] as const).map((f) => (
+              <button
+                key={f || "all-service"}
+                type="button"
+                onClick={() => setDraftServiceFilter(f)}
+                className={chipClass(draftServiceFilter === f)}
+              >
+                {f === "" ? "All" : f === "DINE_IN" ? "Dine in" : "Delivery"}
+              </button>
+            ))}
+          </div>
+          <p className="mb-2 text-sm font-medium text-[var(--color-foreground)]">Payment type</p>
+          <div className="flex flex-wrap gap-2">
+            {(["", "PAID", "CREDIT"] as const).map((f) => (
+              <button
+                key={f || "all-billing"}
+                type="button"
+                onClick={() => setDraftBillingFilter(f)}
+                className={chipClass(draftBillingFilter === f)}
+              >
+                {f === "" ? "All" : f === "PAID" ? "Paid" : "Credit"}
+              </button>
+            ))}
+          </div>
+        </FilterDrawer>
+      }
+      mobileSort={
+        <MobileSortSelect
+          options={[
+            { label: "Date (newest)", sortBy: "saleAt", sortOrder: "desc" },
+            { label: "Date (oldest)", sortBy: "saleAt", sortOrder: "asc" },
+            { label: "Receipt (A–Z)", sortBy: "receiptNo", sortOrder: "asc" },
+          ]}
+          currentSortBy={params.sortBy}
+          currentSortOrder={params.sortOrder}
+          onSort={setSort}
+        />
+      }
+      mobileCards={
+        <ListCardStack>
+          {sales.map((s) => (
+            <ListCard
+              key={s.id}
+              title={s.receiptNo}
+              subtitle={formatDateTime(s.saleAt)}
+              badge={isInvoicesLayout ? paymentBadge(s) : undefined}
+              fields={[
+                {
+                  label: "Service",
+                  value: isInvoicesLayout ? serviceBadge(s.serviceType) : serviceLabel(s.serviceType),
+                  layout: isInvoicesLayout ? "stack" : "inline",
+                },
+                { label: "Table", value: tableCell(s) },
+                ...(isInvoicesLayout
+                  ? []
+                  : [{ label: "Payment", value: billingLabel(s.billingType) }]),
+                ...(Number(s.remainingAmount) > 0.005
+                  ? [
+                      {
+                        label: "Due",
+                        value: (
+                          <span className="font-medium tone-warning-text tabular-nums">
+                            {formatMoney(s.remainingAmount!)}
+                          </span>
+                        ),
+                      },
+                    ]
+                  : []),
+                { label: "Items", value: String(s.lineCount) },
+                {
+                  label: "Total",
+                  value: (
+                    <span className="font-semibold tabular-nums text-foreground">
+                      {formatMoney(s.grandTotal)}
+                    </span>
+                  ),
+                },
+              ]}
+              actions={
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => onView(s.id)}>
+                    <span className="inline-flex items-center gap-1.5">
+                      <Eye size={15} strokeWidth={1.75} aria-hidden />
+                      View
+                    </span>
+                  </Button>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => onPrint(s.id)}>
+                    <span className="inline-flex items-center gap-1.5">
+                      <Printer size={15} strokeWidth={1.75} aria-hidden />
+                      Print
+                    </span>
+                  </Button>
+                </div>
+              }
+            />
+          ))}
+        </ListCardStack>
+      }
+    >
+      <ResponsiveTable
+        headers={[
+          {
+            label: "Receipt",
+            thClassName: tableCenterColumnClass,
+            headerContent: (
+              <SortableTableHeader
+                label="Receipt"
+                sortKey="receiptNo"
+                currentSortBy={params.sortBy}
+                currentSortOrder={params.sortOrder}
+                onSort={toggleSort}
+                align="center"
+              />
+            ),
+          },
+          {
+            label: "Date",
+            headerContent: (
+              <SortableTableHeader
+                label="Date"
+                sortKey="saleAt"
+                currentSortBy={params.sortBy}
+                currentSortOrder={params.sortOrder}
+                onSort={toggleSort}
+              />
+            ),
+          },
+          { label: "Service", thClassName: tableCenterColumnClass },
+          { label: "Table", thClassName: tableCenterColumnClass },
+          { label: "Payment", thClassName: tableCenterColumnClass },
+          { label: "Due", thClassName: tableCenterColumnClass },
+          { label: "Items", thClassName: tableCenterColumnClass },
+          { label: "Total", thClassName: tableCenterColumnClass },
+          { label: "Actions", thClassName: tableActionsColumnClass },
+        ]}
+        ariaLabel={title ?? "Invoices"}
+        density="compact"
+        className={cn(
+          "min-w-0 border-0 shadow-none [&_table]:min-w-[58rem]",
+          isInvoicesLayout && "[&_thead]:bg-[var(--color-surface-muted)]/60",
+        )}
+      >
+        {sales.map((s) => (
+          <tr
+            key={s.id}
+            className={cn(
+              "border-t border-[var(--color-border)] transition-colors",
+              isInvoicesLayout && "hover:bg-[var(--color-cream-50)]/50",
+            )}
+          >
+            <td
+              className={cn(
+                "px-4 py-3.5 whitespace-nowrap font-mono text-sm font-semibold text-foreground",
+                tableCenterCellClass,
+              )}
+            >
+              {s.receiptNo}
+            </td>
+            <td className="px-4 py-3.5 text-sm text-muted whitespace-nowrap">
+              {formatDateTime(s.saleAt)}
+            </td>
+            <td className={cn("px-4 py-3.5", tableCenterCellClass)}>
+              {isInvoicesLayout ? serviceBadge(s.serviceType) : (
+                <span className="text-sm text-muted">{serviceLabel(s.serviceType)}</span>
+              )}
+            </td>
+            <td className={cn("px-4 py-3.5 text-sm text-muted", tableCenterCellClass)}>
+              {tableCell(s)}
+            </td>
+            <td className={cn("px-4 py-3.5", tableCenterCellClass)}>
+              {isInvoicesLayout ? paymentBadge(s) : (
+                <span className="text-sm text-muted">{billingLabel(s.billingType)}</span>
+              )}
+            </td>
+            <td
+              className={cn(
+                "px-4 py-3.5 text-sm font-mono tabular-nums",
+                tableCenterCellClass,
+                Number(s.remainingAmount) > 0.005 && "font-medium tone-warning-text",
+              )}
+            >
+              {Number(s.remainingAmount) > 0.005 ? formatMoney(s.remainingAmount!) : "—"}
+            </td>
+            <td className={cn("px-4 py-3.5 text-sm text-muted", tableCenterCellClass)}>
+              {s.lineCount}
+            </td>
+            <td
+              className={cn(
+                "px-4 py-3.5 text-sm font-semibold tabular-nums text-foreground",
+                tableCenterCellClass,
+              )}
+            >
+              {formatMoney(s.grandTotal)}
+            </td>
+            <td className="px-4 py-3.5">
+              <div className={tableActionsCellClass}>
+                <div className="inline-flex flex-nowrap items-center justify-center gap-1.5">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => onView(s.id)}>
+                    <span className="inline-flex items-center gap-1.5">
+                      <Eye size={15} strokeWidth={1.75} aria-hidden />
+                      View
+                    </span>
+                  </Button>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => onPrint(s.id)}>
+                    <span className="inline-flex items-center gap-1.5">
+                      <Printer size={15} strokeWidth={1.75} aria-hidden />
+                      Print
+                    </span>
+                  </Button>
+                </div>
+              </div>
+            </td>
+          </tr>
+        ))}
+      </ResponsiveTable>
+    </PaginatedListSection>
+  );
+
+  if (isInvoicesLayout) {
+    return (
+      <div className="space-y-5">
+        <Card density="compact" className="space-y-0 overflow-hidden p-0">
+          <div className="border-b border-[var(--color-border)] px-4 py-3.5 sm:px-5">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
+                <FileText size={16} strokeWidth={1.75} aria-hidden />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">Sales period</p>
+                <p className="text-xs text-muted">Filter invoices by when the sale was completed.</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-4 sm:p-5">{periodFilterBlock}</div>
+        </Card>
+
+        <InvoicesSummaryStrip
+          totalRecords={meta.total}
+          pageRevenue={pageRevenue}
+          pageChangeReturned={pageChangeReturned}
+          openBalanceCount={openBalanceCount}
+          periodParams={periodParams}
+          loading={loading}
+        />
+
+        <div className="space-y-1">
+          <div className="flex items-baseline justify-between gap-3 px-0.5">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">Invoice ledger</h2>
+              <p className="text-xs text-muted">
+                Search, filter, and export completed POS receipts for your records.
+              </p>
+            </div>
+          </div>
+          {listSection}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">Recent sales</h2>
-          <p className="text-xs text-muted">Latest completed orders</p>
-        </div>
-        <div className="hidden flex-col gap-2 md:flex">
+        {title ? (
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+            {description ? <p className="text-xs text-muted">{description}</p> : null}
+          </div>
+        ) : null}
+        <div className={cn("hidden flex-col gap-2 md:flex", !title && "ml-auto")}>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-medium uppercase tracking-wide text-muted">Service</span>
             {(["", "DINE_IN", "DELIVERY"] as const).map((f) => (
@@ -167,216 +664,8 @@ function PosRecentSalesContent({
         </div>
       </div>
 
-      <PaginatedListSection
-        loading={loading}
-        isFetching={isFetching}
-        itemsCount={sales.length}
-        hasActiveFilters={hasActiveFilters}
-        searchValue={searchInput}
-        onSearchChange={setSearch}
-        onSearchClear={clearSearch}
-        searchPlaceholder={searchPlaceholder}
-        isSearching={isSearching}
-        searchResultSummary={searchResultSummary}
-        tableColumns={9}
-        emptyTitle="No POS Orders Found"
-        emptyDescription="Completed sales will appear here."
-        emptyIcon={ScanLine}
-        onClearFilters={() => {
-          clearSearch();
-          clearFilters();
-        }}
-        currentPage={meta.page}
-        totalPages={meta.totalPages}
-        totalRecords={meta.total}
-        pageSize={meta.limit}
-        onPageChange={setPage}
-        onPageSizeChange={setPageSize}
-        filters={
-          <FilterDrawer
-            open={filterDrawerOpen}
-            onOpenChange={(open) => {
-              setFilterDrawerOpen(open);
-              if (open) {
-                setDraftServiceFilter(serviceFilter);
-                setDraftBillingFilter(billingFilter);
-                setDraftOpenBalance(openBalanceFilter);
-              }
-            }}
-            hasActiveFilters={hasDrawerFilters}
-            onApply={applyFilters}
-            onReset={() => {
-              setDraftServiceFilter("");
-              setDraftBillingFilter("");
-              setDraftOpenBalance(false);
-              setFilter("salesServiceType", "");
-              setFilter("salesBillingType", "");
-              setFilter("salesHasBalance", "");
-            }}
-            title="Filter orders"
-          >
-            <p className="mb-2 text-sm font-medium text-[var(--color-foreground)]">Service type</p>
-            <div className="mb-4 flex flex-wrap gap-2">
-              {(["", "DINE_IN", "DELIVERY"] as const).map((f) => (
-                <button
-                  key={f || "all-service"}
-                  type="button"
-                  onClick={() => setDraftServiceFilter(f)}
-                  className={chipClass(draftServiceFilter === f)}
-                >
-                  {f === "" ? "All" : f === "DINE_IN" ? "Dine in" : "Delivery"}
-                </button>
-              ))}
-            </div>
-            <p className="mb-2 text-sm font-medium text-[var(--color-foreground)]">Payment type</p>
-            <div className="flex flex-wrap gap-2">
-              {(["", "PAID", "CREDIT"] as const).map((f) => (
-                <button
-                  key={f || "all-billing"}
-                  type="button"
-                  onClick={() => setDraftBillingFilter(f)}
-                  className={chipClass(draftBillingFilter === f)}
-                >
-                  {f === "" ? "All" : f === "PAID" ? "Paid" : "Credit"}
-                </button>
-              ))}
-            </div>
-          </FilterDrawer>
-        }
-        mobileSort={
-          <MobileSortSelect
-            options={[
-              { label: "Date (newest)", sortBy: "saleAt", sortOrder: "desc" },
-              { label: "Date (oldest)", sortBy: "saleAt", sortOrder: "asc" },
-              { label: "Receipt (A–Z)", sortBy: "receiptNo", sortOrder: "asc" },
-            ]}
-            currentSortBy={params.sortBy}
-            currentSortOrder={params.sortOrder}
-            onSort={setSort}
-          />
-        }
-        mobileCards={
-          <ListCardStack>
-            {sales.map((s) => (
-              <ListCard
-                key={s.id}
-                title={s.receiptNo}
-                subtitle={formatDateTime(s.saleAt)}
-                fields={[
-                  { label: "Service", value: serviceLabel(s.serviceType) },
-                  { label: "Table", value: tableCell(s) },
-                  { label: "Payment", value: billingLabel(s.billingType) },
-                  ...(Number(s.remainingAmount) > 0.005
-                    ? [{ label: "Due", value: formatMoney(s.remainingAmount!) }]
-                    : []),
-                  { label: "Items", value: String(s.lineCount) },
-                  { label: "Total", value: formatMoney(s.grandTotal) },
-                ]}
-                actions={
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" size="sm" variant="secondary" onClick={() => onView(s.id)}>
-                      <span className="inline-flex items-center gap-1.5">
-                        <Eye size={15} strokeWidth={1.75} aria-hidden />
-                        View
-                      </span>
-                    </Button>
-                    <Button type="button" size="sm" variant="secondary" onClick={() => onPrint(s.id)}>
-                      <span className="inline-flex items-center gap-1.5">
-                        <Printer size={15} strokeWidth={1.75} aria-hidden />
-                        Print
-                      </span>
-                    </Button>
-                  </div>
-                }
-              />
-            ))}
-          </ListCardStack>
-        }
-      >
-        <ResponsiveTable
-          headers={[
-            {
-              label: "Receipt",
-              thClassName: tableCenterColumnClass,
-              headerContent: (
-                <SortableTableHeader
-                  label="Receipt"
-                  sortKey="receiptNo"
-                  currentSortBy={params.sortBy}
-                  currentSortOrder={params.sortOrder}
-                  onSort={toggleSort}
-                  align="center"
-                />
-              ),
-            },
-            {
-              label: "Date",
-              headerContent: (
-                <SortableTableHeader
-                  label="Date"
-                  sortKey="saleAt"
-                  currentSortBy={params.sortBy}
-                  currentSortOrder={params.sortOrder}
-                  onSort={toggleSort}
-                />
-              ),
-            },
-            { label: "Service", thClassName: tableCenterColumnClass },
-            { label: "Table", thClassName: tableCenterColumnClass },
-            { label: "Payment", thClassName: tableCenterColumnClass },
-            { label: "Due", thClassName: tableCenterColumnClass },
-            { label: "Items", thClassName: tableCenterColumnClass },
-            { label: "Total", thClassName: tableCenterColumnClass },
-            { label: "Actions", thClassName: tableActionsColumnClass },
-          ]}
-          ariaLabel="Recent sales"
-          density="compact"
-          className="min-w-0 border-0 shadow-none [&_table]:min-w-[58rem]"
-        >
-          {sales.map((s) => (
-            <tr key={s.id} className="border-t border-[var(--color-border)]">
-              <td className={cn("px-4 py-3 font-mono text-sm font-medium text-foreground whitespace-nowrap", tableCenterCellClass)}>
-                {s.receiptNo}
-              </td>
-              <td className="px-4 py-3 text-sm text-muted whitespace-nowrap">{formatDateTime(s.saleAt)}</td>
-              <td className={cn("px-4 py-3 text-sm text-muted", tableCenterCellClass)}>
-                {serviceLabel(s.serviceType)}
-              </td>
-              <td className={cn("px-4 py-3 text-sm text-muted", tableCenterCellClass)}>
-                {tableCell(s)}
-              </td>
-              <td className={cn("px-4 py-3 text-sm text-muted", tableCenterCellClass)}>
-                {billingLabel(s.billingType)}
-              </td>
-              <td className={cn("px-4 py-3 text-sm font-mono tabular-nums", tableCenterCellClass)}>
-                {Number(s.remainingAmount) > 0.005 ? formatMoney(s.remainingAmount!) : "—"}
-              </td>
-              <td className={cn("px-4 py-3 text-sm text-muted", tableCenterCellClass)}>{s.lineCount}</td>
-              <td className={cn("px-4 py-3 text-sm font-medium text-foreground", tableCenterCellClass)}>
-                {formatMoney(s.grandTotal)}
-              </td>
-              <td className="px-4 py-3">
-                <div className={tableActionsCellClass}>
-                  <div className="inline-flex flex-nowrap items-center justify-center gap-1.5">
-                    <Button type="button" size="sm" variant="secondary" onClick={() => onView(s.id)}>
-                      <span className="inline-flex items-center gap-1.5">
-                        <Eye size={15} strokeWidth={1.75} aria-hidden />
-                        View
-                      </span>
-                    </Button>
-                    <Button type="button" size="sm" variant="secondary" onClick={() => onPrint(s.id)}>
-                      <span className="inline-flex items-center gap-1.5">
-                        <Printer size={15} strokeWidth={1.75} aria-hidden />
-                        Print
-                      </span>
-                    </Button>
-                  </div>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </ResponsiveTable>
-      </PaginatedListSection>
+      {periodFilterBlock}
+      {listSection}
     </div>
   );
 }
@@ -384,9 +673,21 @@ function PosRecentSalesContent({
 export function PosRecentSales({
   onView,
   onPrint,
+  queryKey,
+  variant = "default",
+  title,
+  description,
+  emptyTitle,
+  emptyDescription,
 }: {
   onView: (id: string) => void;
   onPrint: (id: string) => void;
+  queryKey?: string;
+  variant?: "default" | "invoices";
+  title?: string;
+  description?: string;
+  emptyTitle?: string;
+  emptyDescription?: string;
 }) {
   return (
     <Suspense
@@ -404,7 +705,16 @@ export function PosRecentSales({
         </div>
       }
     >
-      <PosRecentSalesContent onView={onView} onPrint={onPrint} />
+      <PosRecentSalesContent
+        onView={onView}
+        onPrint={onPrint}
+        queryKey={queryKey}
+        variant={variant}
+        title={title}
+        description={description}
+        emptyTitle={emptyTitle}
+        emptyDescription={emptyDescription}
+      />
     </Suspense>
   );
 }

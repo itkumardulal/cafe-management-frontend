@@ -33,7 +33,7 @@ function shouldFetchStockAlerts(
   if (force) {
     return true;
   }
-  return status !== "loaded" && status !== "loading";
+  return status === "idle";
 }
 
 /** Sidebar badge + dashboard low-stock card — single owner for /stock-alerts. */

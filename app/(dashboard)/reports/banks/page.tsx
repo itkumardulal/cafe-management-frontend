@@ -1,9 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useMemo } from "react";
+import { Suspense, useCallback, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/src/components/ui/badge";
 import { EmptyState } from "@/src/components/ui/empty-state";
+import {
+  ALL_BANKS_FILTER,
+  ReportBankAccountFilter,
+} from "@/src/features/reports/components/report-bank-account-filter";
 import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
 import { ReportDataTable } from "@/src/features/reports/components/report-data-table";
 import { ReportExportButton } from "@/src/features/reports/components/report-export-button";
@@ -21,7 +26,7 @@ import { useReportPeriodNavigation } from "@/src/features/reports/components/rep
 import { useReportLoader } from "@/src/features/reports/hooks/use-report-loader";
 import { buildReportExportFileName } from "@/src/features/reports/lib/build-report-export-file-name";
 import { sumDecimalStrings } from "@/src/features/reports/lib/report-table-totals";
-import type { BankReport } from "@/src/features/reports/types/reports.types";
+import type { BankReport, ReportPeriodParams } from "@/src/features/reports/types/reports.types";
 import { cn } from "@/src/lib/cn";
 import { formatDateOnly, formatMoney } from "@/src/lib/format-display";
 import { operationsApi } from "@/src/services/operations-api";
@@ -29,17 +34,84 @@ import { tableCenterCellClass, tableCenterColumnClass } from "@/src/components/u
 
 const FOOTER_LABEL = "Total";
 
+function useBankReportFilters() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { periodParams, effectivePeriodParams } = useReportPeriodNavigation();
+
+  const bankAccountId = searchParams.get("bankAccountId") ?? undefined;
+
+  const updateSearchParams = useCallback(
+    (updates: Record<string, string | undefined>) => {
+      const next = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(updates)) {
+        if (value) {
+          next.set(key, value);
+        } else {
+          next.delete(key);
+        }
+      }
+      router.replace(`?${next.toString()}`);
+    },
+    [router, searchParams],
+  );
+
+  const setPeriodParams = useCallback(
+    (params: ReportPeriodParams) => {
+      const next = new URLSearchParams(searchParams.toString());
+      next.set("period", params.period ?? "this_month");
+      if (params.period === "custom") {
+        if (params.fromDate) next.set("fromDate", params.fromDate);
+        else next.delete("fromDate");
+        if (params.toDate) next.set("toDate", params.toDate);
+        else next.delete("toDate");
+      } else {
+        next.delete("fromDate");
+        next.delete("toDate");
+      }
+      router.replace(`?${next.toString()}`);
+    },
+    [router, searchParams],
+  );
+
+  const setBankAccountId = useCallback(
+    (id: string | undefined) => {
+      updateSearchParams({ bankAccountId: id });
+    },
+    [updateSearchParams],
+  );
+
+  const reportParams = useMemo(
+    () => ({
+      ...effectivePeriodParams,
+      bankAccountId,
+    }),
+    [effectivePeriodParams, bankAccountId],
+  );
+
+  return {
+    periodParams,
+    setPeriodParams,
+    bankAccountId,
+    setBankAccountId,
+    reportParams,
+  };
+}
+
 function BankBalancesReportContent() {
-  const { periodParams, effectivePeriodParams, setPeriodParams } = useReportPeriodNavigation();
+  const { periodParams, setPeriodParams, bankAccountId, setBankAccountId, reportParams } =
+    useBankReportFilters();
   const { data: report, loading } = useReportLoader<BankReport>(
-    () => operationsApi.reports.banks({ ...effectivePeriodParams, page: 1, limit: 50 }),
-    [effectivePeriodParams],
+    () => operationsApi.reports.banks({ ...reportParams, page: 1, limit: 50 }),
+    [reportParams],
     "Failed to load bank balances report",
   );
 
   const netChange = Number(report?.summary.netChangeInPeriod ?? 0);
   const accounts = report?.accounts ?? [];
   const transactions = report?.transactions.items ?? [];
+  const selectedBank = report?.banks.find((bank) => bank.id === report.selectedBankAccountId);
+  const scopeHint = selectedBank ? selectedBank.label : "All banks";
 
   const accountTotals = useMemo(
     () => ({
@@ -71,6 +143,16 @@ function BankBalancesReportContent() {
       periodLabel={report?.period.label}
       snapshotNote={report?.snapshotNote}
       loading={loading}
+      extraFilters={
+        !report || report.banks.length > 1 ? (
+          <ReportBankAccountFilter
+            value={bankAccountId ?? ALL_BANKS_FILTER}
+            onChange={setBankAccountId}
+            banks={report?.banks ?? []}
+            disabled={loading || !report}
+          />
+        ) : null
+      }
       summary={
         report && !loading ? (
           <>
@@ -78,7 +160,7 @@ function BankBalancesReportContent() {
               <ReportSummaryCard
                 label="Total current balance"
                 value={formatMoney(report.summary.totalCurrentBalance)}
-                hint="Live · all accounts"
+                hint={`Live · ${scopeHint}`}
                 tone="info"
               />
               <ReportSummaryCard
@@ -104,8 +186,16 @@ function BankBalancesReportContent() {
               />
             </ReportSummaryStrip>
             <ReportInsightCard title="How to read this report">
-              <strong>Current balance</strong> is live as of today across all bank accounts.{" "}
-              <strong>Period deposits and withdrawals</strong> cover only the selected date range.
+              <strong>Current balance</strong> is live as of today
+              {selectedBank ? (
+                <>
+                  {" "}
+                  for <strong>{selectedBank.label}</strong>
+                </>
+              ) : (
+                " across all bank accounts"
+              )}
+              . <strong>Period deposits and withdrawals</strong> cover only the selected date range.
               POS and purchase bank payments are recorded separately — mirror significant movements in{" "}
               <Link href="/bank-transactions" className="font-medium underline underline-offset-2">
                 Bank transactions
@@ -280,7 +370,7 @@ function BankBalancesReportContent() {
                   mode="fetchAll"
                   fetchAllPages={async (page, limit) => {
                     const data = await operationsApi.reports.banks({
-                      ...effectivePeriodParams,
+                      ...reportParams,
                       page,
                       limit,
                     });

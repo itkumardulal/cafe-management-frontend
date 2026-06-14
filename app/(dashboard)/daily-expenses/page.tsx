@@ -116,7 +116,7 @@ function DailyExpensesContent() {
     try {
       const data = await operationsApi.expenseItems.list({ limit: 100 });
       setExpenseItems(
-        data.items.map((i) => ({ id: i.id, name: i.displayLabel })),
+        data.items.map((i) => ({ id: i.id, name: i.name || i.displayLabel })),
       );
     } catch {
       setExpenseItems([]);

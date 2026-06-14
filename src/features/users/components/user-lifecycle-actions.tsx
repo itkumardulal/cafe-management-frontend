@@ -29,7 +29,7 @@ export function UserLifecycleActions({
   onEdit?: () => void;
   onDeactivate: () => Promise<void>;
   onActivate: () => Promise<void>;
-  onDelete: () => Promise<void>;
+  onDelete?: () => Promise<void>;
   deleteWarning?: string;
   onSuccess: () => void;
 }) {
@@ -81,7 +81,7 @@ export function UserLifecycleActions({
       if (confirmKind === "deactivate") {
         await onDeactivate();
         appToast.success("User deactivated");
-      } else {
+      } else if (onDelete) {
         await onDelete();
         appToast.success("User deleted");
       }
@@ -130,11 +130,13 @@ export function UserLifecycleActions({
     });
   }
 
-  dropdownItems.push({
-    id: "delete",
-    label: "Delete",
-    onClick: () => setConfirmKind("delete"),
-  });
+  if (onDelete) {
+    dropdownItems.push({
+      id: "delete",
+      label: "Delete",
+      onClick: () => setConfirmKind("delete"),
+    });
+  }
 
   if (dropdownItems.length === 0) {
     return null;
@@ -170,35 +172,37 @@ export function UserLifecycleActions({
         </div>
       </Modal>
 
-      <Modal
-        open={confirmKind === "delete"}
-        title="Delete user?"
-        description={
-          deleteWarning ??
-          "This permanently removes the user from your team list. Historical records are kept."
-        }
-        onClose={closeConfirm}
-      >
-        <div className="space-y-5">
-          <p className="text-sm text-muted">
-            Delete <span className="font-semibold text-foreground">{displayName}</span>? This cannot
-            be undone from the app.
-          </p>
-          <FormFooter>
-            <Button type="button" variant="secondary" onClick={closeConfirm} disabled={loading}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="danger"
-              onClick={() => void confirmAction()}
-              loading={loading}
-            >
-              Yes, delete
-            </Button>
-          </FormFooter>
-        </div>
-      </Modal>
+      {onDelete ? (
+        <Modal
+          open={confirmKind === "delete"}
+          title="Delete user?"
+          description={
+            deleteWarning ??
+            "This permanently removes the user from your team list. Historical records are kept."
+          }
+          onClose={closeConfirm}
+        >
+          <div className="space-y-5">
+            <p className="text-sm text-muted">
+              Delete <span className="font-semibold text-foreground">{displayName}</span>? This cannot
+              be undone from the app.
+            </p>
+            <FormFooter>
+              <Button type="button" variant="secondary" onClick={closeConfirm} disabled={loading}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                onClick={() => void confirmAction()}
+                loading={loading}
+              >
+                Yes, delete
+              </Button>
+            </FormFooter>
+          </div>
+        </Modal>
+      ) : null}
     </>
   );
 }

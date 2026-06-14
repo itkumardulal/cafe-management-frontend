@@ -118,7 +118,7 @@ export function SupplierBillDetailView({
           className="inline-flex items-center gap-1 text-[var(--color-muted)] transition-colors hover:text-[var(--color-primary)]"
         >
           <ArrowLeft className="size-4" aria-hidden />
-          Bill settlement
+          Suppliers Payables
         </Link>
         <ChevronRight className="size-3.5 text-[var(--color-subtle)]" aria-hidden />
         <span className="font-medium text-[var(--color-foreground)]">{bill.receiptNo}</span>

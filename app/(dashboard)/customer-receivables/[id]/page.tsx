@@ -3,16 +3,35 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { CustomerReceivableDetailSkeleton } from "@/src/components/sales/customer-receivable-detail-skeleton";
-import { CustomerReceivableDetailView } from "@/src/components/sales/customer-receivable-detail-view";
+import {
+  CustomerReceivableDetailView,
+  type ReceivableBankAccountOption,
+} from "@/src/components/sales/customer-receivable-detail-view";
+import {
+  CustomerReceivablePaymentReceipt,
+} from "@/src/components/sales/customer-receivable-payment-receipt";
+import {
+  PosSaleReceipt,
+  type PosSaleReceiptData,
+} from "@/src/components/sales/pos-sale-receipt";
 import { EmptyState } from "@/src/components/ui/empty-state";
+import { ThermalPrintHost } from "@/src/features/printing/components/thermal-print-host";
+import { useThermalPrint } from "@/src/features/printing/hooks/use-thermal-print";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import type {
   CustomerReceivableDetail,
+  CustomerReceivablePaymentPrintResponse,
+  CustomerReceivablePaymentReceiptData,
   FifoAllocationPreview,
   SalePaymentMethod,
 } from "@/src/lib/ar-types";
 import { appToast } from "@/src/lib/toast";
+import { formatMoney } from "@/src/lib/format-display";
 import { operationsApi } from "@/src/services/operations-api";
+
+type ReceivablePrintDocument =
+  | { printType: "sale"; sale: PosSaleReceiptData }
+  | { printType: "payment"; payment: CustomerReceivablePaymentReceiptData };
 
 export default function CustomerReceivableDetailPage() {
   const params = useParams<{ id: string }>();
@@ -25,10 +44,19 @@ export default function CustomerReceivableDetailPage() {
   const [loading, setLoading] = useState(true);
   const [amountStr, setAmountStr] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<SalePaymentMethod>("CASH");
+  const [bankAccountId, setBankAccountId] = useState("");
+  const [bankAccounts, setBankAccounts] = useState<ReceivableBankAccountOption[]>([]);
   const [remarks, setRemarks] = useState("");
   const [preview, setPreview] = useState<FifoAllocationPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [printingPaymentId, setPrintingPaymentId] = useState<string | null>(null);
+
+  const { printDocument, requestPrint } = useThermalPrint<ReceivablePrintDocument>({
+    onError: (error) =>
+      appToast.error(getApiErrorMessage(error, "Failed to load receipt for printing")),
+    onAfterPrint: () => setPrintingPaymentId(null),
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -52,6 +80,18 @@ export default function CustomerReceivableDetailPage() {
   }, [load]);
 
   useEffect(() => {
+    void operationsApi.bankAccounts
+      .options()
+      .then((items) => {
+        setBankAccounts(items);
+        if (items.length === 1) {
+          setBankAccountId(items[0]!.id);
+        }
+      })
+      .catch(() => setBankAccounts([]));
+  }, []);
+
+  useEffect(() => {
     const amount = Number(amountStr);
     if (!detail || !Number.isFinite(amount) || amount <= 0) {
       setPreview(null);
@@ -64,6 +104,7 @@ export default function CustomerReceivableDetailPage() {
           customerId,
           amount,
           paymentMethod,
+          bankAccountId: paymentMethod === "BANK_TRANSFER" ? bankAccountId || undefined : undefined,
           remarks: remarks.trim() || undefined,
         })
         .then(setPreview)
@@ -71,7 +112,7 @@ export default function CustomerReceivableDetailPage() {
         .finally(() => setPreviewLoading(false));
     }, 400);
     return () => clearTimeout(t);
-  }, [amountStr, paymentMethod, remarks, customerId, detail]);
+  }, [amountStr, paymentMethod, bankAccountId, remarks, customerId, detail]);
 
   const recordPayment = async () => {
     const amount = Number(amountStr);
@@ -82,11 +123,17 @@ export default function CustomerReceivableDetailPage() {
         customerId,
         amount,
         paymentMethod,
+        bankAccountId: paymentMethod === "BANK_TRANSFER" ? bankAccountId : undefined,
         remarks: remarks.trim() || undefined,
       });
-      appToast.success(`Payment ${result.receiptNo} recorded`);
+      appToast.success(
+        Number(result.changeAmount) > 0.005
+          ? `Payment ${result.receiptNo} recorded · return ${formatMoney(result.changeAmount)} change`
+          : `Payment ${result.receiptNo} recorded`,
+      );
       setAmountStr("");
       setRemarks("");
+      setBankAccountId(bankAccounts[0]?.id ?? "");
       setPreview(null);
       await load();
     } catch (error) {
@@ -94,6 +141,24 @@ export default function CustomerReceivableDetailPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const mapPrintResponse = (response: CustomerReceivablePaymentPrintResponse): ReceivablePrintDocument => {
+    if (response.printType === "sale") {
+      return { printType: "sale", sale: response.sale as PosSaleReceiptData };
+    }
+    return { printType: "payment", payment: response.payment };
+  };
+
+  const handlePrintPayment = (
+    paymentId: string,
+    kind: CustomerReceivableDetail["paymentHistory"][number]["kind"],
+  ) => {
+    setPrintingPaymentId(paymentId);
+    void requestPrint(async () => {
+      const response = await operationsApi.customerReceivables.getPaymentPrint(paymentId, kind);
+      return mapPrintResponse(response);
+    }).catch(() => setPrintingPaymentId(null));
   };
 
   if (loading) {
@@ -116,19 +181,37 @@ export default function CustomerReceivableDetailPage() {
   }
 
   return (
-    <CustomerReceivableDetailView
-      detail={detail}
-      insights={insights}
-      amountStr={amountStr}
-      onAmountStrChange={setAmountStr}
-      paymentMethod={paymentMethod}
-      onPaymentMethodChange={setPaymentMethod}
-      remarks={remarks}
-      onRemarksChange={setRemarks}
-      preview={preview}
-      previewLoading={previewLoading}
-      saving={saving}
-      onSubmit={() => void recordPayment()}
-    />
+    <>
+      <CustomerReceivableDetailView
+        detail={detail}
+        insights={insights}
+        amountStr={amountStr}
+        onAmountStrChange={setAmountStr}
+        paymentMethod={paymentMethod}
+        onPaymentMethodChange={setPaymentMethod}
+        bankAccountId={bankAccountId}
+        onBankAccountIdChange={setBankAccountId}
+        bankAccounts={bankAccounts}
+        remarks={remarks}
+        onRemarksChange={setRemarks}
+        preview={preview}
+        previewLoading={previewLoading}
+        saving={saving}
+        onSubmit={() => void recordPayment()}
+        onPrintPayment={handlePrintPayment}
+        printingPaymentId={printingPaymentId}
+      />
+
+      <ThermalPrintHost open={printDocument != null}>
+        {printDocument?.printType === "sale" ? (
+          <PosSaleReceipt sale={printDocument.sale} id="customer-receivable-sale-receipt-print" />
+        ) : printDocument?.printType === "payment" ? (
+          <CustomerReceivablePaymentReceipt
+            payment={printDocument.payment}
+            id="customer-receivable-payment-receipt-print"
+          />
+        ) : null}
+      </ThermalPrintHost>
+    </>
   );
 }

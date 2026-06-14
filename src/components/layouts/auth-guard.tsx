@@ -3,8 +3,11 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { SidebarSkeleton } from "@/src/components/skeletons/sidebar-skeleton";
-import { meThunk } from "../../store/slices/auth.slice";
+import { bootstrapSessionThunk } from "../../store/slices/auth.slice";
+import { isRecoverableRefreshPayload } from "@/src/lib/session-errors";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
+
+const BOOTSTRAP_RETRY_MS = 3_000;
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -12,15 +15,42 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, initialized, sessionExpired } = useAppSelector((state) => state.auth);
 
   useEffect(() => {
-    if (!initialized) {
-      void dispatch(meThunk());
+    if (initialized) {
+      return;
     }
+
+    let cancelled = false;
+    let retryTimer: number | undefined;
+
+    const runBootstrap = async () => {
+      const result = await dispatch(bootstrapSessionThunk());
+      if (cancelled) {
+        return;
+      }
+
+      if (bootstrapSessionThunk.rejected.match(result)) {
+        if (isRecoverableRefreshPayload(result.payload)) {
+          retryTimer = window.setTimeout(() => {
+            void runBootstrap();
+          }, BOOTSTRAP_RETRY_MS);
+        }
+      }
+    };
+
+    void runBootstrap();
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) {
+        window.clearTimeout(retryTimer);
+      }
+    };
   }, [dispatch, initialized]);
 
   useEffect(() => {
     if (initialized && !user) {
       if (sessionExpired) {
-        router.replace("/");
+        router.replace("/login?expired=1");
         return;
       }
       router.replace("/login");

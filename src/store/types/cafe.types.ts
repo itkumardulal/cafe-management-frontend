@@ -16,6 +16,8 @@ export interface ManagedCafe {
   cafeName: string;
   slug: string;
   email: string;
+  address?: string | null;
+  logo?: string | null;
   contactNumber?: string | null;
   isActive: boolean;
   createdAt: string;

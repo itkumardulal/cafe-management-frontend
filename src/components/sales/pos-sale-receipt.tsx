@@ -54,7 +54,7 @@ export function PosSaleReceipt({ sale, cafeName, className, id }: PosSaleReceipt
 
   const tableLabel =
     sale.serviceType === "DINE_IN" && (sale.tableNamesSnapshot || sale.tableName)
-      ? `Table: ${sale.tableNamesSnapshot ?? sale.tableName}`
+      ? `Table ${sale.tableNamesSnapshot ?? sale.tableName}`
       : null;
 
   const paymentRows = [
@@ -86,6 +86,7 @@ export function PosSaleReceipt({ sale, cafeName, className, id }: PosSaleReceipt
     <ThermalReceiptShell id={id} className={cn(className)}>
       <ThermalReceiptHeader
         cafeName={name}
+        logoUrl={sale.cafe?.logo}
         address={sale.cafe?.address}
         contact={contact}
         title="Sales receipt"

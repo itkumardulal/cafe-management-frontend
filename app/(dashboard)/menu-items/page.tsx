@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { UtensilsCrossed } from "lucide-react";
 import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
 import { MobileSortSelect } from "@/src/components/shared/mobile-sort-select";
@@ -62,6 +62,7 @@ const emptyForm = {
   trackStock: false,
   directPurchaseItemId: "",
   openingStockDay1: "",
+  currentStock: "",
   stockAdjustmentQty: "",
   reorderLevel: "",
   notes: "",
@@ -130,8 +131,11 @@ function MenuItemsContent() {
       unitType?: string | null;
       unitQuantity?: string | null;
       quantityOnHand?: string;
+      ratePerUnit?: string | null;
     }>
   >([]);
+  const [linkedDirectPurchaseNames, setLinkedDirectPurchaseNames] = useState<string[]>([]);
+  const [linkOptionsLoading, setLinkOptionsLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MenuItemRow | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [existingMenuNames, setExistingMenuNames] = useState<
@@ -145,15 +149,28 @@ function MenuItemsContent() {
     void dispatch(fetchMenuCategoryOptionsThunk());
   }, [dispatch, menuCategoryOptionsStatus]);
 
+  const loadLinkOptions = useCallback(() => {
+    setLinkOptionsLoading(true);
+    void operationsApi.directPurchases
+      .linkOptions({ force: true })
+      .then((result) => {
+        setLinkOptions(result.items);
+        setLinkedDirectPurchaseNames(result.linkedNames);
+      })
+      .catch((error) => {
+        setLinkOptions([]);
+        setLinkedDirectPurchaseNames([]);
+        appToast.error(getApiErrorMessage(error, "Failed to load direct purchase items"));
+      })
+      .finally(() => setLinkOptionsLoading(false));
+  }, []);
+
   useEffect(() => {
     if (!open || editId || !form.trackStock) {
       return;
     }
-    void operationsApi.directPurchases
-      .linkOptions()
-      .then(setLinkOptions)
-      .catch(() => setLinkOptions([]));
-  }, [open, editId, form.trackStock]);
+    loadLinkOptions();
+  }, [open, editId, form.trackStock, loadLinkOptions]);
 
   useEffect(() => {
     if (!open) return;
@@ -164,6 +181,13 @@ function MenuItemsContent() {
       )
       .catch(() => setExistingMenuNames([]));
   }, [open]);
+
+  const selectedDirectPurchase = useMemo(
+    () => linkOptions.find((option) => option.id === form.directPurchaseItemId),
+    [form.directPurchaseItemId, linkOptions],
+  );
+
+  const directPurchaseCostLocked = !editId && form.trackStock && Boolean(selectedDirectPurchase?.ratePerUnit);
 
   const nameError = useMemo(() => {
     const trimmed = form.name.trim();
@@ -195,6 +219,7 @@ function MenuItemsContent() {
     resetImageUploadEntityId();
     setForm(emptyForm);
     setLinkOptions([]);
+    setLinkedDirectPurchaseNames([]);
     setOpen(true);
   };
 
@@ -212,7 +237,8 @@ function MenuItemsContent() {
       sellPricePerUnit: item.sellPricePerUnit,
       trackStock: item.trackStock,
       directPurchaseItemId: "",
-      openingStockDay1: item.openingStockDay1 ?? item.quantityOnHand ?? "",
+      openingStockDay1: item.openingStockDay1 ?? "",
+      currentStock: item.trackStock ? (item.quantityOnHand ?? "0") : "",
       stockAdjustmentQty: "",
       reorderLevel: item.reorderLevel ?? "",
       notes: item.notes ?? "",
@@ -687,7 +713,10 @@ function MenuItemsContent() {
                   type="radio"
                   name="itemTypeKind"
                   checked={form.trackStock}
-                  onChange={() => setForm((f) => ({ ...f, trackStock: true }))}
+                  onChange={() => {
+                    setForm((f) => ({ ...f, trackStock: true }));
+                    loadLinkOptions();
+                  }}
                   className="mt-0.5"
                 />
                 <span>
@@ -706,13 +735,32 @@ function MenuItemsContent() {
                 required
                 hint="Items you typed in Direct Purchases that are not yet on the menu"
               >
-                {linkOptions.length === 0 ? (
+                {linkOptionsLoading ? (
                   <p className="rounded-lg border border-[var(--color-border)] bg-[var(--color-cream-50)] px-3 py-2 text-sm text-[var(--color-muted)]">
-                    No direct purchase items yet. Add item names in{" "}
-                    <a href="/direct-purchases" className="font-medium text-[var(--color-primary)] underline-offset-2 hover:underline">
-                      Direct Purchases
-                    </a>{" "}
-                    first.
+                    Loading direct purchase items…
+                  </p>
+                ) : linkOptions.length === 0 ? (
+                  <p className="rounded-lg border border-[var(--color-border)] bg-[var(--color-cream-50)] px-3 py-2 text-sm text-[var(--color-muted)]">
+                    {linkedDirectPurchaseNames.length > 0 ? (
+                      <>
+                        All direct purchase items are already on the menu (
+                        {linkedDirectPurchaseNames.join(", ")}). Record a purchase with a{" "}
+                        <span className="font-medium text-[var(--color-foreground)]">new item name</span>{" "}
+                        in{" "}
+                        <a href="/direct-purchases" className="font-medium text-[var(--color-primary)] underline-offset-2 hover:underline">
+                          Direct Purchases
+                        </a>{" "}
+                        first, then return here to add it to the menu.
+                      </>
+                    ) : (
+                      <>
+                        No direct purchase items yet. Save a purchase with item names in{" "}
+                        <a href="/direct-purchases" className="font-medium text-[var(--color-primary)] underline-offset-2 hover:underline">
+                          Direct Purchases
+                        </a>{" "}
+                        first.
+                      </>
+                    )}
                   </p>
                 ) : (
                   <Select
@@ -728,8 +776,9 @@ function MenuItemsContent() {
                               name: selected.name,
                               unitType: selected.unitType ?? f.unitType,
                               unitQuantity: selected.unitQuantity ?? f.unitQuantity,
+                              costPerUnit: selected.ratePerUnit ?? "",
                             }
-                          : { name: "", directPurchaseItemId: "" }),
+                          : { name: "", directPurchaseItemId: "", costPerUnit: "" }),
                       }));
                     }}
                   >
@@ -740,6 +789,7 @@ function MenuItemsContent() {
                         {o.unitQuantity || o.unitType
                           ? ` (${[o.unitQuantity, o.unitType].filter(Boolean).join(" ")})`
                           : ""}
+                        {o.ratePerUnit ? ` — rate: ${o.ratePerUnit}` : ""}
                         {o.quantityOnHand && Number(o.quantityOnHand) > 0
                           ? ` — stock: ${o.quantityOnHand}`
                           : ""}
@@ -795,21 +845,6 @@ function MenuItemsContent() {
 
             <div className="grid gap-3 sm:grid-cols-2">
               <Field
-                id="unitType"
-                label="Unit type"
-                required
-                hint="e.g. ml, kg, plate"
-              >
-                <Input
-                  value={form.unitType}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, unitType: e.target.value }))
-                  }
-                  placeholder="ml, kg, plate"
-                  disabled={!editId && form.trackStock}
-                />
-              </Field>
-              <Field
                 id="unitQuantity"
                 label="Unit quantity"
                 required
@@ -824,6 +859,21 @@ function MenuItemsContent() {
                   disabled={!editId && form.trackStock}
                 />
               </Field>
+              <Field
+                id="unitType"
+                label="Unit type"
+                required
+                hint="e.g. ml, kg, plate"
+              >
+                <Input
+                  value={form.unitType}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, unitType: e.target.value }))
+                  }
+                  placeholder="ml, kg, plate"
+                  disabled={!editId && form.trackStock}
+                />
+              </Field>
             </div>
           </section>
 
@@ -832,13 +882,25 @@ function MenuItemsContent() {
               Pricing & stock
             </h3>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field id="cost" label="Cost per unit" required hint="Must be less than sell price">
+              <Field
+                id="cost"
+                label="Cost per unit"
+                required
+                hint={
+                  directPurchaseCostLocked
+                    ? "Filled from the latest rate per unit in Direct Purchases"
+                    : !editId && form.trackStock
+                      ? "Record a direct purchase with a rate first, or enter cost manually"
+                      : "Must be less than sell price"
+                }
+              >
                 <NumberInput
                   min={0}
                   value={form.costPerUnit}
                   onValueChange={(costPerUnit) =>
                     setForm((f) => ({ ...f, costPerUnit }))
                   }
+                  disabled={directPurchaseCostLocked}
                 />
               </Field>
 
@@ -867,7 +929,7 @@ function MenuItemsContent() {
                     hint="Updated via Direct Purchases and POS sales"
                   >
                     <Input
-                      value={form.openingStockDay1}
+                      value={form.currentStock}
                       disabled
                       placeholder="0"
                     />

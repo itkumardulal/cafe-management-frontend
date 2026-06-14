@@ -1,12 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Fragment } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   ArrowLeft,
-  ChevronDown,
   ChevronRight,
   CircleCheckBig,
   HandCoins,
@@ -17,7 +15,7 @@ import {
   User,
 } from "lucide-react";
 import { SupplierBillDetailSkeleton } from "@/src/components/purchases/supplier-bill-detail-skeleton";
-import { BillStatusBadge, PaymentStatusBadge } from "@/src/components/purchases/ap-status-badges";
+import { PurchaseHistorySection } from "@/src/components/purchases/purchase-history-section";
 import { EmptyState } from "@/src/components/ui/empty-state";
 import type { BillSettlementSupplierDetail, PurchasePaymentMethod } from "@/src/lib/ap-types";
 import { Button } from "@/src/components/ui/button";
@@ -25,13 +23,11 @@ import { Card } from "@/src/components/ui/card";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import { Select } from "@/src/components/ui/select";
-import { ResponsiveTable, tableCenterCellClass, tableCenterColumnClass } from "@/src/components/ui/table";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { formatDateOnly, formatDateTime, formatMoney } from "@/src/lib/format-display";
 import { parseMoneyInput } from "@/src/lib/money-input";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
-import { cn } from "@/src/lib/cn";
 
 export default function SupplierBillDetailPage() {
   const params = useParams<{ id: string }>();
@@ -49,7 +45,6 @@ export default function SupplierBillDetailPage() {
   } | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [activeTab, setActiveTab] = useState<"purchases" | "payments">("purchases");
-  const [expandedBill, setExpandedBill] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -198,7 +193,7 @@ export default function SupplierBillDetailPage() {
       <nav className="flex items-center gap-2 text-sm text-muted">
         <Link href="/bill-settlement" className="inline-flex items-center gap-1 hover:text-[var(--color-primary)]">
           <ArrowLeft className="h-4 w-4" />
-          Bill settlement
+          Suppliers Payables
         </Link>
         <ChevronRight className="h-3 w-3" />
         <span className="font-medium text-foreground">{detail.supplier.name}</span>
@@ -271,86 +266,7 @@ export default function SupplierBillDetailPage() {
           </div>
 
           <section className={activeTab === "payments" ? "hidden md:block" : ""}>
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-              <Receipt className="h-4 w-4" />
-              Purchase history
-            </h2>
-            {detail.purchaseHistory.length === 0 ? (
-              <Card className="p-6 text-sm text-muted border-[var(--color-border)]">
-                No purchase history found for this supplier yet.
-              </Card>
-            ) : (
-              <ResponsiveTable
-                headers={[
-                  "Bill",
-                  "Type",
-                  "Date",
-                  { label: "Total", thClassName: tableCenterColumnClass },
-                  { label: "Paid", thClassName: tableCenterColumnClass },
-                  { label: "Due", thClassName: tableCenterColumnClass },
-                  "Status",
-                  "",
-                ]}
-              >
-                {detail.purchaseHistory.map((bill) => (
-                  <Fragment key={bill.id}>
-                    <tr>
-                      <td className="font-mono text-sm">{bill.receiptNo}</td>
-                      <td className="text-sm text-muted">
-                        {bill.billKind === "DIRECT" ? "Direct" : "Raw material"}
-                      </td>
-                      <td>{formatDateTime(bill.purchaseDate)}</td>
-                      <td className={cn(tableCenterCellClass, "font-mono tabular-nums")}>
-                        {formatMoney(bill.grandTotal)}
-                      </td>
-                      <td className={cn(tableCenterCellClass, "font-mono tabular-nums")}>
-                        {formatMoney(bill.paidAmount)}
-                      </td>
-                      <td className={cn(tableCenterCellClass, "font-mono tabular-nums")}>
-                        {formatMoney(bill.remainingAmount)}
-                      </td>
-                      <td>
-                        <div className="flex flex-wrap gap-1">
-                          <PaymentStatusBadge status={bill.paymentStatus} />
-                          <BillStatusBadge status={bill.billStatus} />
-                        </div>
-                      </td>
-                      <td>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setExpandedBill(expandedBill === bill.id ? null : bill.id)}
-                        >
-                          <ChevronDown
-                            className={cn(
-                              "h-4 w-4 transition-transform",
-                              expandedBill === bill.id && "rotate-180",
-                            )}
-                          />
-                        </Button>
-                      </td>
-                    </tr>
-                    {expandedBill === bill.id ? (
-                      <tr>
-                        <td colSpan={8} className="bg-[var(--color-cream-50)]/80">
-                          <ul className="space-y-1 py-2 text-sm">
-                            {bill.lines.map((line) => (
-                              <li key={line.id} className="flex justify-between gap-4">
-                                <span>
-                                  {line.name} ({line.unit}) × {line.quantity}
-                                </span>
-                                <span className="font-mono tabular-nums">{formatMoney(line.lineTotal)}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </td>
-                      </tr>
-                    ) : null}
-                  </Fragment>
-                ))}
-              </ResponsiveTable>
-            )}
+            <PurchaseHistorySection bills={detail.purchaseHistory} />
           </section>
 
           <section className={activeTab === "purchases" ? "hidden md:block" : ""}>
@@ -437,19 +353,6 @@ export default function SupplierBillDetailPage() {
                 ))}
               </div>
 
-              <Field id="bsp-payment-method" label="Payment method" required>
-                <Select searchable={false} value={payMethod} onChange={(e) => setPayMethod(e.target.value as PurchasePaymentMethod)}>
-                  <option value="CASH">Cash</option>
-                  <option value="BANK_TRANSFER">Bank transfer</option>
-                  <option value="ESEWA">eSewa</option>
-                  <option value="KHALTI">Khalti</option>
-                  <option value="CHEQUE">Cheque</option>
-                </Select>
-              </Field>
-              <Field id="bsp-payment-remarks" label="Remarks">
-                <Input value={payRemarks} onChange={(e) => setPayRemarks(e.target.value)} />
-              </Field>
-
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-cream-50)]/50 p-3">
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
                   Allocation preview
@@ -469,6 +372,19 @@ export default function SupplierBillDetailPage() {
                   <p className="text-sm text-muted">Enter an amount to preview allocation.</p>
                 )}
               </div>
+
+              <Field id="bsp-payment-method" label="Payment method" required>
+                <Select searchable={false} value={payMethod} onChange={(e) => setPayMethod(e.target.value as PurchasePaymentMethod)}>
+                  <option value="CASH">Cash</option>
+                  <option value="BANK_TRANSFER">Bank transfer</option>
+                  <option value="ESEWA">eSewa</option>
+                  <option value="KHALTI">Khalti</option>
+                  <option value="CHEQUE">Cheque</option>
+                </Select>
+              </Field>
+              <Field id="bsp-payment-remarks" label="Remarks">
+                <Input value={payRemarks} onChange={(e) => setPayRemarks(e.target.value)} />
+              </Field>
 
               <Button
                 type="button"

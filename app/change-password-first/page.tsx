@@ -16,7 +16,7 @@ import { Input } from "@/src/components/ui/input";
 import { appToast } from "@/src/lib/toast";
 import { api } from "@/src/services/api";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
-import { meThunk } from "@/src/store/slices/auth.slice";
+import { meThunk, reloadProfileThunk } from "@/src/store/slices/auth.slice";
 
 const schema = passwordWithConfirmSchema;
 
@@ -65,7 +65,7 @@ export default function ChangePasswordFirstPage() {
         password: values.password,
         confirmPassword: values.confirmPassword,
       });
-      await dispatch(meThunk());
+      await dispatch(reloadProfileThunk());
       appToast.success("Password updated. Welcome!");
       router.replace("/dashboard");
     } catch {

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Suspense } from "react";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { ReportFiltersToolbar } from "@/src/features/reports/components/report-filters-toolbar";
 import { ReportPeriodFilter } from "@/src/features/reports/components/report-period-filter";
 import { ReportDetailShell } from "@/src/features/reports/components/report-detail-shell";
 import { ReportDetailSkeleton } from "@/src/features/reports/components/reports-skeleton";
@@ -19,6 +20,7 @@ type ReportPageLayoutProps = {
   showPeriodFilter?: boolean;
   periodParams?: ReportPeriodParams;
   onPeriodChange?: (params: ReportPeriodParams) => void;
+  extraFilters?: ReactNode;
   summary?: ReactNode;
   children: ReactNode;
   skeletonColumns?: number;
@@ -32,6 +34,7 @@ export function ReportPageLayout({
   showPeriodFilter = true,
   periodParams,
   onPeriodChange,
+  extraFilters,
   summary,
   children,
   skeletonColumns = 4,
@@ -51,7 +54,17 @@ export function ReportPageLayout({
       loading={loading}
       periodFilter={
         showPeriodFilter && periodParams && onPeriodChange ? (
-          <ReportPeriodFilter period={periodParams} onPeriodChange={onPeriodChange} compact />
+          extraFilters ? (
+            <ReportFiltersToolbar
+              period={periodParams}
+              onPeriodChange={onPeriodChange}
+              secondaryFilters={extraFilters}
+            />
+          ) : (
+            <ReportPeriodFilter period={periodParams} onPeriodChange={onPeriodChange} compact />
+          )
+        ) : extraFilters ? (
+          extraFilters
         ) : null
       }
       summary={summary}

@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 
 const AUTH_COOKIE_NAME =
   process.env.NEXT_PUBLIC_AUTH_COOKIE_NAME ?? "cms_access_token";
+const REFRESH_COOKIE_NAME =
+  process.env.NEXT_PUBLIC_REFRESH_COOKIE_NAME ?? "cms_refresh_token";
 
 const PUBLIC_PATHS = [
   "/",
@@ -40,7 +42,8 @@ export function middleware(request: NextRequest) {
   }
 
   const accessToken = request.cookies.get(AUTH_COOKIE_NAME)?.value;
-  if (!accessToken) {
+  const refreshToken = request.cookies.get(REFRESH_COOKIE_NAME)?.value;
+  if (!accessToken && !refreshToken) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);

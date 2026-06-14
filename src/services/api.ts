@@ -2,13 +2,18 @@ import axios from "axios";
 import type { AxiosRequestConfig } from "axios";
 import { AxiosHeaders } from "axios";
 import { getCsrfHeaderName, readCsrfToken } from "@/src/lib/csrf-client";
+import {
+  isRecoverableRefreshFailure,
+  SessionRefreshError,
+} from "@/src/lib/session-errors";
+import { refreshSessionWithRetry } from "@/src/lib/session-refresh-coordinator";
 
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api",
   withCredentials: true,
 });
 
-let refreshingPromise: Promise<unknown> | null = null;
+let refreshingPromise: Promise<void> | null = null;
 
 /** Do not treat credential/auth bootstrap 401s as an expired access token. */
 const skipRefreshRetry = (url: string | undefined) => {
@@ -26,6 +31,23 @@ const skipRefreshRetry = (url: string | undefined) => {
   ];
   return paths.some((path) => url.includes(path));
 };
+
+async function ensureSessionRefreshed(): Promise<void> {
+  if (!refreshingPromise) {
+    refreshingPromise = refreshSessionWithRetry(async () => {
+      const { store } = await import("@/src/store");
+      const { refreshSessionThunk } = await import("@/src/store/slices/auth.slice");
+      const result = await store.dispatch(refreshSessionThunk());
+      if (refreshSessionThunk.rejected.match(result)) {
+        const payload = result.payload ?? { message: "Refresh failed" };
+        throw new SessionRefreshError(payload);
+      }
+    }).finally(() => {
+      refreshingPromise = null;
+    });
+  }
+  await refreshingPromise;
+}
 
 api.interceptors.request.use((config) => {
   const method = (config.method ?? "get").toLowerCase();
@@ -56,21 +78,20 @@ api.interceptors.response.use(
     }
 
     originalRequest._retry = true;
-    if (!refreshingPromise) {
-      refreshingPromise = (async () => {
-        const { store } = await import("@/src/store");
-        const { refreshSessionThunk } = await import(
-          "@/src/store/slices/auth.slice"
-        );
-        return store.dispatch(refreshSessionThunk());
-      })().finally(() => {
-        refreshingPromise = null;
-      });
-    }
     try {
-      await refreshingPromise;
+      await ensureSessionRefreshed();
       return api(originalRequest as AxiosRequestConfig);
     } catch (refreshError) {
+      if (isRecoverableRefreshFailure(refreshError)) {
+        return Promise.reject(error);
+      }
+
+      const { store } = await import("@/src/store");
+      const { initialized } = store.getState().auth;
+      if (!initialized) {
+        return Promise.reject(error);
+      }
+
       const { redirectToHomeAfterSessionExpired } = await import(
         "@/src/lib/session-auth"
       );

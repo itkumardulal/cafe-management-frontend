@@ -18,7 +18,7 @@ export async function redirectToHomeAfterSessionExpired(message?: string) {
   }
 
   if (window.location.pathname !== HOME_PATH) {
-    window.location.replace(HOME_PATH);
+    window.location.replace("/login?expired=1");
   } else {
     redirectScheduled = false;
   }
