@@ -18,7 +18,13 @@ import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import { appToast } from "@/src/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
-import { loginThunk, logoutThunk, clearSessionExpired, type LoginRejectPayload } from "@/src/store/slices/auth.slice";
+import {
+  bootstrapSessionThunk,
+  loginThunk,
+  logoutThunk,
+  clearSessionExpired,
+  type LoginRejectPayload,
+} from "@/src/store/slices/auth.slice";
 import { clearCsrfCookie } from "@/src/lib/clear-csrf-cookie";
 import { safeRedirectPath } from "@/src/lib/safe-redirect-path";
 import { resetSessionRedirectGuard } from "@/src/lib/session-auth";
@@ -33,17 +39,31 @@ function formatLockCountdown(ms: number): string {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+function sessionRestoreTarget(
+  mustChangePassword: boolean,
+  nextPath: string | null,
+): string {
+  if (mustChangePassword) {
+    return "/change-password-first";
+  }
+  return nextPath ?? "/dashboard";
+}
+
 function LoginForm() {
   const dispatch = useAppDispatch();
   const router = useRouter();
   const searchParams = useSearchParams();
   const loading = useAppSelector((state) => state.auth.loading);
+  const authUser = useAppSelector((state) => state.auth.user);
+  const authInitialized = useAppSelector((state) => state.auth.initialized);
+  const activated = searchParams.get("activated") === "1";
+  const sessionExpired = searchParams.get("expired") === "1";
+  const skipSessionRestore = activated || sessionExpired;
+  const [restoringSession, setRestoringSession] = useState(!skipSessionRestore);
   const [showPassword, setShowPassword] = useState(false);
   const [apiError, setApiError] = useState("");
   const [lockUntilMs, setLockUntilMs] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const activated = searchParams.get("activated") === "1";
-  const sessionExpired = searchParams.get("expired") === "1";
   const emailFromQuery = searchParams.get("email") ?? "";
   const nextPath = safeRedirectPath(searchParams.get("next"));
   const lockRemainingMs = Math.max(0, lockUntilMs - nowMs);
@@ -87,6 +107,49 @@ function LoginForm() {
       void dispatch(logoutThunk());
     }
   }, [activated, dispatch]);
+
+  useEffect(() => {
+    if (skipSessionRestore) {
+      setRestoringSession(false);
+      return;
+    }
+
+    if (authInitialized && authUser) {
+      router.replace(sessionRestoreTarget(Boolean(authUser.mustChangePassword), nextPath));
+      return;
+    }
+
+    if (authInitialized && !authUser) {
+      setRestoringSession(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const restoreSession = async () => {
+      const result = await dispatch(bootstrapSessionThunk());
+      if (cancelled) {
+        return;
+      }
+      setRestoringSession(false);
+      if (bootstrapSessionThunk.fulfilled.match(result)) {
+        router.replace(sessionRestoreTarget(Boolean(result.payload.mustChangePassword), nextPath));
+      }
+    };
+
+    void restoreSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    authInitialized,
+    authUser,
+    dispatch,
+    nextPath,
+    router,
+    skipSessionRestore,
+  ]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -173,6 +236,17 @@ function LoginForm() {
     event.preventDefault();
     void handleSubmit(onSubmit)(event);
   };
+
+  if (restoringSession) {
+    return (
+      <AuthPageShell
+        title="Welcome back"
+        subtitle="Restoring your session..."
+      >
+        <FormSkeleton />
+      </AuthPageShell>
+    );
+  }
 
   return (
     <AuthPageShell
