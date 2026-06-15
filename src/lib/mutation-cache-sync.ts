@@ -11,7 +11,7 @@ const LIST_PREFIXES = [
   "/direct-purchases",
   "/supplier-bills",
   "/expense",
-  "/bank",
+  "/bank-accounts",
   "/customers",
   "/customer-receivables",
   "/dining-tables",

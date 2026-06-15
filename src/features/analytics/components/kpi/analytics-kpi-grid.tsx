@@ -154,7 +154,7 @@ export function AnalyticsKpiGrid({
           live: kpis.bankBalanceSnapshot,
           icon: Banknote,
           chip: "bg-teal-50 text-teal-800 dark:bg-teal-950/40 dark:text-teal-200",
-          href: "/bank",
+          href: "/banks",
         }
       : null,
   ];
