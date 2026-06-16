@@ -189,11 +189,15 @@
     width: 100%;
     max-width: 1400px;
     margin-inline: auto;
+    min-width: 0;
   }
 
   .page-content {
     display: grid;
     gap: 1rem;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   @media (min-width: 768px) {

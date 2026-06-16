@@ -6,11 +6,13 @@ export function PageHeader({
   description,
   action,
   className,
+  actionClassName,
 }: {
   title: ReactNode;
   description?: ReactNode;
   action?: ReactNode;
   className?: string;
+  actionClassName?: string;
 }) {
   return (
     <div
@@ -24,7 +26,12 @@ export function PageHeader({
         {description ? <p className="text-muted">{description}</p> : null}
       </div>
       {action ? (
-        <div className="w-full shrink-0 sm:w-auto [&_button]:w-full sm:[&_button]:w-auto [&_a]:block sm:[&_a]:inline-block [&_a_button]:w-full sm:[&_a_button]:w-auto">
+        <div
+          className={cn(
+            "w-full shrink-0 sm:w-auto max-md:[&_button]:w-auto [&_button]:w-full sm:[&_button]:w-auto [&_a]:block sm:[&_a]:inline-block [&_a_button]:w-full sm:[&_a_button]:w-auto",
+            actionClassName,
+          )}
+        >
           {action}
         </div>
       ) : null}

@@ -113,7 +113,7 @@ export default function DashboardPage() {
 
   if (user?.role === "SUPER_ADMIN") {
     return (
-      <section className="page-shell page-content">
+      <section className="page-shell page-content min-w-0">
         <PageHeader
           title="Cafe Overview (Read-only)"
           description="Switch cafe context to view summary data for cafes you created."
@@ -127,7 +127,7 @@ export default function DashboardPage() {
         />
 
         {managedCafes.length > 0 ? (
-          <Card density="compact" className="overflow-hidden p-0">
+          <Card density="compact" className="w-full min-w-0 overflow-hidden p-0">
             <div className="space-y-2 p-4">
               <label className="block text-sm font-medium text-muted" htmlFor="cafe-switcher">
                 Select cafe
@@ -169,7 +169,7 @@ export default function DashboardPage() {
 
         {selectedCafeOverview ? (
           <>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid w-full min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3 [&>*]:min-w-0">
               {[
                 { title: "Total users", value: selectedCafeOverview.metrics.totalUsers },
                 { title: "Total staff", value: selectedCafeOverview.metrics.totalStaff },
@@ -177,11 +177,12 @@ export default function DashboardPage() {
               ].map((item, index) => (
                 <motion.div
                   key={item.title}
+                  className="min-w-0 w-full max-w-full"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
                 >
-                  <Card density="compact" className="space-y-2">
+                  <Card density="compact" className="w-full min-w-0 space-y-2">
                     <p className="text-xs uppercase tracking-wide text-subtle">{item.title}</p>
                     <p className="text-2xl font-semibold text-foreground">{item.value}</p>
                     <Badge variant="default" size="sm">
@@ -192,7 +193,7 @@ export default function DashboardPage() {
               ))}
             </div>
 
-            <Card density="comfortable" className="space-y-2">
+            <Card density="comfortable" className="w-full min-w-0 space-y-2">
               <p className="text-sm text-muted">
                 Cafe Admin: {selectedCafeOverview.cafe.users[0]?.fullName ?? "Not assigned"}
               </p>

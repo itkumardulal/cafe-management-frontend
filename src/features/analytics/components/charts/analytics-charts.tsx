@@ -17,12 +17,14 @@ import {
   YAxis,
 } from "recharts";
 import { Card } from "@/src/components/ui/card";
+import { cn } from "@/src/lib/cn";
 import { formatMoney } from "@/src/lib/format-display";
 import { formatSalePaymentMethod } from "@/src/lib/ar-display";
 import type { AnalyticsOverview } from "@/src/features/analytics/types/analytics.types";
 import { CHART_COLORS, chartAxisStyle, chartGridStroke, chartTooltipStyle } from "@/src/features/analytics/lib/chart-theme";
 import { AnalyticsChartViewport } from "@/src/features/analytics/components/charts/analytics-chart-viewport";
 import { ChartGranularityToggle } from "@/src/features/analytics/components/charts/chart-granularity-toggle";
+import { useChartLayout } from "@/src/features/analytics/hooks/use-chart-layout";
 import {
   type ChartGranularity,
   rebucketProfitExpense,
@@ -47,10 +49,10 @@ function ChartCard({
   footnote?: string;
 }) {
   return (
-    <Card density="comfortable" className={className}>
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-        {headerAction}
+    <Card density="comfortable" className={cn("w-full min-w-0 max-w-full", className)}>
+      <div className="mb-3 flex flex-col gap-2 max-md:gap-2.5 md:flex-row md:items-start md:justify-between md:gap-2">
+        <h3 className="min-w-0 text-sm font-semibold text-foreground">{title}</h3>
+        {headerAction ? <div className="shrink-0 self-start">{headerAction}</div> : null}
       </div>
       {isEmpty ? (
         <div className="flex h-64 w-full min-w-0 items-center justify-center text-sm text-muted sm:h-72">
@@ -112,12 +114,52 @@ function ReceivablesAgingTooltip({
   );
 }
 
+function AnalyticsPieChart({
+  rows,
+  nameKey = "name",
+  legendFormatter,
+  tooltipFormatter,
+}: {
+  rows: Array<{ fill: string; value: number; [key: string]: string | number }>;
+  nameKey?: string;
+  legendFormatter?: (value: string) => string;
+  tooltipFormatter?: (value: number) => string;
+}) {
+  const { pieInnerRadius, pieOuterRadius, legendStyle } = useChartLayout();
+  const formatTooltip = tooltipFormatter ?? ((v) => formatMoney(String(v)));
+
+  return (
+    <PieChart>
+      <Pie
+        data={rows}
+        dataKey="value"
+        nameKey={nameKey}
+        cx="50%"
+        cy="50%"
+        innerRadius={pieInnerRadius}
+        outerRadius={pieOuterRadius}
+        paddingAngle={2}
+      >
+        {rows.map((entry, index) => (
+          <Cell key={`cell-${index}`} fill={entry.fill} />
+        ))}
+      </Pie>
+      <Tooltip
+        contentStyle={chartTooltipStyle}
+        formatter={(v) => formatTooltip(Number(v ?? 0))}
+      />
+      <Legend wrapperStyle={legendStyle} formatter={legendFormatter} />
+    </PieChart>
+  );
+}
+
 export function SalesTrendChart({
   data,
 }: {
   data: NonNullable<AnalyticsOverview["charts"]["salesTrend"]>;
 }) {
   const [granularity, setGranularity] = useState<ChartGranularity>("day");
+  const { chartMargin, yAxisWidth } = useChartLayout();
 
   const points = useMemo(() => {
     const rebucketed = rebucketSalesTrendPoints(data.points, granularity);
@@ -138,10 +180,10 @@ export function SalesTrendChart({
       headerAction={<ChartGranularityToggle value={granularity} onChange={setGranularity} />}
     >
       <AnalyticsChartViewport>
-        <LineChart data={points} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+        <LineChart data={points} margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
           <XAxis dataKey="date" tick={chartAxisStyle} tickFormatter={(v) => v.slice(5)} />
-          <YAxis tick={chartAxisStyle} tickFormatter={(v) => formatMoney(String(v))} width={72} />
+          <YAxis tick={chartAxisStyle} tickFormatter={(v) => formatMoney(String(v))} width={yAxisWidth} />
           <Tooltip
             contentStyle={chartTooltipStyle}
             formatter={(value) => [formatMoney(String(value ?? 0)), "Sales"]}
@@ -160,6 +202,7 @@ export function ProfitExpenseChart({
   data: NonNullable<AnalyticsOverview["charts"]["profitExpense"]>;
 }) {
   const [granularity, setGranularity] = useState<ChartGranularity>("day");
+  const { chartMargin, yAxisWidth } = useChartLayout();
 
   const buckets = useMemo(() => {
     const rebucketed = rebucketProfitExpense(data.buckets, granularity);
@@ -184,10 +227,10 @@ export function ProfitExpenseChart({
       footnote="Net profit = revenue − COGS − operating expenses"
     >
       <AnalyticsChartViewport>
-        <BarChart data={buckets} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+        <BarChart data={buckets} margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
           <XAxis dataKey="date" tick={chartAxisStyle} tickFormatter={(v) => v.slice(5)} />
-          <YAxis tick={chartAxisStyle} tickFormatter={(v) => formatMoney(String(v))} width={72} />
+          <YAxis tick={chartAxisStyle} tickFormatter={(v) => formatMoney(String(v))} width={yAxisWidth} />
           <Tooltip contentStyle={chartTooltipStyle} formatter={(v) => formatMoney(String(v ?? 0))} />
           <Legend />
           <Bar dataKey="revenueNum" name="Revenue" fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} />
@@ -205,6 +248,7 @@ export function TopMenuItemsChart({
   data: NonNullable<AnalyticsOverview["charts"]["topMenuItems"]>;
 }) {
   const [metric, setMetric] = useState<"quantity" | "revenue">("quantity");
+  const { categoryAxisWidth } = useChartLayout();
 
   const rows = useMemo(
     () =>
@@ -246,7 +290,7 @@ export function TopMenuItemsChart({
             tick={chartAxisStyle}
             tickFormatter={(v) => (metric === "revenue" ? formatMoney(String(v)) : String(v))}
           />
-          <YAxis type="category" dataKey="name" tick={chartAxisStyle} width={100} />
+          <YAxis type="category" dataKey="name" tick={chartAxisStyle} width={categoryAxisWidth} />
           <Tooltip
             contentStyle={chartTooltipStyle}
             formatter={(v) =>
@@ -276,15 +320,7 @@ export function SalesByCategoryChart({
   return (
     <ChartCard title="Sales by category" isEmpty={isEmpty} emptyMessage="No category sales in this period">
       <AnalyticsChartViewport>
-        <PieChart>
-          <Pie data={rows} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
-            {rows.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.fill} />
-            ))}
-          </Pie>
-          <Tooltip contentStyle={chartTooltipStyle} formatter={(v) => formatMoney(String(v ?? 0))} />
-          <Legend />
-        </PieChart>
+        <AnalyticsPieChart rows={rows} />
       </AnalyticsChartViewport>
     </ChartCard>
   );
@@ -306,15 +342,7 @@ export function PaymentMethodsChart({
   return (
     <ChartCard title="Payment methods" isEmpty={isEmpty} emptyMessage="No payments in this period">
       <AnalyticsChartViewport>
-        <PieChart>
-          <Pie data={rows} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
-            {rows.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.fill} />
-            ))}
-          </Pie>
-          <Tooltip contentStyle={chartTooltipStyle} formatter={(v) => formatMoney(String(v ?? 0))} />
-          <Legend formatter={(value) => String(value)} />
-        </PieChart>
+        <AnalyticsPieChart rows={rows} legendFormatter={(value) => String(value)} />
       </AnalyticsChartViewport>
     </ChartCard>
   );
@@ -325,6 +353,7 @@ export function PeakHoursChart({
 }: {
   data: NonNullable<AnalyticsOverview["charts"]["peakHours"]>;
 }) {
+  const { chartMargin, yAxisWidth, yAxisWidthCompact } = useChartLayout();
   const rows = data.map((row) => ({
     ...row,
     sales: Number(row.totalSales),
@@ -335,16 +364,16 @@ export function PeakHoursChart({
   return (
     <ChartCard title="Peak business hours" isEmpty={isEmpty} emptyMessage="No orders in this period">
       <AnalyticsChartViewport>
-        <ComposedChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+        <ComposedChart data={rows} margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
           <XAxis dataKey="label" tick={chartAxisStyle} interval={2} />
-          <YAxis yAxisId="left" tick={chartAxisStyle} width={40} />
+          <YAxis yAxisId="left" tick={chartAxisStyle} width={yAxisWidthCompact} />
           <YAxis
             yAxisId="right"
             orientation="right"
             tick={chartAxisStyle}
             tickFormatter={(v) => formatMoney(String(v))}
-            width={72}
+            width={yAxisWidth}
           />
           <Tooltip contentStyle={chartTooltipStyle} />
           <Legend />
@@ -369,6 +398,7 @@ export function ReceivablesAgingChart({
 }: {
   data: NonNullable<AnalyticsOverview["charts"]["receivablesAging"]>;
 }) {
+  const { chartMargin, yAxisWidth } = useChartLayout();
   const rows = data.map((item) => ({
     ...item,
     amount: Number(item.outstandingAmount),
@@ -379,10 +409,10 @@ export function ReceivablesAgingChart({
   return (
     <ChartCard title="Customer receivable aging" isEmpty={isEmpty} emptyMessage="No outstanding receivables">
       <AnalyticsChartViewport>
-        <BarChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+        <BarChart data={rows} margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
           <XAxis dataKey="label" tick={chartAxisStyle} />
-          <YAxis tick={chartAxisStyle} tickFormatter={(v) => formatMoney(String(v))} width={72} />
+          <YAxis tick={chartAxisStyle} tickFormatter={(v) => formatMoney(String(v))} width={yAxisWidth} />
           <Tooltip content={<ReceivablesAgingTooltip />} />
           <Bar dataKey="amount" name="Outstanding" fill={CHART_COLORS[5]} radius={[4, 4, 0, 0]} />
         </BarChart>
@@ -396,6 +426,7 @@ export function SupplierPayablesChart({
 }: {
   data: NonNullable<AnalyticsOverview["charts"]["supplierPayables"]>;
 }) {
+  const { categoryAxisWidth } = useChartLayout();
   const rows = [...data].reverse().map((item) => ({
     name: item.supplierName.length > 20 ? `${item.supplierName.slice(0, 20)}…` : item.supplierName,
     outstanding: Number(item.outstandingAmount),
@@ -409,7 +440,7 @@ export function SupplierPayablesChart({
         <BarChart data={rows} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} horizontal={false} />
           <XAxis type="number" tick={chartAxisStyle} tickFormatter={(v) => formatMoney(String(v))} />
-          <YAxis type="category" dataKey="name" tick={chartAxisStyle} width={100} />
+          <YAxis type="category" dataKey="name" tick={chartAxisStyle} width={categoryAxisWidth} />
           <Tooltip contentStyle={chartTooltipStyle} formatter={(v) => formatMoney(String(v ?? 0))} />
           <Bar dataKey="outstanding" name="Outstanding" fill={CHART_COLORS[3]} radius={[0, 4, 4, 0]} />
         </BarChart>
@@ -434,15 +465,7 @@ export function ServiceTypeChart({
   return (
     <ChartCard title="Sales by service type" isEmpty={isEmpty} emptyMessage="No sales by service type">
       <AnalyticsChartViewport>
-        <PieChart>
-          <Pie data={rows} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
-            {rows.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.fill} />
-            ))}
-          </Pie>
-          <Tooltip contentStyle={chartTooltipStyle} formatter={(v) => formatMoney(String(v ?? 0))} />
-          <Legend />
-        </PieChart>
+        <AnalyticsPieChart rows={rows} />
       </AnalyticsChartViewport>
     </ChartCard>
   );
@@ -464,15 +487,7 @@ export function ExpenseCategoryChart({
   return (
     <ChartCard title="Expenses by category" isEmpty={isEmpty} emptyMessage="No categorized expenses in this period">
       <AnalyticsChartViewport>
-        <PieChart>
-          <Pie data={rows} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
-            {rows.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.fill} />
-            ))}
-          </Pie>
-          <Tooltip contentStyle={chartTooltipStyle} formatter={(v) => formatMoney(String(v ?? 0))} />
-          <Legend />
-        </PieChart>
+        <AnalyticsPieChart rows={rows} />
       </AnalyticsChartViewport>
     </ChartCard>
   );
@@ -493,15 +508,7 @@ export function TableOccupancyChart({
   return (
     <ChartCard title="Table occupancy" isEmpty={isEmpty} emptyMessage="No table data">
       <AnalyticsChartViewport>
-        <PieChart>
-          <Pie data={rows} dataKey="value" nameKey="label" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
-            {rows.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.fill} />
-            ))}
-          </Pie>
-          <Tooltip contentStyle={chartTooltipStyle} />
-          <Legend />
-        </PieChart>
+        <AnalyticsPieChart rows={rows} nameKey="label" tooltipFormatter={(v) => String(v)} />
       </AnalyticsChartViewport>
     </ChartCard>
   );

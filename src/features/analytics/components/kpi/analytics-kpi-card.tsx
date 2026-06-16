@@ -30,9 +30,10 @@ function TrendBadge({ trend, changePercent }: { trend: AnalyticsTrend; changePer
         : "text-[var(--color-muted)]";
 
   return (
-    <span className={cn("inline-flex items-center gap-1 text-xs font-medium", color)}>
-      <Icon className="h-3.5 w-3.5" aria-hidden />
-      {changePercent}% vs previous period
+    <span className={cn("inline-flex min-w-0 max-w-full flex-wrap items-center gap-1 text-xs font-medium", color)}>
+      <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      <span className="max-md:hidden">{changePercent}% vs previous period</span>
+      <span className="md:hidden">{changePercent}% vs prev.</span>
     </span>
   );
 }
@@ -52,11 +53,11 @@ export function AnalyticsKpiCard({
     <Card
       density="compact"
       className={cn(
-        "relative overflow-hidden p-3 sm:p-3.5",
+        "relative w-full min-w-0 max-w-full overflow-hidden p-3 sm:p-3.5",
         href && "transition-shadow hover:ring-2 hover:ring-[var(--color-primary)]/20",
       )}
     >
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex min-w-0 items-start justify-between gap-2">
         <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", chipClass)}>
           <Icon className="h-4 w-4" aria-hidden />
         </div>
@@ -70,23 +71,27 @@ export function AnalyticsKpiCard({
           </span>
         ) : null}
       </div>
-      <div className="mt-2 space-y-1">
+      <div className="mt-2 min-w-0 space-y-1">
         <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-subtle)]">{title}</p>
-        <p className="text-xl font-semibold tabular-nums tracking-tight text-foreground">{value}</p>
+        <p className="break-words text-xl font-semibold tabular-nums tracking-tight text-foreground">{value}</p>
         {trend ? <TrendBadge trend={trend.trend} changePercent={trend.changePercent} /> : null}
-        {subtitle ? <p className="text-xs leading-snug text-[var(--color-muted)]">{subtitle}</p> : null}
+        {subtitle ? <p className="break-words text-xs leading-snug text-[var(--color-muted)]">{subtitle}</p> : null}
       </div>
     </Card>
   );
 
   return (
     <motion.div
+      className="min-w-0 w-full max-w-full"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.03, duration: 0.2 }}
     >
       {href ? (
-        <Link href={href} className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]">
+        <Link
+          href={href}
+          className="group block w-full min-w-0 max-w-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+        >
           {card}
         </Link>
       ) : (

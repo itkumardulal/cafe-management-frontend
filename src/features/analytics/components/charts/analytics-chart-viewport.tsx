@@ -38,7 +38,7 @@ export function AnalyticsChartViewport({ children, className }: AnalyticsChartVi
   return (
     <div
       ref={ref}
-      className={cn("h-64 w-full min-h-[16rem] min-w-0 sm:h-72", className)}
+      className={cn("h-64 w-full min-h-[16rem] min-w-0 max-md:h-60 sm:h-72", className)}
     >
       {size ? (
         <ResponsiveContainer width={size.width} height={size.height} minWidth={0}>

@@ -1,14 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
 import { PageHeader } from "@/src/components/shared/page-header";
-import { Button } from "@/src/components/ui/button";
 import { EmptyState } from "@/src/components/ui/empty-state";
 import { ReportPeriodFilter } from "@/src/features/reports/components/report-period-filter";
+import { AnalyticsDashboardToolbar } from "@/src/features/analytics/components/analytics-dashboard-toolbar";
 import { AnalyticsKpiGrid } from "@/src/features/analytics/components/kpi/analytics-kpi-grid";
-import { AnalyticsExportMenu } from "@/src/features/analytics/components/analytics-export-menu";
-import { AnalyticsQuickActions } from "@/src/features/analytics/components/analytics-quick-actions";
 import { AnalyticsDashboardSkeleton } from "@/src/features/analytics/components/skeletons/analytics-dashboard-skeleton";
 import {
   ExpenseCategoryChart,
@@ -79,7 +76,7 @@ export function CafeAnalyticsDashboard() {
 
   if (loading) {
     return (
-      <section className="page-shell page-content space-y-6">
+      <section className="page-shell page-content min-w-0 space-y-6">
         <PageHeader title="Dashboard" description="Loading analytics…" />
         <AnalyticsDashboardSkeleton />
       </section>
@@ -88,7 +85,7 @@ export function CafeAnalyticsDashboard() {
 
   if (error && !overview) {
     return (
-      <section className="page-shell page-content">
+      <section className="page-shell page-content min-w-0">
         <EmptyState title="Dashboard unavailable" description={error} />
       </section>
     );
@@ -96,7 +93,7 @@ export function CafeAnalyticsDashboard() {
 
   if (!overview) {
     return (
-      <section className="page-shell page-content">
+      <section className="page-shell page-content min-w-0">
         <EmptyState title="No analytics data" description="Try refreshing the dashboard." />
       </section>
     );
@@ -105,7 +102,7 @@ export function CafeAnalyticsDashboard() {
   const { visibility, charts, widgets } = overview;
 
   return (
-    <section className="page-shell page-content space-y-6">
+    <section className="page-shell page-content min-w-0 space-y-6">
       <PageHeader
         title="Dashboard"
         description={
@@ -113,21 +110,19 @@ export function CafeAnalyticsDashboard() {
             ? `Welcome back, ${user.fullName}. Insights for ${overview.period.label}.`
             : "Business insights for your cafe."
         }
+        actionClassName="max-md:w-full max-md:[&_a]:flex"
         action={
-          <div className="flex flex-wrap items-center gap-2">
-            <AnalyticsQuickActions />
-            {visibility.financials ? <AnalyticsExportMenu overview={overview} /> : null}
-            <Button type="button" variant="secondary" size="sm" onClick={handleRefresh}>
-              <RefreshCw className="mr-1.5 h-4 w-4" aria-hidden />
-              Refresh
-            </Button>
-          </div>
+          <AnalyticsDashboardToolbar
+            overview={overview}
+            showExport={visibility.financials}
+            onRefresh={handleRefresh}
+          />
         }
       />
 
-      <div className="space-y-2">
+      <div className="min-w-0 space-y-2">
         <ReportPeriodFilter period={periodParams} onPeriodChange={setPeriodParams} compact showSnapshotHint />
-        <p className="text-xs text-[var(--color-muted)]">
+        <p className="break-words text-xs leading-relaxed text-[var(--color-muted)]">
           Compared to {overview.comparisonPeriod.label}
         </p>
       </div>
@@ -139,14 +134,14 @@ export function CafeAnalyticsDashboard() {
       <AnalyticsKpiGrid overview={overview} periodParams={effectivePeriodParams ?? { period: "this_month" }} />
 
       {visibility.financials && charts.salesTrend ? (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid w-full min-w-0 grid-cols-1 gap-4 lg:grid-cols-2 [&>*]:min-w-0">
           <SalesTrendChart data={charts.salesTrend} />
           {charts.profitExpense ? <ProfitExpenseChart data={charts.profitExpense} /> : null}
         </div>
       ) : null}
 
       {visibility.financials ? (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid w-full min-w-0 grid-cols-1 gap-4 lg:grid-cols-2 [&>*]:min-w-0">
           {charts.topMenuItems ? <TopMenuItemsChart data={charts.topMenuItems} /> : null}
           {charts.salesByCategory ? <SalesByCategoryChart data={charts.salesByCategory} /> : null}
           {charts.paymentMethods ? <PaymentMethodsChart data={charts.paymentMethods} /> : null}
@@ -159,7 +154,7 @@ export function CafeAnalyticsDashboard() {
       ) : null}
 
       {visibility.tables && widgets.tableStatus ? (
-        <div className="space-y-3">
+        <div className="min-w-0 space-y-3">
           <h2 className="text-sm font-semibold text-foreground">Table management</h2>
           <TableStatusCards data={widgets.tableStatus} linkToOrders />
           {charts.tableOccupancy ? <TableOccupancyChart data={charts.tableOccupancy} /> : null}
@@ -167,7 +162,7 @@ export function CafeAnalyticsDashboard() {
       ) : null}
 
       {visibility.inventory && widgets.lowStock ? (
-        <div className="space-y-3">
+        <div className="min-w-0 space-y-3">
           <h2 className="text-sm font-semibold text-foreground">Inventory</h2>
           <LowStockTable data={widgets.lowStock} />
         </div>
@@ -177,7 +172,7 @@ export function CafeAnalyticsDashboard() {
         <AssetsSummaryWidget data={assetsSummary} />
       ) : null}
 
-      <div className="space-y-3">
+      <div className="min-w-0 space-y-3">
         <h2 className="text-sm font-semibold text-foreground">Activity</h2>
         <ActivityFeedWidget
           data={widgets.activityFeed}

@@ -5,6 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { DatePicker } from "@/src/components/ui/date-picker";
+import { Field } from "@/src/components/ui/field";
+import { Select } from "@/src/components/ui/select";
 import { cn } from "@/src/lib/cn";
 import { appToast } from "@/src/lib/toast";
 import type { ReportPeriodKey, ReportPeriodParams } from "@/src/features/reports/types/reports.types";
@@ -65,13 +67,13 @@ function ReportCustomDateRange({
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-1 flex-row flex-wrap items-center gap-x-2 gap-y-2 rounded-xl border border-[var(--color-border)]",
-        "bg-[var(--color-cream-50)]/60 p-2 sm:gap-2 sm:p-1.5",
+        "flex w-full min-w-0 flex-col gap-2 rounded-xl border border-[var(--color-border)]",
+        "bg-[var(--color-cream-50)]/60 p-2.5 md:flex-row md:flex-wrap md:items-center md:gap-x-2 md:gap-y-2 md:p-1.5",
       )}
       role="group"
       aria-label="Custom date range"
     >
-      <div className="flex min-w-[9.5rem] flex-1 items-center gap-1.5 sm:max-w-[11.5rem]">
+      <div className="flex w-full min-w-0 items-center gap-1.5 md:min-w-[9.5rem] md:max-w-[11.5rem] md:flex-1">
         <label
           htmlFor={`${idPrefix}-from`}
           className="w-9 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-subtle)]"
@@ -90,11 +92,11 @@ function ReportCustomDateRange({
         />
       </div>
 
-      <span className="shrink-0 px-0.5 text-sm text-[var(--color-subtle)]" aria-hidden>
+      <span className="hidden shrink-0 px-0.5 text-sm text-[var(--color-subtle)] md:inline" aria-hidden>
         —
       </span>
 
-      <div className="flex min-w-[9.5rem] flex-1 items-center gap-1.5 sm:max-w-[11.5rem]">
+      <div className="flex w-full min-w-0 items-center gap-1.5 md:min-w-[9.5rem] md:max-w-[11.5rem] md:flex-1">
         <label
           htmlFor={`${idPrefix}-to`}
           className="w-9 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-subtle)]"
@@ -118,7 +120,7 @@ function ReportCustomDateRange({
         variant="brand"
         size="sm"
         onClick={onApply}
-        className="h-9 shrink-0 px-4 sm:ml-0.5"
+        className="h-9 w-full shrink-0 px-4 md:ml-0.5 md:w-auto"
       >
         Apply
       </Button>
@@ -162,9 +164,26 @@ export function ReportPeriodFilter({
     onPeriodChange({ period: "custom", fromDate: customFrom, toDate: customTo });
   }, [customFrom, customTo, onPeriodChange]);
 
+  const handlePeriodSelect = useCallback(
+    (key: ReportPeriodKey) => {
+      if (key === "custom") {
+        setCustomDraft(true);
+        if (!customFrom || !customTo) {
+          const next = defaultCustomReportRange();
+          setCustomFrom(next.fromDate);
+          setCustomTo(next.toDate);
+        }
+        return;
+      }
+      setCustomDraft(false);
+      onPeriodChange({ period: key });
+    },
+    [customFrom, customTo, onPeriodChange],
+  );
+
   const segmented = (
     <div
-      className="inline-flex max-w-full gap-0.5 overflow-x-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-cream-100)] p-1 shadow-sm sm:flex-wrap sm:overflow-x-visible"
+      className="hidden w-full min-w-0 gap-0.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-cream-100)] p-1 shadow-sm md:inline-flex md:flex-wrap"
       role="tablist"
       aria-label="Report period"
     >
@@ -180,23 +199,30 @@ export function ReportPeriodFilter({
               ? "bg-[var(--color-surface)] text-[var(--color-foreground)] shadow-sm ring-1 ring-[var(--color-border)]"
               : "text-[var(--color-muted)] hover:bg-[var(--color-surface)]/60 hover:text-[var(--color-foreground)]",
           )}
-          onClick={() => {
-            if (opt.key === "custom") {
-              setCustomDraft(true);
-              if (!customFrom || !customTo) {
-                const next = defaultCustomReportRange();
-                setCustomFrom(next.fromDate);
-                setCustomTo(next.toDate);
-              }
-              return;
-            }
-            setCustomDraft(false);
-            onPeriodChange({ period: opt.key });
-          }}
+          onClick={() => handlePeriodSelect(opt.key)}
         >
           {opt.label}
         </button>
       ))}
+    </div>
+  );
+
+  const mobilePeriodSelect = (
+    <div className="w-full min-w-0 md:hidden">
+      <Field id="report-period-mobile" label="Reporting period" className="min-w-0">
+        <Select
+          id="report-period-mobile"
+          fullWidth
+          value={activeTab}
+          onChange={(event) => handlePeriodSelect(event.target.value as ReportPeriodKey)}
+        >
+          {PERIOD_OPTIONS.map((opt) => (
+            <option key={opt.key} value={opt.key}>
+              {opt.label}
+            </option>
+          ))}
+        </Select>
+      </Field>
     </div>
   );
 
@@ -214,17 +240,18 @@ export function ReportPeriodFilter({
   const periodControls = (
     <div
       className={cn(
-        "flex flex-col gap-2.5 lg:flex-row lg:flex-wrap lg:items-center",
+        "flex min-w-0 w-full max-w-full flex-col gap-2.5 lg:flex-row lg:flex-wrap lg:items-center",
         activeTab === "custom" && "lg:gap-2",
       )}
     >
+      {mobilePeriodSelect}
       {segmented}
       {customRange}
     </div>
   );
 
   if (compact) {
-    return <div className={cn("space-y-0", className)}>{periodControls}</div>;
+    return <div className={cn("min-w-0 w-full max-w-full space-y-0", className)}>{periodControls}</div>;
   }
 
   return (

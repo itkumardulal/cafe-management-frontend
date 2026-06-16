@@ -64,12 +64,12 @@ export function StaffTodaySummary({
   data: NonNullable<AnalyticsOverview["widgets"]["staffTodaySummary"]>;
 }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      <Card density="compact" className="space-y-1 p-3">
+    <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 [&>*]:min-w-0">
+      <Card density="compact" className="w-full min-w-0 space-y-1 p-3">
         <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-subtle)]">Today&apos;s sales</p>
         <p className="text-2xl font-semibold tabular-nums">{formatMoney(data.totalSales)}</p>
       </Card>
-      <Card density="compact" className="space-y-1 p-3">
+      <Card density="compact" className="w-full min-w-0 space-y-1 p-3">
         <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-subtle)]">Today&apos;s orders</p>
         <p className="text-2xl font-semibold tabular-nums">{data.totalOrders}</p>
       </Card>
@@ -91,11 +91,13 @@ export function TableStatusCards({
   ];
 
   const content = (
-    <div className="grid gap-3 sm:grid-cols-3">
+    <div className="grid w-full min-w-0 grid-cols-3 gap-2 sm:gap-3 [&>*]:min-w-0">
       {items.map((item) => (
-        <Card key={item.label} density="compact" className="space-y-1 p-3 text-center">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-subtle)]">{item.label}</p>
-          <p className={`text-2xl font-semibold tabular-nums ${item.tone}`}>{item.value}</p>
+        <Card key={item.label} density="compact" className="w-full min-w-0 space-y-1 p-2.5 text-center max-md:p-2 sm:p-3">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--color-subtle)] max-md:leading-tight sm:text-[11px]">
+            {item.label}
+          </p>
+          <p className={`text-xl font-semibold tabular-nums max-md:text-lg sm:text-2xl ${item.tone}`}>{item.value}</p>
         </Card>
       ))}
     </div>
@@ -103,7 +105,7 @@ export function TableStatusCards({
 
   if (linkToOrders) {
     return (
-      <Link href="/table-orders" className="block rounded-xl transition-opacity hover:opacity-90">
+      <Link href="/table-orders" className="block w-full min-w-0 max-w-full rounded-xl transition-opacity hover:opacity-90">
         {content}
       </Link>
     );
@@ -119,21 +121,50 @@ export function LowStockTable({
 }) {
   if (data.items.length === 0) {
     return (
-      <Card density="comfortable">
+      <Card density="comfortable" className="w-full min-w-0">
         <p className="text-sm text-muted">All tracked stock levels are healthy.</p>
       </Card>
     );
   }
 
   return (
-    <Card density="comfortable" className="overflow-hidden p-0">
-      <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
-        <h3 className="text-sm font-semibold text-foreground">Low stock alerts</h3>
-        <Link href="/inventory?filter=low" className="text-xs text-[var(--color-primary)] hover:underline">
+    <Card density="comfortable" className="w-full min-w-0 max-w-full overflow-hidden p-0">
+      <div className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] px-4 py-3">
+        <h3 className="min-w-0 text-sm font-semibold text-foreground">Low stock alerts</h3>
+        <Link
+          href="/inventory?filter=low"
+          className="shrink-0 text-xs text-[var(--color-primary)] hover:underline"
+        >
           View inventory
         </Link>
       </div>
-      <div className="overflow-x-auto">
+      <div className="divide-y divide-[var(--color-border)] md:hidden">
+        {data.items.map((item) => (
+          <div key={`${item.kind}-${item.id}`} className="space-y-1.5 px-4 py-3">
+            <div className="flex items-start justify-between gap-2">
+              <p className="min-w-0 font-medium text-foreground">{item.name}</p>
+              <span
+                className={
+                  item.stockStatus === "Critical"
+                    ? "shrink-0 rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-950/40 dark:text-red-300"
+                    : "shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                }
+              >
+                {item.stockStatus}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+              <span>
+                On hand: <span className="tabular-nums text-foreground">{item.quantityOnHand}</span>
+              </span>
+              <span>
+                Reorder: <span className="tabular-nums text-foreground">{item.reorderLevel}</span>
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[var(--color-border)] bg-[var(--color-cream-50)]/60 text-left text-xs uppercase tracking-wide text-[var(--color-subtle)]">
@@ -186,21 +217,21 @@ export function AssetsSummaryWidget({ data }: { data: AssetsSummary }) {
   ];
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-foreground">Assets</h2>
-        <Link href="/asset-reports" className="text-xs text-[var(--color-primary)] hover:underline">
+    <div className="min-w-0 w-full max-w-full space-y-3">
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <h2 className="min-w-0 text-sm font-semibold text-foreground">Assets</h2>
+        <Link href="/asset-reports" className="shrink-0 text-xs text-[var(--color-primary)] hover:underline">
           Asset reports
         </Link>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
         {items.map((item) => (
-          <Link key={item.label} href={item.href} className="block rounded-xl transition-opacity hover:opacity-90">
-            <Card density="compact" className="space-y-1 p-3">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-subtle)]">
+          <Link key={item.label} href={item.href} className="block w-full min-w-0 max-w-full rounded-xl transition-opacity hover:opacity-90">
+            <Card density="compact" className="w-full min-w-0 space-y-1 p-3">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-subtle)] max-md:line-clamp-2 max-md:leading-snug">
                 {item.label}
               </p>
-              <p className="text-2xl font-semibold tabular-nums">{item.value}</p>
+              <p className="text-xl font-semibold tabular-nums max-md:text-lg sm:text-2xl">{item.value}</p>
             </Card>
           </Link>
         ))}
@@ -247,30 +278,37 @@ export function ActivityFeedWidget({
 
   if (items.length === 0) {
     return (
-      <Card density="comfortable">
+      <Card density="comfortable" className="w-full min-w-0">
         <p className="text-sm text-muted">No recent activity in this period.</p>
       </Card>
     );
   }
 
   return (
-    <Card density="comfortable" className="divide-y divide-[var(--color-border)] p-0">
+    <Card density="comfortable" className="w-full min-w-0 max-w-full divide-y divide-[var(--color-border)] p-0">
       <div className="px-4 py-3">
         <h3 className="text-sm font-semibold text-foreground">Recent activity</h3>
       </div>
       <ul className="max-h-80 overflow-y-auto">
         {items.map((item) => (
-          <li key={activityFeedItemKey(item)} className="flex gap-3 px-4 py-3 text-sm">
-            <ActivityEventIcon eventType={item.eventType} />
-            <time className="shrink-0 pt-1 text-xs tabular-nums text-[var(--color-subtle)]">
-              {formatEventTime(item.occurredAt)}
-            </time>
-            <div className="min-w-0 flex-1">
-              <p className="font-medium text-foreground">{item.title}</p>
-              <p className="text-xs text-muted">{item.description}</p>
-              {item.actorName ? (
-                <p className="mt-0.5 text-xs text-[var(--color-subtle)]">by {item.actorName}</p>
-              ) : null}
+          <li key={activityFeedItemKey(item)} className="px-4 py-3 text-sm">
+            <div className="flex gap-3">
+              <ActivityEventIcon eventType={item.eventType} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 font-medium text-foreground">{item.title}</p>
+                  <time className="shrink-0 text-xs tabular-nums text-[var(--color-subtle)] md:hidden">
+                    {formatEventTime(item.occurredAt)}
+                  </time>
+                </div>
+                <p className="text-xs text-muted">{item.description}</p>
+                {item.actorName ? (
+                  <p className="mt-0.5 text-xs text-[var(--color-subtle)]">by {item.actorName}</p>
+                ) : null}
+              </div>
+              <time className="hidden shrink-0 pt-1 text-xs tabular-nums text-[var(--color-subtle)] md:block">
+                {formatEventTime(item.occurredAt)}
+              </time>
             </div>
           </li>
         ))}

@@ -29,8 +29,8 @@ type KpiCardConfig = {
 
 function SectionHeader({ title, badge }: { title: string; badge: string }) {
   return (
-    <div className="flex items-center justify-between gap-2">
-      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+    <div className="flex min-w-0 items-center justify-between gap-2">
+      <h2 className="min-w-0 truncate text-sm font-semibold text-foreground">{title}</h2>
       <span className="inline-flex shrink-0 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-0.5 text-[11px] font-semibold text-foreground">
         {badge}
       </span>
@@ -178,16 +178,16 @@ export function AnalyticsKpiGrid({
       ));
 
   return (
-    <div className="space-y-5">
-      <div className="space-y-3">
+    <div className="min-w-0 w-full max-w-full space-y-5">
+      <div className="min-w-0 space-y-3">
         <SectionHeader title="Period performance" badge="Period" />
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
           {renderCards(periodCards, 0)}
         </div>
       </div>
-      <div className="space-y-3">
+      <div className="min-w-0 space-y-3">
         <SectionHeader title="Live balances" badge="Live" />
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
           {renderCards(liveCards, periodCards.filter(Boolean).length)}
         </div>
       </div>
