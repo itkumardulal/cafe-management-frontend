@@ -154,7 +154,7 @@ export function ImageUploadField({
       className={className}
       required={required}
     >
-      <div className="space-y-3">
+      <div className="space-y-2">
         <div
           role="button"
           tabIndex={0}

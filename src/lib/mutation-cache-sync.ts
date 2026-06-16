@@ -3,6 +3,7 @@ import { invalidateGetCache } from "@/src/lib/api-fetch-dedupe";
 const LIST_PREFIXES = [
   "/menu-categories",
   "/menu-items",
+  "/recipes",
   "/catalog-items",
   "/sales",
   "/stock-items",

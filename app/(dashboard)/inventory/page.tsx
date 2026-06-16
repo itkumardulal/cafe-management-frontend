@@ -449,7 +449,7 @@ function InventoryContent() {
           </FormFooter>
         }
       >
-        <div className="space-y-3">
+        <div className="form-fields">
           <Field id="name" label="Name" required>
             <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
           </Field>

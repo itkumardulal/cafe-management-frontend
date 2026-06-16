@@ -23,7 +23,7 @@ const PERMISSION_GROUPS: Array<{
     id: "menuSales",
     label: "Menu & sales",
     description: "Catalog setup",
-    codes: ["MENU_CATEGORIES", "MENU_ITEMS"],
+    codes: ["MENU_CATEGORIES", "MENU_ITEMS", "RECIPES"],
   },
   {
     id: "pos",
@@ -56,6 +56,12 @@ const PERMISSION_GROUPS: Array<{
     label: "Expenses",
     description: "Expense categories and daily entries",
     codes: ["EXPENSE_ITEMS", "DAILY_EXPENSES"],
+  },
+  {
+    id: "assets",
+    label: "Assets",
+    description: "Fixed assets and maintenance",
+    codes: ["ASSET_CATEGORIES", "ASSETS", "ASSET_MAINTENANCE", "ASSET_REPORTS"],
   },
   {
     id: "reports",

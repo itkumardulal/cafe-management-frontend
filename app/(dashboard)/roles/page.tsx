@@ -395,7 +395,7 @@ function StaffRolesContent() {
         onClose={closeModal}
         size="lg"
       >
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="form-fields">
           <Field id="roleName" label="Role name" error={errors.name?.message} required>
             <Input
               {...register("name")}

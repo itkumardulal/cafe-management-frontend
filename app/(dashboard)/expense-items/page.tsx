@@ -349,8 +349,8 @@ function ExpenseItemsContent() {
           </FormFooter>
         }
       >
-        <div className="space-y-6">
-          <section className="space-y-3">
+        <div className="form-body">
+          <section className="form-fields">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-subtle">
               Expense details
             </h3>

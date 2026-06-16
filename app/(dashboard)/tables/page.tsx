@@ -298,7 +298,7 @@ function TablesContent() {
         description="Table names appear in the POS dine-in checkout dropdown."
         onClose={() => setOpen(false)}
       >
-        <div className="space-y-5">
+        <div className="form-fields">
           <Field id="table-name" label="Table name" required>
             <Input
               value={name}

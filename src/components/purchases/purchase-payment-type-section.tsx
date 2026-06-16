@@ -87,7 +87,7 @@ export function PurchasePaymentTypeSection({
         ))}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3 text-sm">
+      <div className="form-grid form-grid-cols-3 text-sm">
         <div>
           <p className="text-subtle">Total</p>
           <p className="font-semibold tabular-nums">{formatMoney(grandTotal)}</p>

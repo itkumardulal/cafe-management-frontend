@@ -43,61 +43,63 @@ export function ListPageToolbar({
 
   return (
     <div className={cn("flex flex-col gap-3", className)}>
-      {showSearch ? (
-        <div className="w-full">
-          <div className="relative">
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]"
-              aria-hidden
-            />
-            <Input
-              type="search"
-              enterKeyHint="search"
-              value={searchValue ?? ""}
-              onChange={(event) => onSearchChange(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Escape" && hasQuery) {
-                  event.preventDefault();
-                  handleClear();
-                }
-              }}
-              placeholder={searchPlaceholder}
-              className={cn("h-10 pl-9", (hasQuery || isSearching) && "pr-16")}
-              aria-label={searchPlaceholder}
-            />
-            <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
-              {isSearching ? (
-                <Loader2
-                  className="h-4 w-4 animate-spin text-[var(--color-muted)]"
-                  aria-hidden
-                />
-              ) : null}
-              {hasQuery ? (
-                <button
-                  type="button"
-                  onClick={handleClear}
-                  className="icon-button-square text-[var(--color-muted)] transition-colors hover:bg-[var(--color-cream-100)] hover:text-[var(--color-foreground)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]"
-                  aria-label="Clear search"
-                >
-                  <X className="h-4 w-4" aria-hidden />
-                </button>
-              ) : null}
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-2">
+        {showSearch ? (
+          <div className="w-full md:min-w-0 md:flex-1">
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]"
+                aria-hidden
+              />
+              <Input
+                type="search"
+                enterKeyHint="search"
+                value={searchValue ?? ""}
+                onChange={(event) => onSearchChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape" && hasQuery) {
+                    event.preventDefault();
+                    handleClear();
+                  }
+                }}
+                placeholder={searchPlaceholder}
+                className={cn("h-10 pl-9", (hasQuery || isSearching) && "pr-16")}
+                aria-label={searchPlaceholder}
+              />
+              <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+                {isSearching ? (
+                  <Loader2
+                    className="h-4 w-4 animate-spin text-[var(--color-muted)]"
+                    aria-hidden
+                  />
+                ) : null}
+                {hasQuery ? (
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    className="icon-button-square text-[var(--color-muted)] transition-colors hover:bg-[var(--color-cream-100)] hover:text-[var(--color-foreground)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]"
+                    aria-label="Clear search"
+                  >
+                    <X className="h-4 w-4" aria-hidden />
+                  </button>
+                ) : null}
+              </div>
             </div>
+            {resultSummary ? (
+              <p className="mt-1.5 text-xs text-[var(--color-muted)] sm:text-right" aria-live="polite">
+                {resultSummary}
+              </p>
+            ) : null}
           </div>
-          {resultSummary ? (
-            <p className="mt-1.5 text-xs text-[var(--color-muted)] sm:text-right" aria-live="polite">
-              {resultSummary}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
+        ) : null}
 
-      {(filters || mobileSort) ? (
-        <div className="flex flex-wrap items-center gap-2 sm:justify-between">
-          {filters ? <div className="flex flex-wrap items-center gap-2">{filters}</div> : null}
-          {mobileSort ? <div className="w-full sm:ml-auto sm:w-auto">{mobileSort}</div> : null}
-        </div>
-      ) : null}
+        {filters || mobileSort ? (
+          <div className="flex flex-wrap items-center gap-2 md:flex-nowrap md:shrink-0">
+            {filters}
+            {mobileSort ? <div className="shrink-0">{mobileSort}</div> : null}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

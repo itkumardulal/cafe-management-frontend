@@ -179,7 +179,7 @@ export function CustomerReceivableDetailView({
       {insights ? (
         <Card density="compact" className="p-4 border-[var(--color-border)]">
           <h2 className="mb-3 text-sm font-semibold">Customer insights</h2>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="form-grid form-grid-cols-3">
             <Stat label="Total visits" value={String(insights.totalVisits)} />
             <Stat label="Avg bill" value={formatMoney(insights.averageBillAmount)} />
             <Stat
@@ -204,8 +204,8 @@ export function CustomerReceivableDetailView({
       ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-        <div className="space-y-6">
-          <section className="space-y-3">
+        <div className="form-body">
+          <section className="form-fields">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               <Receipt className="h-4 w-4" />
               Purchase history
@@ -288,7 +288,7 @@ export function CustomerReceivableDetailView({
             )}
           </section>
 
-          <section className="space-y-3">
+          <section className="form-fields">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               <History className="h-4 w-4" />
               Payment history
@@ -399,7 +399,7 @@ export function CustomerReceivableDetailView({
               ) : null}
             </div>
 
-            <div className="space-y-3">
+            <div className="form-fields">
               <Field id="crp-payment-amount" label="Amount received" required>
                 <Input
                   value={amountStr}

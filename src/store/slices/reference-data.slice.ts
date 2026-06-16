@@ -13,6 +13,8 @@ import type {
   SellableCatalogItem,
   StockRemovalLineOptions,
   StockRemovalStaffOption,
+  AssetCategoryOption,
+  AssetOption,
 } from "@/src/store/types/reference-data.types";
 
 const initialState: ReferenceDataState = {
@@ -27,6 +29,10 @@ const initialState: ReferenceDataState = {
   stockRemovalRefsStatus: "idle",
   billSettlementAging: null,
   billSettlementAgingStatus: "idle",
+  assetCategoryOptions: [],
+  assetCategoryOptionsStatus: "idle",
+  assetOptions: [],
+  assetOptionsStatus: "idle",
 };
 
 function shouldFetch(status: LoadStatus, force?: boolean): boolean {
@@ -115,6 +121,36 @@ export const fetchBillSettlementAgingThunk = createAsyncThunk<
     shouldFetch(getState().referenceData.billSettlementAgingStatus, arg?.force),
 });
 
+export const fetchAssetCategoryOptionsThunk = createAsyncThunk<
+  AssetCategoryOption[],
+  FetchForceArg,
+  { rejectValue: string; state: { referenceData: ReferenceDataState } }
+>("referenceData/fetchAssetCategoryOptions", async (_, { rejectWithValue }) => {
+  try {
+    return await operationsApi.assetCategories.options();
+  } catch {
+    return rejectWithValue("Failed to load asset categories");
+  }
+}, {
+  condition: (arg, { getState }) =>
+    shouldFetch(getState().referenceData.assetCategoryOptionsStatus, arg?.force),
+});
+
+export const fetchAssetOptionsThunk = createAsyncThunk<
+  AssetOption[],
+  FetchForceArg,
+  { rejectValue: string; state: { referenceData: ReferenceDataState } }
+>("referenceData/fetchAssetOptions", async (_, { rejectWithValue }) => {
+  try {
+    return await operationsApi.assets.options();
+  } catch {
+    return rejectWithValue("Failed to load assets");
+  }
+}, {
+  condition: (arg, { getState }) =>
+    shouldFetch(getState().referenceData.assetOptionsStatus, arg?.force),
+});
+
 const referenceDataSlice = createSlice({
   name: "referenceData",
   initialState,
@@ -133,6 +169,12 @@ const referenceDataSlice = createSlice({
     },
     invalidateBillSettlementAging(state) {
       state.billSettlementAgingStatus = "idle";
+    },
+    invalidateAssetCategoryOptions(state) {
+      state.assetCategoryOptionsStatus = "idle";
+    },
+    invalidateAssetOptions(state) {
+      state.assetOptionsStatus = "idle";
     },
   },
   extraReducers: (builder) => {
@@ -188,6 +230,26 @@ const referenceDataSlice = createSlice({
       .addCase(fetchBillSettlementAgingThunk.rejected, (state) => {
         state.billSettlementAgingStatus = "error";
       })
+      .addCase(fetchAssetCategoryOptionsThunk.pending, (state) => {
+        state.assetCategoryOptionsStatus = "loading";
+      })
+      .addCase(fetchAssetCategoryOptionsThunk.fulfilled, (state, action) => {
+        state.assetCategoryOptionsStatus = "loaded";
+        state.assetCategoryOptions = action.payload;
+      })
+      .addCase(fetchAssetCategoryOptionsThunk.rejected, (state) => {
+        state.assetCategoryOptionsStatus = "error";
+      })
+      .addCase(fetchAssetOptionsThunk.pending, (state) => {
+        state.assetOptionsStatus = "loading";
+      })
+      .addCase(fetchAssetOptionsThunk.fulfilled, (state, action) => {
+        state.assetOptionsStatus = "loaded";
+        state.assetOptions = action.payload;
+      })
+      .addCase(fetchAssetOptionsThunk.rejected, (state) => {
+        state.assetOptionsStatus = "error";
+      })
       .addCase(logoutThunk.fulfilled, () => initialState)
       .addCase(sessionExpiredThunk.fulfilled, () => initialState);
   },
@@ -199,5 +261,7 @@ export const {
   invalidateDiningTableOptions,
   invalidateStockRemovalRefs,
   invalidateBillSettlementAging,
+  invalidateAssetCategoryOptions,
+  invalidateAssetOptions,
 } = referenceDataSlice.actions;
 export default referenceDataSlice.reducer;

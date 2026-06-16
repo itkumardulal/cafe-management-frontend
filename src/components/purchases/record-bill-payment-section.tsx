@@ -266,11 +266,11 @@ export function RecordBillPaymentSection({
           </div>
 
           {/* Payment details */}
-          <div className="space-y-4 border-t border-[var(--color-border)] pt-5">
+          <div className="form-fields border-t border-[var(--color-border)] pt-5">
             <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-subtle)]">
               Payment details
             </p>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="form-grid">
               <Field id="bill-pay-method" label="Method" required>
                 <Select
                   searchable={false}

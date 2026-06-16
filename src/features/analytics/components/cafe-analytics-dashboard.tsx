@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { PageHeader } from "@/src/components/shared/page-header";
 import { Button } from "@/src/components/ui/button";
@@ -25,6 +25,7 @@ import {
 } from "@/src/features/analytics/components/charts/analytics-charts";
 import {
   ActivityFeedWidget,
+  AssetsSummaryWidget,
   LowStockTable,
   StaffTodaySummary,
   TableStatusCards,
@@ -38,6 +39,9 @@ import {
 } from "@/src/store/slices/analytics.slice";
 import { fetchStockAlertsThunk } from "@/src/store/slices/dashboard.slice";
 import { canAccessStockAlerts } from "@/src/lib/stock-alerts-access";
+import { canAccessAssets } from "@/src/lib/assets-access";
+import type { AssetsSummary } from "@/src/lib/asset-types";
+import { operationsApi } from "@/src/services/operations-api";
 
 export function CafeAnalyticsDashboard() {
   const dispatch = useAppDispatch();
@@ -45,6 +49,7 @@ export function CafeAnalyticsDashboard() {
   const menus = useAppSelector((state) => state.menu.items);
   const { periodParams, effectivePeriodParams, setPeriodParams } = useAnalyticsPeriod();
   const { cache, status, error } = useAppSelector((state) => state.analytics);
+  const [assetsSummary, setAssetsSummary] = useState<AssetsSummary | null>(null);
 
   const cacheKey = analyticsCacheKey(effectivePeriodParams ?? { period: "this_month" });
   const overview = cache[cacheKey]?.overview;
@@ -56,6 +61,9 @@ export function CafeAnalyticsDashboard() {
     if (canAccessStockAlerts(user?.role, menus)) {
       void dispatch(fetchStockAlertsThunk());
     }
+    if (canAccessAssets(user?.role, menus)) {
+      void operationsApi.assets.summary().then(setAssetsSummary).catch(() => setAssetsSummary(null));
+    }
   }, [dispatch, effectivePeriodParams, menus, user?.role]);
 
   const handleRefresh = () => {
@@ -63,6 +71,9 @@ export function CafeAnalyticsDashboard() {
     void dispatch(fetchAnalyticsOverviewForceThunk(effectivePeriodParams));
     if (canAccessStockAlerts(user?.role, menus)) {
       void dispatch(fetchStockAlertsThunk({ force: true }));
+    }
+    if (canAccessAssets(user?.role, menus)) {
+      void operationsApi.assets.summary().then(setAssetsSummary).catch(() => setAssetsSummary(null));
     }
   };
 
@@ -160,6 +171,10 @@ export function CafeAnalyticsDashboard() {
           <h2 className="text-sm font-semibold text-foreground">Inventory</h2>
           <LowStockTable data={widgets.lowStock} />
         </div>
+      ) : null}
+
+      {canAccessAssets(user?.role, menus) && assetsSummary ? (
+        <AssetsSummaryWidget data={assetsSummary} />
       ) : null}
 
       <div className="space-y-3">

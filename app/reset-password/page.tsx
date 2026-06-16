@@ -72,7 +72,7 @@ export default function ResetPasswordPage() {
 
   return (
     <AuthPageShell title="Reset Password" subtitle="Choose a new password for your account.">
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5 sm:space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="form-fields">
         <input type="hidden" {...register("resetToken")} value={resetToken} />
         <Field id="password" label="New Password" error={errors.password?.message} required>
           <div className="relative">

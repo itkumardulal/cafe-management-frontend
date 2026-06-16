@@ -662,8 +662,8 @@ function MenuItemsContent() {
           </FormFooter>
         }
       >
-        <div className="space-y-6">
-          <section className="space-y-3">
+        <div className="form-body">
+          <section className="form-fields">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-subtle)]">
               Basics
             </h3>
@@ -824,7 +824,7 @@ function MenuItemsContent() {
 
           </section>
 
-          <section className="space-y-3 border-t border-[var(--color-border)] pt-5">
+          <section className="form-fields border-t border-[var(--color-border)] pt-5">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-subtle)]">
               Item details
             </h3>
@@ -843,7 +843,7 @@ function MenuItemsContent() {
               onUploadingChange={setImageUploading}
             />
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="form-grid">
               <Field
                 id="unitQuantity"
                 label="Unit quantity"
@@ -877,11 +877,11 @@ function MenuItemsContent() {
             </div>
           </section>
 
-          <section className="space-y-3 border-t border-[var(--color-border)] pt-5">
+          <section className="form-fields border-t border-[var(--color-border)] pt-5">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-subtle)]">
               Pricing & stock
             </h3>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="form-grid">
               <Field
                 id="cost"
                 label="Cost per unit"
@@ -918,8 +918,8 @@ function MenuItemsContent() {
             {form.trackStock ? (
               <div
                 className={cn(
-                  "grid gap-3",
-                  editId ? "sm:grid-cols-2" : "sm:grid-cols-1",
+                  "form-grid",
+                  !editId && "sm:grid-cols-1",
                 )}
               >
                 {editId ? (
@@ -976,7 +976,7 @@ function MenuItemsContent() {
             ) : null}
           </section>
 
-          <section className="space-y-3 border-t border-[var(--color-border)] pt-5">
+          <section className="form-fields border-t border-[var(--color-border)] pt-5">
             <Field id="notes" label="Notes" hint="Optional">
               <Input
                 value={form.notes}

@@ -267,7 +267,7 @@ function LoginForm() {
         method="post"
         action="/login"
         onSubmit={handleFormSubmit}
-        className="space-y-3.5 sm:space-y-4"
+        className="form-fields"
         aria-live="polite"
       >
         <input type="hidden" {...register("csrfToken")} />

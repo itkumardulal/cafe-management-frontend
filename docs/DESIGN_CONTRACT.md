@@ -61,6 +61,11 @@ Dark mode overrides live under `html.dark` in `globals.css` with the same variab
 | `.sr-only` | Screen-reader only |
 | `.safe-bottom` / `.safe-top` | `env(safe-area-inset-*)` |
 | `.gap-page` / `.p-card` | Responsive spacing |
+| `.form-fields` | Vertical stack of form fields (10px gap) |
+| `.form-grid` | Two-column field grid from `sm` (10px gap) |
+| `.form-line-fields` | Dense vertical stack inside line-item cards (6px gap) |
+| `.form-grid-compact` | Tighter grid for nested line-item field rows (6px gap) |
+| `.form-body` | Multi-section form/modal layout (20px between sections) |
 
 ### Motion
 

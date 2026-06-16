@@ -699,7 +699,7 @@ function DirectPurchasesContent() {
                 ) : null}
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="form-grid">
                 <DetailInfoCard label="Purchase date">
                   <p className="font-medium">{formatDateOnly(viewPurchase.purchaseDate)}</p>
                 </DetailInfoCard>
@@ -715,7 +715,7 @@ function DirectPurchasesContent() {
 
               {Number(viewPurchase.paidAmount ?? viewPurchase.cashPaidAmount) > 0 ||
               Number(viewPurchase.remainingAmount ?? viewPurchase.creditAmount) > 0 ? (
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="form-grid">
                   <DetailInfoCard label="Payment">
                     <dl className="mt-2 space-y-1.5 text-sm">
                       {Number(viewPurchase.cashPaidAmount) > 0 ? (
@@ -922,7 +922,7 @@ function DirectPurchasesContent() {
           </FormFooter>
         }
       >
-        <div className="space-y-6 pb-2">
+        <div className="form-body pb-2">
           {!hasRefs ? (
             <div
               className="flex gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-4 py-3.5"
@@ -946,7 +946,7 @@ function DirectPurchasesContent() {
             </div>
           ) : null}
 
-          <section className="space-y-4">
+          <section className="form-fields">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-subtle)]">
                 Purchase details
@@ -955,7 +955,7 @@ function DirectPurchasesContent() {
                 Receipt date and optional notes for this purchase.
               </p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-[minmax(0,220px)_1fr]">
+            <div className="form-grid form-grid-aside">
               <Field id="date" label="Purchase date" required>
                 <DatePicker
                   id="date"
@@ -1044,8 +1044,8 @@ function DirectPurchasesContent() {
                       </div>
                     </header>
 
-                    <div className="grid gap-4 p-4 sm:grid-cols-2">
-                      <Field id={`item-${idx}`} label="Item name" required>
+                    <div className="form-grid form-grid-compact p-4">
+                      <Field id={`item-${idx}`} label="Item name" required reserveErrorSpace={false}>
                         <Input
                           value={line.itemName}
                           onChange={(e) =>
@@ -1055,7 +1055,7 @@ function DirectPurchasesContent() {
                           disabled={!hasRefs}
                         />
                       </Field>
-                      <Field id={`supplier-${idx}`} label="Supplier" required>
+                      <Field id={`supplier-${idx}`} label="Supplier" required reserveErrorSpace={false}>
                         {editId ? (
                           <Input
                             value={suppliers.find((s) => s.id === editSupplierId)?.name ?? "—"}
@@ -1078,7 +1078,7 @@ function DirectPurchasesContent() {
                           </Select>
                         )}
                       </Field>
-                      <Field id={`unitQty-${idx}`} label="Unit quantity" required hint="e.g. 250, 1">
+                      <Field id={`unitQty-${idx}`} label="Unit quantity" required reserveErrorSpace={false}>
                         <Input
                           value={line.unitQuantity}
                           onChange={(e) => updateLine(idx, { unitQuantity: e.target.value })}
@@ -1086,7 +1086,7 @@ function DirectPurchasesContent() {
                           disabled={!hasRefs}
                         />
                       </Field>
-                      <Field id={`unitType-${idx}`} label="Unit type" required hint="e.g. bottle, pack, ml">
+                      <Field id={`unitType-${idx}`} label="Unit type" required reserveErrorSpace={false}>
                         <Input
                           value={line.unitType}
                           onChange={(e) => updateLine(idx, { unitType: e.target.value })}
@@ -1094,7 +1094,7 @@ function DirectPurchasesContent() {
                           disabled={!hasRefs}
                         />
                       </Field>
-                      <Field id={`qty-${idx}`} label="Quantity" required>
+                      <Field id={`qty-${idx}`} label="Quantity" required reserveErrorSpace={false}>
                         <NumberInput
                           min={0}
                           value={line.quantity}
@@ -1103,7 +1103,7 @@ function DirectPurchasesContent() {
                           disabled={!hasRefs}
                         />
                       </Field>
-                      <Field id={`rate-${idx}`} label="Rate per unit" required>
+                      <Field id={`rate-${idx}`} label="Rate per unit" required reserveErrorSpace={false}>
                         <NumberInput
                           min={0}
                           value={line.ratePerUnit}

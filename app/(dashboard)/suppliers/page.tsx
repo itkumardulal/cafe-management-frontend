@@ -352,8 +352,8 @@ function SuppliersContent() {
         }
         onClose={() => setOpen(false)}
       >
-        <div className="space-y-6">
-          <section className="space-y-3">
+        <div className="form-body">
+          <section className="form-fields">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-subtle">Supplier</h3>
             <Field id="name" label="Supplier name" required>
               <Input
@@ -364,9 +364,9 @@ function SuppliersContent() {
             </Field>
           </section>
 
-          <section className="space-y-3 border-t border-(--color-border) pt-5">
+          <section className="form-fields border-t border-(--color-border) pt-5">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-subtle">Contact</h3>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="form-grid">
               <Field id="contact" label="Contact person" hint="Optional">
                 <Input
                   value={form.contactPerson}
@@ -400,7 +400,7 @@ function SuppliersContent() {
             </Field>
           </section>
 
-          <section className="space-y-3 border-t border-(--color-border) pt-5">
+          <section className="form-fields border-t border-(--color-border) pt-5">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-subtle">Additional</h3>
             <Field id="notes" label="Notes" hint="Optional — payment terms, delivery window, etc.">
               <textarea

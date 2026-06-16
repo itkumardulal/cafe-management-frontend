@@ -309,7 +309,7 @@ function BankTransactionsContent() {
       ) : null}
 
       {!loading ? (
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="form-grid form-grid-cols-3">
           <ReportSummaryCard
             label="Total deposits"
             value={formatMoney(extendedMeta.totalDeposits ?? "0")}
@@ -605,7 +605,7 @@ function BankTransactionsContent() {
       >
         {viewTarget ? (
           <div className="space-y-5">
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="form-grid">
               <DetailInfoCard label="Bank account">
                 <p className="font-medium">{viewTarget.bankName}</p>
                 <p className="mt-0.5 font-mono text-xs text-muted">{viewTarget.accountNumber}</p>
@@ -705,7 +705,7 @@ function BankTransactionsContent() {
           </FormFooter>
         }
       >
-        <div className="space-y-4">
+        <div className="form-fields">
           {edit ? (
             <Field id="bankAccountReadonly" label="Bank account">
               <Input value={`${edit.bankName} · ${edit.accountNumber}`} disabled />
@@ -732,7 +732,7 @@ function BankTransactionsContent() {
               <option value="WITHDRAWAL">Withdrawal</option>
             </Select>
           </Field>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="form-grid">
             <Field id="amount" label="Amount" required>
               <NumberInput
                 min={0.01}

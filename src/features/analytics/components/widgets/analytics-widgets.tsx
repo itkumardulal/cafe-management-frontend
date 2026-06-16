@@ -13,6 +13,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { Card } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
+import type { AssetsSummary } from "@/src/lib/asset-types";
 import { formatMoney } from "@/src/lib/format-display";
 import { cn } from "@/src/lib/cn";
 import type { AnalyticsOverview, AnalyticsPeriodParams } from "@/src/features/analytics/types/analytics.types";
@@ -165,6 +166,46 @@ export function LowStockTable({
         </table>
       </div>
     </Card>
+  );
+}
+
+export function AssetsSummaryWidget({ data }: { data: AssetsSummary }) {
+  const items = [
+    { label: "Total assets", value: String(data.totalAssets), href: "/assets" },
+    { label: "Total asset value", value: formatMoney(data.totalAssetValue), href: "/assets" },
+    {
+      label: "Under maintenance",
+      value: String(data.assetsUnderMaintenance),
+      href: "/assets?status=UNDER_MAINTENANCE",
+    },
+    {
+      label: `Warranty expiring (${data.warrantyExpiringWithinDays}d)`,
+      value: String(data.warrantyExpiringSoon),
+      href: "/asset-reports",
+    },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-foreground">Assets</h2>
+        <Link href="/asset-reports" className="text-xs text-[var(--color-primary)] hover:underline">
+          Asset reports
+        </Link>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {items.map((item) => (
+          <Link key={item.label} href={item.href} className="block rounded-xl transition-opacity hover:opacity-90">
+            <Card density="compact" className="space-y-1 p-3">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-subtle)]">
+                {item.label}
+              </p>
+              <p className="text-2xl font-semibold tabular-nums">{item.value}</p>
+            </Card>
+          </Link>
+        ))}
+      </div>
+    </div>
   );
 }
 

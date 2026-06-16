@@ -151,7 +151,7 @@ export function RecordSalePaymentSection({
             </div>
           )}
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="form-grid">
             <Field id="sale-pay-method" label="Method" required>
               <Select
                 searchable={false}

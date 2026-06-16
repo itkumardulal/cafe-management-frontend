@@ -38,7 +38,7 @@ export function Field({
     : children;
 
   return (
-    <div className={cn("space-y-1.5", className)}>
+    <div className={cn("space-y-1", className)} data-field>
       <label htmlFor={id} className="block text-sm font-medium text-[var(--color-muted)]">
         {label}
         {required ? (
@@ -49,20 +49,20 @@ export function Field({
       </label>
       {control}
       {hint && !error ? (
-        <p id={`${id}-hint`} className="text-xs text-[var(--color-subtle)]">
+        <p id={`${id}-hint`} className="text-xs leading-snug text-[var(--color-subtle)]">
           {hint}
         </p>
       ) : null}
       {reserveErrorSpace ? (
-        <div className="min-h-[1.25rem]">
+        <div className={cn("text-xs leading-snug", error ? "mt-0.5 min-h-4" : "min-h-2.5")}>
           {error ? (
-            <p id={`${id}-error`} role="alert" className="text-xs text-[var(--color-danger)]">
+            <p id={`${id}-error`} role="alert" className="text-[var(--color-danger)]">
               {error}
             </p>
           ) : null}
         </div>
       ) : error ? (
-        <p id={`${id}-error`} role="alert" className="text-xs text-[var(--color-danger)]">
+        <p id={`${id}-error`} role="alert" className="mt-0.5 text-xs leading-snug text-[var(--color-danger)]">
           {error}
         </p>
       ) : null}

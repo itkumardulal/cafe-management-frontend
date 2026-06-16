@@ -312,7 +312,7 @@ function MenuCategoriesContent() {
         title={catModal === "edit" ? "Edit category" : "New category"}
         onClose={() => setCatModal(null)}
       >
-        <div className="space-y-4">
+        <div className="form-fields">
           <Field id="catName" label="Name" required>
             <Input value={catName} onChange={(e) => setCatName(e.target.value)} placeholder="e.g. Momos" />
           </Field>

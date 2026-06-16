@@ -266,7 +266,7 @@ export function PosCustomerPicker({
         onClose={() => setCreateOpen(false)}
         title="New customer"
       >
-        <div className="space-y-3">
+        <div className="form-fields">
           <Field id="pos-create-customer-name" label="Name" required>
             <Input value={createName} onChange={(e) => setCreateName(e.target.value)} />
           </Field>

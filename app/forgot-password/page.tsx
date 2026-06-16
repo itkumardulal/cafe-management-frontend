@@ -60,7 +60,7 @@ export default function ForgotPasswordPage() {
           : "Enter your email and we will send a verification code if an account exists."
       }
     >
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5 sm:space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="form-fields">
         <Field id="email" label="Email Address" error={errors.email?.message} required>
           <Input
             type="email"

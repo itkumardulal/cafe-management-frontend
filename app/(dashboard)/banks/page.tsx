@@ -206,7 +206,7 @@ function BanksContent() {
       />
 
       {!loading && items.length > 0 ? (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="form-grid">
           <ReportSummaryCard
             label="Total current balance"
             value={formatMoney(extendedMeta.totalCurrentBalance ?? "0")}
@@ -385,7 +385,7 @@ function BanksContent() {
           </FormFooter>
         }
       >
-        <div className="space-y-4">
+        <div className="form-fields">
           <Field id="bankName" label="Bank name" required>
             <Input
               value={form.bankName}

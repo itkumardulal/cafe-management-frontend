@@ -88,7 +88,7 @@ export default function ChangePasswordFirstPage() {
       title="Set a new password"
       subtitle="Your administrator created your account with a temporary password. Choose a new password to continue."
     >
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5 sm:space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="form-fields">
         <Field id="password" label="New password" error={errors.password?.message} required>
           <div className="relative">
             <Input

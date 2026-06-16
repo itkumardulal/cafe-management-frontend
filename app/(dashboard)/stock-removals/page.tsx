@@ -579,7 +579,7 @@ function StockRemovalsContent() {
             <ViewModalSkeleton rows={2} />
           ) : viewRemoval ? (
             <div className="space-y-5">
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="form-grid">
                 <DetailInfoCard label="Reason">
                   <p className="font-medium">{reasonLabel(viewRemoval.reason)}</p>
                   {viewRemoval.staffName ? (
@@ -699,12 +699,12 @@ function StockRemovalsContent() {
           </FormFooter>
         }
       >
-        <div className="space-y-6 pb-2">
-          <section className="space-y-3">
+        <div className="form-body pb-2">
+          <section className="form-fields">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-subtle">
               Removal details
             </h3>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="form-grid">
               <Field id="entryAt" label="Date & time" required>
                 <Input
                   type="datetime-local"
@@ -758,7 +758,7 @@ function StockRemovalsContent() {
             </Field>
           </section>
 
-          <section className="space-y-3 border-t border-(--color-border) pt-5">
+          <section className="form-fields border-t border-(--color-border) pt-5">
             <div className="flex flex-wrap items-end justify-between gap-2">
               <div>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-subtle">Line items</h3>
@@ -792,8 +792,8 @@ function StockRemovalsContent() {
                       </button>
                     ) : null}
                   </header>
-                  <div className="grid gap-3 p-4 sm:grid-cols-2">
-                    <Field id={`item-${idx}`} label="Item" required>
+                  <div className="form-grid form-grid-compact p-4">
+                    <Field id={`item-${idx}`} label="Item" required reserveErrorSpace={false}>
                       <Select
                         searchable
                         value={line.itemKey}
@@ -816,7 +816,7 @@ function StockRemovalsContent() {
                         ))}
                       </Select>
                     </Field>
-                    <Field id={`qty-${idx}`} label="Quantity" required>
+                    <Field id={`qty-${idx}`} label="Quantity" required reserveErrorSpace={false}>
                       <NumberInput
                         min={0.0001}
                         placeholder="e.g. 2"

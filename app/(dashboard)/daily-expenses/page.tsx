@@ -476,8 +476,8 @@ function DailyExpensesContent() {
           </FormFooter>
         }
       >
-        <div className="space-y-6">
-          <section className="space-y-3">
+        <div className="form-body">
+          <section className="form-fields">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-subtle">
               Expense details
             </h3>
@@ -510,7 +510,7 @@ function DailyExpensesContent() {
               </Field>
             )}
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="form-grid">
               <Field id="amount" label="Amount" required hint="Expense amount in your local currency">
                 <NumberInput
                   min={0.01}

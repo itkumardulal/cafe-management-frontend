@@ -1,7 +1,9 @@
 import {
+  Armchair,
   ArrowLeftRight,
   Calculator,
   ChartColumn,
+  ChefHat,
   Coffee,
   HandCoins,
   Landmark,
@@ -26,6 +28,7 @@ import {
   UtensilsCrossed,
   Wallet,
   Wheat,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 
@@ -34,6 +37,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   "layout-grid": LayoutGrid,
   "receipt-text": ReceiptText,
   package: Package,
+  armchair: Armchair,
+  wrench: Wrench,
   "shopping-bag": ShoppingBag,
   "chart-column": ChartColumn,
   users: Users,
@@ -45,6 +50,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   "folder-tree": FolderTree,
   utensils: Utensils,
   "utensils-crossed": UtensilsCrossed,
+  "chef-hat": ChefHat,
   wheat: Wheat,
   truck: Truck,
   "shopping-cart": ShoppingCart,

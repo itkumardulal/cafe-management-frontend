@@ -96,13 +96,15 @@ async function getData<T>(
   );
 }
 
-async function mutate<T>(method: "post" | "patch" | "delete", path: string, body?: unknown) {
+async function mutate<T>(method: "post" | "patch" | "put" | "delete", path: string, body?: unknown) {
   const response =
     method === "delete"
       ? await api.delete(path)
       : method === "post"
         ? await api.post(path, body)
-        : await api.patch(path, body);
+        : method === "put"
+          ? await api.put(path, body)
+          : await api.patch(path, body);
   syncCachesAfterMutation(path);
   return response.data.data as T;
 }
@@ -203,9 +205,35 @@ export const operationsApi = {
       directPurchaseItemId?: string;
       reorderLevel?: number;
       notes?: string;
+      recipe?: import("@/src/lib/recipe-types").UpsertRecipePayload;
+      clearRecipe?: boolean;
     }) => mutate("post", "/menu-items", data),
     update: (id: string, data: Record<string, unknown>) => mutate("patch", `/menu-items/${id}`, data),
     remove: (id: string) => mutate("delete", `/menu-items/${id}`),
+    getRecipe: (id: string) =>
+      getData<import("@/src/lib/recipe-types").RecipeDetail>(`/menu-items/${id}/recipe`),
+    upsertRecipe: (id: string, data: import("@/src/lib/recipe-types").UpsertRecipePayload) =>
+      mutate("put", `/menu-items/${id}/recipe`, data),
+    deleteRecipe: (id: string) => mutate("delete", `/menu-items/${id}/recipe`),
+  },
+  recipes: {
+    list: (params?: ListQueryParams & { menuCategoryId?: string }) => {
+      const { ...rest } = params ?? {};
+      return getData<Paginated<import("@/src/lib/recipe-types").RecipeListItem>>("/recipes", rest);
+    },
+    get: (menuItemId: string) =>
+      getData<import("@/src/lib/recipe-types").RecipeDetail>(`/recipes/${menuItemId}`),
+    preparedDishOptions: () =>
+      getData<import("@/src/lib/recipe-types").PreparedDishOption[]>("/recipes/prepared-dish-options"),
+    rawMaterialOptions: () =>
+      getData<import("@/src/lib/recipe-types").RawMaterialOption[]>("/recipes/raw-material-options"),
+    upsert: (menuItemId: string, data: import("@/src/lib/recipe-types").UpsertRecipePayload) =>
+      mutate<import("@/src/lib/recipe-types").RecipeDetail>(
+        "put",
+        `/recipes/${menuItemId}`,
+        data,
+      ),
+    remove: (menuItemId: string) => mutate("delete", `/recipes/${menuItemId}`),
   },
   stockItems: {
     list: (params?: ListQueryParams) =>
@@ -1272,5 +1300,86 @@ export const operationsApi = {
           totalOutstanding: number;
         };
       }>("/bill-settlement/metrics/summary"),
+  },
+  assetCategories: {
+    list: (params?: ListQueryParams) =>
+      getData<Paginated<import("@/src/lib/asset-types").AssetCategoryRow>>(
+        "/asset-categories",
+        params,
+      ),
+    options: () =>
+      getData<import("@/src/lib/asset-types").AssetCategoryOption[]>(
+        "/asset-categories/options",
+      ),
+    get: (id: string) =>
+      getData<import("@/src/lib/asset-types").AssetCategoryRow>(`/asset-categories/${id}`),
+    create: (data: { name: string; description?: string }) =>
+      mutate("post", "/asset-categories", data),
+    update: (id: string, data: { name?: string; description?: string }) =>
+      mutate("patch", `/asset-categories/${id}`, data),
+    remove: (id: string) => mutate("delete", `/asset-categories/${id}`),
+  },
+  assets: {
+    list: (params?: ListQueryParams & { assetCategoryId?: string; status?: string }) =>
+      getData<Paginated<import("@/src/lib/asset-types").AssetRow>>("/assets", params),
+    options: () =>
+      getData<import("@/src/lib/asset-types").AssetOption[]>("/assets/options"),
+    get: (id: string) => getData<import("@/src/lib/asset-types").AssetDetail>(`/assets/${id}`),
+    summary: () => getData<import("@/src/lib/asset-types").AssetsSummary>("/assets/summary"),
+    create: (data: Record<string, unknown>) => mutate("post", "/assets", data),
+    update: (id: string, data: Record<string, unknown>) => mutate("patch", `/assets/${id}`, data),
+    remove: (id: string) => mutate("delete", `/assets/${id}`),
+  },
+  assetMaintenance: {
+    list: (params?: DateRangeQueryParams & { assetId?: string }) =>
+      getData<Paginated<import("@/src/lib/asset-types").AssetMaintenanceRow>>(
+        "/asset-maintenance",
+        params,
+      ),
+    get: (id: string) =>
+      getData<import("@/src/lib/asset-types").AssetMaintenanceRow>(`/asset-maintenance/${id}`),
+    create: (data: Record<string, unknown>) => mutate("post", "/asset-maintenance", data),
+    update: (id: string, data: Record<string, unknown>) =>
+      mutate("patch", `/asset-maintenance/${id}`, data),
+    remove: (id: string) => mutate("delete", `/asset-maintenance/${id}`),
+  },
+  assetReports: {
+    register: (params?: Record<string, string | undefined>) =>
+      getData<{
+        rows: Array<{
+          assetCode: string;
+          assetName: string;
+          category: string;
+          purchaseDate: string;
+          purchaseCost: string;
+          status: string;
+        }>;
+        meta: { total: number; capped: boolean };
+      }>("/asset-reports/register", params),
+    maintenance: (params?: Record<string, string | undefined>) =>
+      getData<{
+        rows: Array<{
+          asset: string;
+          assetCode: string;
+          assetName: string;
+          maintenanceDate: string;
+          cost: string;
+          description?: string | null;
+        }>;
+        meta: { total: number; capped: boolean };
+      }>("/asset-reports/maintenance", params),
+    warranty: (params?: Record<string, string | undefined>) =>
+      getData<{
+        rows: Array<{
+          asset: string;
+          assetCode: string;
+          assetName: string;
+          warrantyExpiryDate: string;
+          daysRemaining: number;
+          status: string;
+          category: string;
+        }>;
+        meta: { total: number; capped: boolean };
+      }>("/asset-reports/warranty", params),
   },
 };

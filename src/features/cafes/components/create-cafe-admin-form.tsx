@@ -83,13 +83,13 @@ export function CreateCafeAdminForm({ onSuccess, onCancel }: CreateCafeAdminForm
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form onSubmit={handleSubmit(onSubmit)} className="form-body">
       <div className="space-y-1">
         <h3 className="text-sm font-semibold text-foreground">Cafe profile</h3>
         <p className="text-xs text-muted">Basic cafe identity shown in admin views.</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="form-grid">
         <Field
           id="cafeName"
           label="Cafe name"
@@ -145,7 +145,7 @@ export function CreateCafeAdminForm({ onSuccess, onCancel }: CreateCafeAdminForm
         <p className="text-xs text-muted">Primary manager for this cafe.</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="form-grid">
         <Field id="email" label="Admin email" error={errors.email?.message} required>
           <Input
             type="email"

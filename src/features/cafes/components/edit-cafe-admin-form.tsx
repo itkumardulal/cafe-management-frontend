@@ -95,13 +95,13 @@ export function EditCafeAdminForm({ record, onSuccess, onCancel }: EditCafeAdmin
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form onSubmit={handleSubmit(onSubmit)} className="form-body">
       <div className="space-y-1">
         <h3 className="text-sm font-semibold text-foreground">Cafe profile</h3>
         <p className="text-xs text-muted">Update cafe identity and contact details.</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="form-grid">
         <Field
           id="cafeName"
           label="Cafe name"
@@ -155,7 +155,7 @@ export function EditCafeAdminForm({ record, onSuccess, onCancel }: EditCafeAdmin
         <p className="text-xs text-muted">Update the primary manager for this cafe.</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="form-grid">
         <Field id="adminName" label="Admin name" error={errors.adminName?.message} required>
           <Input
             {...register("adminName", { required: "Admin name is required" })}

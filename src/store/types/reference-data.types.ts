@@ -42,6 +42,19 @@ export type BillSettlementAgingTotals = {
   };
 };
 
+export type AssetCategoryOption = {
+  id: string;
+  name: string;
+  displayLabel: string;
+};
+
+export type AssetOption = {
+  id: string;
+  assetCode: string;
+  assetName: string;
+  displayLabel: string;
+};
+
 export interface ReferenceDataState {
   menuCategoryOptions: MenuCategoryOption[];
   menuCategoryOptionsStatus: LoadStatus;
@@ -54,4 +67,8 @@ export interface ReferenceDataState {
   stockRemovalRefsStatus: LoadStatus;
   billSettlementAging: BillSettlementAgingTotals | null;
   billSettlementAgingStatus: LoadStatus;
+  assetCategoryOptions: AssetCategoryOption[];
+  assetCategoryOptionsStatus: LoadStatus;
+  assetOptions: AssetOption[];
+  assetOptionsStatus: LoadStatus;
 }

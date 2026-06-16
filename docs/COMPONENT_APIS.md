@@ -39,7 +39,7 @@
 | `hint` | `string` | `aria-describedby` when no error |
 | `required` | `boolean` | Visual asterisk |
 
-Reserves `min-h-[1.25rem]` for error slot (no layout shift).
+Collapses the error slot to a small reserve when empty (`min-h-2.5`); expands on validation errors.
 
 ### `Modal`
 

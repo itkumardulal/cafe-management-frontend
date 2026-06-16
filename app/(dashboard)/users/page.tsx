@@ -219,8 +219,8 @@ export default function UsersPage() {
         onClose={closeAddModal}
         size="lg"
       >
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
+        <form onSubmit={handleSubmit(onSubmit)} className="form-fields">
+          <div className="form-grid">
             <Field id="fullName" label="Full name" error={errors.fullName?.message} required>
               <Input
                 {...register("fullName")}
@@ -299,7 +299,7 @@ export default function UsersPage() {
         onClose={() => setEditStaff(null)}
         size="md"
       >
-        <div className="space-y-4">
+        <div className="form-fields">
           <Field id="editName" label="Full name" required>
             <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
           </Field>

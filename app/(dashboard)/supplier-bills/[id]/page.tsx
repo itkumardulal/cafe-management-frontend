@@ -328,7 +328,7 @@ export default function SupplierBillDetailPage() {
               ) : null}
             </div>
 
-            <div className="space-y-3">
+            <div className="form-fields">
               <Field id="bsp-payment-amount" label="Payment amount" required>
                 <Input
                   value={payAmount}
