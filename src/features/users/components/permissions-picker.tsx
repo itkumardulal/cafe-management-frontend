@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, Fragment } from "react";
+import { Fragment, useEffect, useMemo, useRef } from "react";
 import { cn } from "@/src/lib/cn";
 import type { AssignableMenu } from "@/src/store/types/user.types";
 import {
@@ -49,6 +49,38 @@ export function PermissionsPicker({
   const isGroupPartiallySelected = (groupCodes: string[]) =>
     groupCodes.some((code) => selected.includes(code)) && !isGroupFullySelected(groupCodes);
 
+  const ParentCheckbox = ({
+    groupId,
+    checked,
+    indeterminate,
+    onChange,
+  }: {
+    groupId: string;
+    checked: boolean;
+    indeterminate: boolean;
+    onChange: (checked: boolean) => void;
+  }) => {
+    const inputRef = useRef<HTMLInputElement | null>(null);
+
+    useEffect(() => {
+      if (inputRef.current) {
+        inputRef.current.indeterminate = indeterminate;
+      }
+    }, [indeterminate]);
+
+    return (
+      <input
+        id={`group-${groupId}`}
+        ref={inputRef}
+        type="checkbox"
+        checked={checked}
+        aria-checked={indeterminate ? "mixed" : checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="h-4 w-4 rounded border-[var(--color-input)]"
+      />
+    );
+  };
+
   if (menus.length === 0) {
     return <p className="text-sm text-muted">Loading permissions…</p>;
   }
@@ -68,11 +100,19 @@ export function PermissionsPicker({
 
           const groupHeader = (
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h4 className="text-sm font-semibold text-foreground">{group.label}</h4>
-                {group.description ? (
-                  <p className="text-xs text-muted">{group.description}</p>
-                ) : null}
+              <div className="flex items-start gap-2.5">
+                <ParentCheckbox
+                  groupId={group.id}
+                  checked={allSelected}
+                  indeterminate={someSelected}
+                  onChange={(checked) => setGroupSelection(groupCodes, checked)}
+                />
+                <div>
+                  <h4 className="text-sm font-semibold text-foreground">{group.label}</h4>
+                  {group.description ? (
+                    <p className="text-xs text-muted">{group.description}</p>
+                  ) : null}
+                </div>
               </div>
               {groupCodes.length > 1 ? (
                 <div className="flex items-center gap-2 text-xs">

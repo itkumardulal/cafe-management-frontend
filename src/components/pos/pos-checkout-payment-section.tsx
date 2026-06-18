@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertCircle, Banknote, Building2, CheckCircle2, Split } from "lucide-react";
+import { AlertCircle, Banknote, Building2, CheckCircle2, QrCode, Split } from "lucide-react";
 import { useEffect } from "react";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
@@ -16,6 +16,7 @@ export type BankAccountOption = {
   bankName: string;
   accountNumber: string;
   label: string;
+  qrImageUrl?: string | null;
 };
 
 type TenderMode = "CASH" | "BANK" | "SPLIT";
@@ -47,6 +48,7 @@ type Props = {
   bankAccountId: string;
   onBankAccountIdChange: (v: string) => void;
   bankAccounts: BankAccountOption[];
+  onViewBankQr?: () => void;
   disabled?: boolean;
   allowCredit?: boolean;
 };
@@ -122,6 +124,7 @@ export function PosCheckoutPaymentSection({
   bankAccountId,
   onBankAccountIdChange,
   bankAccounts,
+  onViewBankQr,
   disabled,
   allowCredit = true,
 }: Props) {
@@ -189,8 +192,18 @@ export function PosCheckoutPaymentSection({
       : Math.abs(splitSum - paidNow) < 0.005;
 
   const bankAccountRequired = needsBankAccount(tenderMode, bankPaidAmount);
+  const selectedBankAccount = bankAccounts.find((a) => a.id === bankAccountId) ?? null;
+  const hasSelectedBankAccount = bankAccountId.trim().length > 0;
+  const hasSelectedBankQr = Boolean(selectedBankAccount?.qrImageUrl);
   const bankAccountValid =
     !bankAccountRequired || (bankAccountId.trim().length > 0 && bankAccounts.length > 0);
+
+  useEffect(() => {
+    if (!bankAccountRequired) return;
+    if (bankAccounts.length === 1 && !bankAccountId.trim()) {
+      onBankAccountIdChange(bankAccounts[0]!.id);
+    }
+  }, [bankAccountRequired, bankAccounts, bankAccountId, onBankAccountIdChange]);
 
   const partialValid =
     checkoutPaymentType !== "PARTIALLY_PAID" ||
@@ -245,19 +258,43 @@ export function PosCheckoutPaymentSection({
           </Link>
         </p>
       ) : (
-        <Select
-          searchable
-          value={bankAccountId}
-          onChange={(e) => onBankAccountIdChange(e.target.value)}
-          disabled={disabled}
-        >
-          <option value="">Choose account</option>
-          {bankAccounts.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.label}
-            </option>
-          ))}
-        </Select>
+        <div className="flex items-end gap-2">
+          <div className="min-w-0 flex-1">
+            <Select
+              searchable
+              value={bankAccountId}
+              onChange={(e) => onBankAccountIdChange(e.target.value)}
+              disabled={disabled}
+            >
+              {bankAccounts.length !== 1 ? <option value="">Choose account</option> : null}
+              {bankAccounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+          {hasSelectedBankAccount ? (
+            <button
+              type="button"
+              className={cn(
+                "inline-flex h-10 items-center justify-center rounded-md border border-[var(--color-border)] px-3 text-xs font-medium transition-colors",
+                focusRing,
+                hasSelectedBankQr
+                  ? "bg-[var(--color-surface)] text-foreground hover:bg-[var(--color-cream-100)]"
+                  : "cursor-not-allowed bg-[var(--color-surface-muted)] text-muted",
+              )}
+              onClick={() => {
+                if (hasSelectedBankQr) onViewBankQr?.();
+              }}
+              disabled={disabled || !hasSelectedBankQr}
+              title={hasSelectedBankQr ? "View QR image" : "No QR on file"}
+            >
+              <QrCode className="mr-1 h-3.5 w-3.5" />
+              View QR
+            </button>
+          ) : null}
+        </div>
       )}
     </Field>
   ) : null;

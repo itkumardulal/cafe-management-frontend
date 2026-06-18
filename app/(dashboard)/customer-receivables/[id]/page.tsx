@@ -80,6 +80,25 @@ export default function CustomerReceivableDetailPage() {
   }, [load]);
 
   useEffect(() => {
+    if (loading || !detail) {
+      return;
+    }
+    const shouldFocusPayment =
+      new URLSearchParams(window.location.search).get("pay") === "1" ||
+      window.location.hash === "#receivable-payment-panel";
+    if (!shouldFocusPayment) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      document.getElementById("receivable-payment-panel")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [detail, loading]);
+
+  useEffect(() => {
     void operationsApi.bankAccounts
       .options()
       .then((items) => {

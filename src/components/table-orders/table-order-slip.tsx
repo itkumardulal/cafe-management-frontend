@@ -275,7 +275,7 @@ export function TableOrderSlip({
         )}
       </div>
 
-      <div className="shrink-0 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
+      <div className="shrink-0 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5">
         <div className="flex items-baseline justify-between gap-2">
           <span className="text-xs font-medium text-[var(--color-muted)]">Subtotal</span>
           <span className="font-mono text-base font-bold tabular-nums tracking-tight text-[var(--color-foreground)]">
@@ -320,11 +320,6 @@ export function TableOrderSlip({
             ) : null}
           </div>
         ) : null}
-        <p className="mt-1.5 text-center text-[9px] leading-snug text-[var(--color-muted)]">
-          {isBilling
-            ? "Resume editing to change items, or complete payment at POS."
-            : "Payment is completed in POS after generating the bill."}
-        </p>
       </div>
     </div>
   );

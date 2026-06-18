@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { NotAuthorized } from "@/src/components/shared/not-authorized";
-import { firstAllowedRoute, isPathAllowed } from "@/src/lib/route-auth";
+import { firstAllowedRoute, isPathAllowed, normalizePathname } from "@/src/lib/route-auth";
 import { fetchAuthorizedMenusThunk } from "@/src/store/slices/menu.slice";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
 
@@ -22,8 +22,12 @@ export function MenuRouteGuard({ children }: { children: React.ReactNode }) {
     user && menusInitialized && !(error && menus.length === 0),
   );
   const pathAllowed = canCheckAccess ? isPathAllowed(pathname, allowedRoutes) : true;
+  const isDashboardPath = normalizePathname(pathname) === "/dashboard";
+  const dashboardAccessDenied = canCheckAccess && !pathAllowed && isDashboardPath;
   const fallback =
-    canCheckAccess && !pathAllowed ? firstAllowedRoute(allowedRoutes) : null;
+    canCheckAccess && !pathAllowed && !isDashboardPath
+      ? firstAllowedRoute(allowedRoutes)
+      : null;
   const shouldRedirect = Boolean(fallback && fallback !== pathname);
 
   useEffect(() => {
@@ -58,6 +62,12 @@ export function MenuRouteGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (!pathAllowed) {
+    if (dashboardAccessDenied) {
+      return (
+        <NotAuthorized description="You do not have access to the dashboard." />
+      );
+    }
+
     if (shouldRedirect) {
       return (
         <div className="flex min-h-[12rem] items-center justify-center">

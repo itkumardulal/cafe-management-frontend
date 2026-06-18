@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, Wrench } from "lucide-react";
 import { AssetStatusBadge } from "@/src/components/assets/asset-status-badge";
 import { EmptyState } from "@/src/components/ui/empty-state";
+import { Badge } from "@/src/components/ui/badge";
 import { Card } from "@/src/components/ui/card";
 import { TableSkeleton } from "@/src/components/skeletons/table-skeleton";
 import { ResponsiveTable } from "@/src/components/ui/table";
@@ -147,13 +148,22 @@ export default function AssetDetailPage() {
           <Card className="overflow-hidden p-0">
             <ResponsiveTable
               variant="embedded"
-              headers={["Date", "Description", "Cost", "Created by"]}
+              headers={["Date", "Description", "Cost", "Expense", "Created by"]}
             >
               {detail.maintenanceHistory.map((row) => (
                 <tr key={row.id}>
                   <td>{formatDateOnly(row.maintenanceDate)}</td>
                   <td>{row.description?.trim() || "—"}</td>
                   <td className="tabular-nums">{formatMoney(row.maintenanceCost)}</td>
+                  <td>
+                    {row.expenseEntryId ? (
+                      <Badge variant="success" size="sm">
+                        Recorded
+                      </Badge>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td>{row.createdBy?.name ?? "—"}</td>
                 </tr>
               ))}

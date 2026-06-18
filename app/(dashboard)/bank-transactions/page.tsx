@@ -50,6 +50,7 @@ type TransactionRow = {
   accountNumber: string;
   type: "DEPOSIT" | "WITHDRAWAL";
   amount: string;
+  balanceAfter?: string | null;
   transactionDate: string;
   referenceNumber?: string | null;
   proofAttachmentUrl?: string | null;
@@ -329,36 +330,61 @@ function BankTransactionsContent() {
       ) : null}
 
       <FilterDrawerDesktop>
-        <div className="flex flex-wrap items-end gap-3">
-          <DateRangeFilter
-            fromDate={draftFromDate}
-            toDate={draftToDate}
-            onFromDateChange={setDraftFromDate}
-            onToDateChange={setDraftToDate}
-            onApply={applyFilters}
-            description="Filter by transaction date."
-          />
-          <Field id="filterAccount" label="Bank account" className="min-w-[200px]">
-            <Select value={draftBankAccountId} onChange={(e) => setDraftBankAccountId(e.target.value)}>
-              <option value="">All accounts</option>
-              {filterBankAccounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.label}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field id="filterType" label="Type" className="min-w-[140px]">
-            <Select value={draftType} onChange={(e) => setDraftType(e.target.value)}>
-              <option value="">All types</option>
-              <option value="DEPOSIT">Deposit</option>
-              <option value="WITHDRAWAL">Withdrawal</option>
-            </Select>
-          </Field>
-          <Button type="button" size="sm" variant="secondary" onClick={applyFilters}>
-            Apply filters
-          </Button>
-        </div>
+        <section
+          aria-label="Transaction filters"
+          className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)]/50 p-3 sm:p-3.5"
+        >
+          <div className="flex w-full items-start gap-3">
+            <Field id="filterFrom" label="From" reserveErrorSpace={false} className="min-w-0 flex-1">
+              <DatePicker
+                value={draftFromDate}
+                onChange={setDraftFromDate}
+                max={draftToDate || undefined}
+                placeholder="Start date"
+                aria-label="From date"
+              />
+            </Field>
+            <Field id="filterTo" label="To" reserveErrorSpace={false} className="min-w-0 flex-1">
+              <DatePicker
+                value={draftToDate}
+                onChange={setDraftToDate}
+                min={draftFromDate || undefined}
+                placeholder="End date"
+                aria-label="To date"
+              />
+            </Field>
+            <Field
+              id="filterAccount"
+              label="Bank account"
+              reserveErrorSpace={false}
+              className="min-w-0 flex-[1.35]"
+            >
+              <Select value={draftBankAccountId} onChange={(e) => setDraftBankAccountId(e.target.value)}>
+                <option value="">All accounts</option>
+                {filterBankAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field id="filterType" label="Type" reserveErrorSpace={false} className="min-w-0 flex-1">
+              <Select value={draftType} onChange={(e) => setDraftType(e.target.value)}>
+                <option value="">All types</option>
+                <option value="DEPOSIT">Deposit</option>
+                <option value="WITHDRAWAL">Withdrawal</option>
+              </Select>
+            </Field>
+            <div className="shrink-0 space-y-1">
+              <span className="block text-sm font-medium text-transparent select-none" aria-hidden="true">
+                Apply
+              </span>
+              <Button type="button" size="sm" variant="brand" onClick={applyFilters}>
+                Apply filters
+              </Button>
+            </div>
+          </div>
+        </section>
       </FilterDrawerDesktop>
 
       <PaginatedListSection
@@ -372,7 +398,7 @@ function BankTransactionsContent() {
         searchPlaceholder={searchPlaceholder}
         isSearching={isSearching}
         searchResultSummary={searchResultSummary}
-        tableColumns={8}
+        tableColumns={9}
         emptyTitle="No Bank Transactions Found"
         emptyDescription="Record deposits and withdrawals for the selected period, or clear filters."
         emptyIcon={ArrowLeftRight}
@@ -461,6 +487,7 @@ function BankTransactionsContent() {
                   { label: "Date", value: formatDateOnly(row.transactionDate) },
                   { label: "Type", value: typeBadge(row.type) },
                   { label: "Amount", value: formatMoney(row.amount) },
+                  { label: "Balance after", value: formatMoney(row.balanceAfter ?? "0") },
                   { label: "Reference", value: row.referenceNumber?.trim() || "—" },
                   {
                     label: "Voucher",
@@ -523,8 +550,7 @@ function BankTransactionsContent() {
                 ),
                 thClassName: tableCenterColumnClass,
               },
-              "Reference",
-              "Voucher",
+              { label: "Balance after", thClassName: tableCenterColumnClass },
               "Notes",
               "Recorded by",
               { label: "Actions", thClassName: tableActionsColumnClass },
@@ -546,25 +572,8 @@ function BankTransactionsContent() {
                 <td className={cn("px-4 py-3.5 text-sm font-medium tabular-nums text-foreground", tableCenterCellClass)}>
                   {formatMoney(row.amount)}
                 </td>
-                <td className="px-4 py-3.5 text-sm text-muted">{row.referenceNumber?.trim() || "—"}</td>
-                <td className="px-4 py-3.5 text-sm">
-                  {row.proofAttachmentUrl ? (
-                    <a
-                      href={row.proofAttachmentUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 text-foreground underline underline-offset-2"
-                    >
-                      <img
-                        src={row.proofAttachmentUrl}
-                        alt="Bank voucher"
-                        className="h-8 w-8 rounded object-cover"
-                      />
-                      View
-                    </a>
-                  ) : (
-                    <span className="text-muted">—</span>
-                  )}
+                <td className={cn("px-4 py-3.5 text-sm font-medium tabular-nums text-foreground", tableCenterCellClass)}>
+                  {formatMoney(row.balanceAfter ?? "0")}
                 </td>
                 <td className="max-w-[200px] px-4 py-3.5 text-sm text-muted">
                   {row.notes ? (
@@ -616,6 +625,9 @@ function BankTransactionsContent() {
               <DetailInfoCard label="Type">{typeBadge(viewTarget.type)}</DetailInfoCard>
               <DetailInfoCard label="Amount">
                 <p className="font-medium tabular-nums">{formatMoney(viewTarget.amount)}</p>
+              </DetailInfoCard>
+              <DetailInfoCard label="Balance after">
+                <p className="font-medium tabular-nums">{formatMoney(viewTarget.balanceAfter ?? "0")}</p>
               </DetailInfoCard>
               <DetailInfoCard label="Reference">
                 <p className="font-medium">{viewTarget.referenceNumber?.trim() || "—"}</p>

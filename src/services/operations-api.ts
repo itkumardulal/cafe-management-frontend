@@ -425,7 +425,13 @@ export const operationsApi = {
     create: (data: { name: string }) => mutate("post", "/dining-tables", data),
     update: (id: string, data: { name: string }) => mutate("patch", `/dining-tables/${id}`, data),
     remove: (id: string) => mutate("delete", `/dining-tables/${id}`),
-    options: () => getData<Array<{ id: string; name: string }>>("/dining-tables/options"),
+    options: (params?: { excludeOccupied?: boolean }) =>
+      getData<Array<{ id: string; name: string }>>("/dining-tables/options", {
+        excludeOccupied:
+          params?.excludeOccupied != null
+            ? String(params.excludeOccupied)
+            : undefined,
+      }),
   },
   rmPurchases: {
     list: (params?: DateRangeQueryParams) =>
@@ -808,6 +814,7 @@ export const operationsApi = {
           id: string;
           bankName: string;
           accountNumber: string;
+          qrImageUrl?: string | null;
           label: string;
         }>
       >("/bank-accounts/options"),
@@ -819,6 +826,7 @@ export const operationsApi = {
           bankName: string;
           accountNumber: string;
           accountHolderName: string;
+          qrImageUrl?: string | null;
           openingBalance: string;
           currentBalance: string;
           totalDeposits: string;
@@ -847,6 +855,7 @@ export const operationsApi = {
       accountNumber: string;
       accountHolderName: string;
       openingBalance?: number;
+      qrImageUrl?: string;
     }) => mutate("post", "/bank-accounts", data),
     update: (
       id: string,
@@ -856,6 +865,7 @@ export const operationsApi = {
         accountHolderName?: string;
         openingBalance?: number;
         isActive?: boolean;
+        qrImageUrl?: string;
       },
     ) => mutate("patch", `/bank-accounts/${id}`, data),
     remove: (id: string) => mutate("delete", `/bank-accounts/${id}`),
@@ -876,6 +886,7 @@ export const operationsApi = {
           accountHolderName: string;
           type: "DEPOSIT" | "WITHDRAWAL";
           amount: string;
+          balanceAfter?: string | null;
           transactionDate: string;
           referenceNumber?: string | null;
           proofAttachmentUrl?: string | null;

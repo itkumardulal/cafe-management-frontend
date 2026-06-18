@@ -16,17 +16,20 @@ function kpiRows(overview: AnalyticsOverview): Array<{ metric: string; value: st
     { metric: "Comparison period", value: overview.comparisonPeriod.label },
   ];
 
+  if (overview.kpis.totalOrders) {
+    rows.push({ metric: "Orders volume", value: String(overview.kpis.totalOrders.value) });
+  }
   if (overview.kpis.totalSales) {
     rows.push({ metric: "Total sales", value: String(overview.kpis.totalSales.value) });
   }
-  if (overview.kpis.netProfit) {
-    rows.push({ metric: "Net profit", value: String(overview.kpis.netProfit.value) });
+  if (overview.kpis.grossProfit) {
+    rows.push({ metric: "Gross profit", value: String(overview.kpis.grossProfit.value) });
   }
-  if (overview.kpis.totalOrders) {
-    rows.push({ metric: "Total orders", value: String(overview.kpis.totalOrders.value) });
+  if (overview.kpis.cashAtHand) {
+    rows.push({ metric: "Cash at hand (POS)", value: String(overview.kpis.cashAtHand.value) });
   }
-  if (overview.kpis.averageOrderValue) {
-    rows.push({ metric: "Average order value", value: String(overview.kpis.averageOrderValue.value) });
+  if (overview.kpis.cashAtBank) {
+    rows.push({ metric: "Cash at bank (POS)", value: String(overview.kpis.cashAtBank.value) });
   }
   if (overview.kpis.discountImpact) {
     rows.push({ metric: "Discount impact", value: overview.kpis.discountImpact.value });
@@ -45,7 +48,7 @@ function kpiRows(overview: AnalyticsOverview): Array<{ metric: string; value: st
   }
   if (overview.kpis.bankBalanceSnapshot) {
     rows.push({
-      metric: "Bank & cash balance (live)",
+      metric: "Bank Balance (live)",
       value: overview.kpis.bankBalanceSnapshot.value,
     });
   }

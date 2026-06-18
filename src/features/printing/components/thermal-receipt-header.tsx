@@ -75,7 +75,7 @@ export function ThermalReceiptHeader({
   return (
     <header className="thermal-receipt-header">
       {hasLogo ? (
-        <div className="thermal-receipt-brand flex items-center gap-2.5 pb-2">
+        <div className="thermal-receipt-brand flex w-full items-center justify-center gap-2.5 pb-2">
           <ThermalReceiptLogo
             logoUrl={resolvedLogo}
             cafeName={cafeName}
@@ -85,7 +85,7 @@ export function ThermalReceiptHeader({
             cafeName={cafeName}
             addressLines={addressLines}
             contact={contact}
-            align="left"
+            align="center"
           />
         </div>
       ) : (

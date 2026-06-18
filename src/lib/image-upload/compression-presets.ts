@@ -50,6 +50,7 @@ export const COMPRESSION_PRESETS: Record<CompressionPresetId, CompressionPreset>
   };
 
 const DOCUMENT_MODULES = new Set([
+  "bank-accounts",
   "bank-transactions",
   "direct-purchases",
   "raw-material-purchases",

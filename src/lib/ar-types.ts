@@ -53,6 +53,7 @@ export type SaleDetailResponse = {
   createdAt: string;
   serviceType: "DINE_IN" | "DELIVERY";
   billingType: "PAID" | "CREDIT";
+  customerId?: string | null;
   customerName?: string | null;
   customerPhone?: string | null;
   customerEmail?: string | null;

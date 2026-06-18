@@ -30,9 +30,11 @@ export function TableOrdersPanel({
     >
       <header className={tableOrdersPanelHeader}>
         <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--color-muted)]">
-            {label}
-          </p>
+          {label ? (
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--color-muted)]">
+              {label}
+            </p>
+          ) : null}
           <h2 className="text-sm font-semibold text-[var(--color-foreground)]">{title}</h2>
           {description ? (
             <p className="mt-0.5 text-xs text-[var(--color-muted)]">{description}</p>

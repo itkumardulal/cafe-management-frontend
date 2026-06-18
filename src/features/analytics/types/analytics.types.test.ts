@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { analyticsCacheKey } from "@/src/features/analytics/types/analytics.types";
 
 describe("analyticsCacheKey", () => {
-  it("uses period key for presets", () => {
-    expect(analyticsCacheKey({ period: "last_7_days" })).toBe("last_7_days");
+  it("defaults to today when period omitted", () => {
+    expect(analyticsCacheKey({})).toBe("today");
   });
 
   it("includes custom dates", () => {

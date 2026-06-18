@@ -1,7 +1,7 @@
 "use client";
 
 import axios from "axios";
-import { Combine, RefreshCw, Split } from "lucide-react";
+import { Combine, FileText, RefreshCw, Split } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -461,11 +461,10 @@ export default function TableOrdersPage() {
   };
 
   return (
-    <section className="page-shell flex min-h-0 flex-col overflow-hidden">
-      <div className="shrink-0 space-y-2 pb-3">
+    <section className="page-shell flex min-h-0 flex-col overflow-hidden lg:h-full lg:min-h-0">
+      <div className="shrink-0 space-y-1 pb-2">
       <PageHeader
         title="Table service"
-        description="Manage dine-in orders by table. Floor status updates every few seconds."
         action={
           <div className="flex flex-wrap gap-2">
             <Button
@@ -478,6 +477,12 @@ export default function TableOrdersPage() {
               <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", boardLoading && "animate-spin")} />
               Refresh
             </Button>
+            <Link href="/invoices">
+              <Button type="button" size="sm" variant="secondary">
+                <FileText className="mr-1.5 h-3.5 w-3.5" />
+                Invoices
+              </Button>
+            </Link>
             <Link href="/tables">
               <Button type="button" size="sm" variant="secondary">
                 Manage tables
@@ -487,25 +492,19 @@ export default function TableOrdersPage() {
         }
       />
 
-      {board.length > 0 ? (
-        <p className="text-xs text-[var(--color-muted)]">
-          {boardSummary.total} tables · {boardSummary.vacant} vacant · {boardSummary.serving}{" "}
-          serving · {boardSummary.billing} at checkout
-        </p>
-      ) : null}
       </div>
 
       {/* Same viewport contract as /pos — each column scrolls on its own */}
       <div
         className={cn(
-          "flex h-[calc(100dvh-7.25rem)] min-h-0 shrink-0 flex-col overflow-hidden lg:h-[calc(100dvh-7.5rem)]",
+          "flex min-h-0 flex-1 shrink-0 flex-col overflow-hidden",
           session
             ? "max-lg:gap-0 lg:grid lg:grid-cols-[minmax(280px,320px)_minmax(0,1fr)] lg:items-stretch lg:gap-0"
             : "gap-3 lg:grid lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)] lg:gap-4",
         )}
       >
         <TableOrdersPanel
-          label="Service floor"
+          label=""
           title="Floor plan"
           description="Tap a table to open or resume"
           className={cn(
@@ -537,7 +536,7 @@ export default function TableOrdersPage() {
 
         {!session ? (
           <TableOrdersPanel
-            label="Order workspace"
+            label=""
             title="Waiting for selection"
             description="Select a table from the floor plan"
             className="min-h-0 overflow-hidden max-lg:min-h-[280px]"
@@ -547,7 +546,7 @@ export default function TableOrdersPage() {
           </TableOrdersPanel>
         ) : (
           <TableOrdersPanel
-            label="Order workspace"
+            label=""
             title="Menu & order ticket"
             description={`${session.tableNames.join(", ")} · add dishes then generate bill`}
             className={cn("min-h-0 overflow-hidden", tableOrdersWorkspacePanelJoined)}

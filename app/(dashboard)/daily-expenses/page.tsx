@@ -14,6 +14,7 @@ import { CardListSkeleton } from "@/src/components/skeletons/card-list-skeleton"
 import { PaginationSkeleton } from "@/src/components/skeletons/pagination-skeleton";
 import { TableSkeleton } from "@/src/components/skeletons/table-skeleton";
 import { Button } from "@/src/components/ui/button";
+import { Badge } from "@/src/components/ui/badge";
 import { Card } from "@/src/components/ui/card";
 import { DatePicker } from "@/src/components/ui/date-picker";
 import { Field } from "@/src/components/ui/field";
@@ -44,6 +45,8 @@ type ExpenseEntryRow = {
   expenseDate: string;
   notes?: string | null;
   createdAt: string;
+  source?: "asset_maintenance" | null;
+  assetMaintenanceId?: string | null;
 };
 
 type ExpenseItemOption = { id: string; name: string };
@@ -216,6 +219,7 @@ function DailyExpensesContent() {
   };
 
   const canAddExpense = expenseItems.length > 0;
+  const isLinkedExpense = (entry: ExpenseEntryRow) => entry.source === "asset_maintenance";
 
   return (
     <>
@@ -323,11 +327,17 @@ function DailyExpensesContent() {
                   { label: "Notes", value: entry.notes?.trim() || "—" },
                 ]}
                 actions={
-                  <RowActions
-                    showLabels
-                    onEdit={() => openEdit(entry)}
-                    onDelete={() => setDeleteTarget(entry)}
-                  />
+                  isLinkedExpense(entry) ? (
+                    <Badge variant="default" size="sm">
+                      From asset maintenance
+                    </Badge>
+                  ) : (
+                    <RowActions
+                      showLabels
+                      onEdit={() => openEdit(entry)}
+                      onDelete={() => setDeleteTarget(entry)}
+                    />
+                  )
                 }
               />
             ))}
@@ -378,7 +388,14 @@ function DailyExpensesContent() {
             {entries.map((entry) => (
               <tr key={entry.id} className="border-t border-[var(--color-border)] last:border-b-0">
                 <td className="px-4 py-3.5 text-sm font-medium text-foreground">
-                  {entry.expenseItemName}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span>{entry.expenseItemName}</span>
+                    {isLinkedExpense(entry) ? (
+                      <Badge variant="default" size="sm">
+                        From asset maintenance
+                      </Badge>
+                    ) : null}
+                  </div>
                 </td>
                 <td className={cn("px-4 py-3.5 text-sm font-medium tabular-nums text-foreground", tableCenterCellClass)}>
                   {formatMoney(entry.amount)}
@@ -400,11 +417,15 @@ function DailyExpensesContent() {
                 </td>
                 <td className="px-4 py-3.5">
                   <div className={tableActionsCellClass}>
-                    <RowActions
-                      showLabels
-                      onEdit={() => openEdit(entry)}
-                      onDelete={() => setDeleteTarget(entry)}
-                    />
+                    {isLinkedExpense(entry) ? (
+                      <span className="text-xs text-muted">Managed in Asset maintenance</span>
+                    ) : (
+                      <RowActions
+                        showLabels
+                        onEdit={() => openEdit(entry)}
+                        onDelete={() => setDeleteTarget(entry)}
+                      />
+                    )}
                   </div>
                 </td>
               </tr>

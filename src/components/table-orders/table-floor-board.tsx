@@ -141,7 +141,7 @@ export function TableFloorBoard({
         )}
       </div>
 
-      <footer className="shrink-0 border-t border-[var(--color-border)] px-4 py-2">
+      <footer className="shrink-0 border-t border-[var(--color-border)] px-4 py-1">
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[10px] text-[var(--color-muted)]">
           <LegendDot status="VACANT" />
           <LegendDot status="IN_PROGRESS" />

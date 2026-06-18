@@ -14,6 +14,10 @@ import {
   RecordSalePaymentSection,
   type SalePaymentMode,
 } from "@/src/components/sales/record-sale-payment-section";
+import {
+  SaleReceivablePaymentCta,
+  shouldRouteCreditSaleToReceivables,
+} from "@/src/components/sales/sale-receivable-payment-cta";
 import type { PosSaleReceiptData } from "@/src/components/sales/pos-sale-receipt";
 import { serviceLabel } from "@/src/features/printing/lib/pos-labels";
 import { getApiErrorMessage } from "@/src/lib/api-error";
@@ -32,9 +36,10 @@ import { operationsApi } from "@/src/services/operations-api";
 type PosSaleDetailProps = {
   sale: PosSaleReceiptData;
   onSaleUpdated?: (sale: PosSaleReceiptData) => void;
+  onNavigateAway?: () => void;
 };
 
-export function PosSaleDetail({ sale, onSaleUpdated }: PosSaleDetailProps) {
+export function PosSaleDetail({ sale, onSaleUpdated, onNavigateAway }: PosSaleDetailProps) {
   const [payMode, setPayMode] = useState<SalePaymentMode>("FULL");
   const [amountStr, setAmountStr] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<SalePaymentMethod>("CASH");
@@ -45,6 +50,7 @@ export function PosSaleDetail({ sale, onSaleUpdated }: PosSaleDetailProps) {
 
   const remaining = Number(sale.remainingAmount ?? sale.creditAmount);
   const hasBalance = Number.isFinite(remaining) && remaining > 0.005;
+  const routeToReceivables = shouldRouteCreditSaleToReceivables(sale);
   const otherCharge = Number(sale.otherChargeAmount);
   const amountReceived =
     Number(sale.cashPaidAmount ?? 0) + Number(sale.bankPaidAmount ?? 0);
@@ -107,6 +113,9 @@ export function PosSaleDetail({ sale, onSaleUpdated }: PosSaleDetailProps) {
           <Badge variant={sale.billStatus === "OVERDUE" ? "danger" : "default"}>
             {saleBillStatusLabel(sale.billStatus)}
           </Badge>
+        ) : null}
+        {sale.billingType === "CREDIT" ? (
+          <Badge variant="warning">Credit</Badge>
         ) : null}
         {sale.serviceType === "DINE_IN" && sale.tableName ? (
           <Badge variant="default">Table: {sale.tableName}</Badge>
@@ -269,7 +278,18 @@ export function PosSaleDetail({ sale, onSaleUpdated }: PosSaleDetailProps) {
         </DetailInfoCard>
       ) : null}
 
-      {hasBalance && sale.id ? (
+      {hasBalance && sale.id && routeToReceivables && sale.customerId ? (
+        <SaleReceivablePaymentCta
+          customerId={sale.customerId}
+          customerName={sale.customerName}
+          outstandingAmount={remaining}
+          dueDate={sale.dueDate}
+          receiptNo={sale.receiptNo}
+          onNavigate={onNavigateAway}
+        />
+      ) : null}
+
+      {hasBalance && sale.id && !routeToReceivables ? (
         <RecordSalePaymentSection
           remainingBalance={remaining}
           mode={payMode}

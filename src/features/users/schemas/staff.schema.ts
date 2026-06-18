@@ -22,7 +22,7 @@ export type StaffSchemaType = z.infer<typeof staffSchema>;
 export const staffRoleSchema = z.object({
   name: z.string().min(2, "Role name is required").max(64),
   description: z.string().max(256).optional(),
-  accessMenuCodes: z.array(z.string()).min(1, "Select at least one area"),
+  accessMenuCodes: z.array(z.string()).optional().default([]),
 });
 
 export type StaffRoleSchemaType = z.infer<typeof staffRoleSchema>;

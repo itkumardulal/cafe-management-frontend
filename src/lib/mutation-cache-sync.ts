@@ -21,6 +21,10 @@ const LIST_PREFIXES = [
   "/staff-roles",
   "/suppliers",
   "/inventory",
+  "/assets",
+  "/asset-maintenance",
+  "/asset-categories",
+  "/expense-entries",
 ];
 
 function invalidateBankLedgerCaches() {
@@ -41,6 +45,8 @@ function dispatchReduxInvalidations(path: string) {
   // Lazy-load store/slices to avoid circular import with operations-api.
   const { store } = require("@/src/store") as typeof import("@/src/store");
   const {
+    invalidateAssetCategoryOptions,
+    invalidateAssetOptions,
     invalidateBillSettlementAging,
     invalidateDiningTableOptions,
     invalidateMenuCategoryOptions,
@@ -103,6 +109,19 @@ function dispatchReduxInvalidations(path: string) {
   if (path.startsWith("/dining-tables") || path.startsWith("/table-orders")) {
     store.dispatch(invalidateDiningTableOptions());
     invalidateGetCache("/table-orders");
+  }
+
+  if (path.startsWith("/assets") || path.startsWith("/asset-categories")) {
+    store.dispatch(invalidateAssetOptions());
+    store.dispatch(invalidateAssetCategoryOptions());
+    invalidateGetCache("/assets/summary");
+    invalidateGetCache("/asset-reports");
+  }
+
+  if (path.startsWith("/asset-maintenance")) {
+    store.dispatch(invalidateAssetOptions());
+    invalidateGetCache("/expense-entries");
+    invalidateGetCache("/asset-reports");
   }
 }
 

@@ -34,6 +34,8 @@ export type AssetDetail = AssetRow & {
     description?: string | null;
     maintenanceCost: string;
     remarks?: string | null;
+    recordAsExpense: boolean;
+    expenseEntryId?: string | null;
     createdBy: { id: string; name: string } | null;
     createdAt: string;
   }>;
@@ -48,6 +50,8 @@ export type AssetMaintenanceRow = {
   maintenanceCost: string;
   description?: string | null;
   remarks?: string | null;
+  recordAsExpense: boolean;
+  expenseEntryId?: string | null;
   createdBy: { id: string; name: string } | null;
   createdAt: string;
   updatedAt: string;

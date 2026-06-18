@@ -29,9 +29,10 @@ export type AnalyticsOverview = {
   generatedAt: string;
   kpis: {
     totalSales: AnalyticsKpiMetric | null;
-    netProfit: AnalyticsKpiMetric | null;
+    grossProfit: AnalyticsKpiMetric | null;
     totalOrders: AnalyticsKpiMetric | null;
-    averageOrderValue: AnalyticsKpiMetric | null;
+    cashAtHand: AnalyticsKpiMetric | null;
+    cashAtBank: AnalyticsKpiMetric | null;
     customerReceivablesOutstanding: AnalyticsLiveKpi | null;
     supplierPayablesOutstanding: AnalyticsLiveKpi | null;
     discountImpact: { value: string; subtitle: string } | null;
@@ -139,8 +140,10 @@ export type AnalyticsActivityFeed = {
   nextCursor: string | null;
 };
 
+export const ANALYTICS_DEFAULT_PERIOD: ReportPeriodKey = "today";
+
 export function analyticsCacheKey(params: AnalyticsPeriodParams): string {
-  const period = params.period ?? "this_month";
+  const period = params.period ?? ANALYTICS_DEFAULT_PERIOD;
   if (period === "custom") {
     return `custom:${params.fromDate ?? ""}:${params.toDate ?? ""}`;
   }
@@ -150,7 +153,7 @@ export function analyticsCacheKey(params: AnalyticsPeriodParams): string {
 export function buildAnalyticsQueryParams(
   params?: AnalyticsPeriodParams,
 ): Record<string, string | undefined> {
-  const period = params?.period ?? "this_month";
+  const period = params?.period ?? ANALYTICS_DEFAULT_PERIOD;
   return {
     period,
     fromDate: period === "custom" ? params?.fromDate : undefined,

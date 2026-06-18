@@ -54,6 +54,7 @@ export function DateRangeFilter({
   fromLabel = "From",
   toLabel = "To",
   compact = false,
+  showApplyButton = true,
 }: {
   fromDate: string;
   toDate: string;
@@ -65,6 +66,7 @@ export function DateRangeFilter({
   fromLabel?: string;
   toLabel?: string;
   compact?: boolean;
+  showApplyButton?: boolean;
 }) {
   if (compact) {
     return (
@@ -134,14 +136,16 @@ export function DateRangeFilter({
             onChange={onToDateChange}
             min={fromDate || undefined}
           />
-          <Button
-            type="button"
-            variant="brand"
-            onClick={onApply}
-            className="h-10 w-full shrink-0 px-5 sm:ml-auto sm:w-auto"
-          >
-            Apply filter
-          </Button>
+          {showApplyButton ? (
+            <Button
+              type="button"
+              variant="brand"
+              onClick={onApply}
+              className="h-10 w-full shrink-0 px-5 sm:ml-auto sm:w-auto"
+            >
+              Apply filter
+            </Button>
+          ) : null}
         </div>
       </div>
     </section>

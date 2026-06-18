@@ -5,7 +5,7 @@ export const tableOrdersPanelShell =
 
 /** Shared panel header height so floor + workspace tops align */
 export const tableOrdersPanelHeader =
-  "flex min-h-[4.25rem] shrink-0 items-start justify-between gap-3 border-b border-[var(--color-border)] bg-[var(--color-surface-muted)]/50 px-4 py-3";
+  "flex min-h-[3.5rem] shrink-0 items-start justify-between gap-3 border-b border-[var(--color-border)] bg-[var(--color-surface-muted)]/50 px-4 py-2";
 
 /** Floor panel when joined to workspace (flush, divider on workspace left) */
 export const tableOrdersFloorPanelJoined = cn(

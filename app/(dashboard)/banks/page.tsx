@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 import { Landmark } from "lucide-react";
 import { FormFooter } from "@/src/components/shared/form-footer";
+import { ImageUploadField } from "@/src/components/shared/image-upload-field";
 import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
 import { MobileSortSelect } from "@/src/components/shared/mobile-sort-select";
 import { PageHeader } from "@/src/components/shared/page-header";
@@ -27,6 +28,7 @@ import {
 } from "@/src/components/ui/table";
 import { ReportSummaryCard } from "@/src/features/reports/components/report-detail-shell";
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
+import { useUploadEntityId } from "@/src/hooks/use-upload-entity-id";
 import { cn } from "@/src/lib/cn";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { formatMoney } from "@/src/lib/format-display";
@@ -39,6 +41,7 @@ type BankAccountRow = {
   bankName: string;
   accountNumber: string;
   accountHolderName: string;
+  qrImageUrl?: string | null;
   openingBalance: string;
   currentBalance: string;
   totalDeposits: string;
@@ -61,6 +64,7 @@ const emptyForm = {
   accountNumber: "",
   accountHolderName: "",
   openingBalance: "",
+  qrImageUrl: "",
   isActive: true,
 };
 
@@ -115,10 +119,18 @@ function BanksContent() {
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [qrUploading, setQrUploading] = useState(false);
+  const {
+    entityId: uploadEntityId,
+    resetForCreate: resetUploadEntityId,
+    setForEdit: setUploadEntityForEdit,
+  } = useUploadEntityId();
 
   const openCreate = () => {
     setEdit(null);
     setForm(emptyForm);
+    resetUploadEntityId();
+    setQrUploading(false);
     setOpen(true);
   };
 
@@ -129,8 +141,11 @@ function BanksContent() {
       accountNumber: row.accountNumber,
       accountHolderName: row.accountHolderName,
       openingBalance: row.openingBalance,
+      qrImageUrl: row.qrImageUrl ?? "",
       isActive: row.isActive,
     });
+    setUploadEntityForEdit(row.id);
+    setQrUploading(false);
     setOpen(true);
   };
 
@@ -148,6 +163,10 @@ function BanksContent() {
       appToast.error("Enter a valid opening balance");
       return;
     }
+    if (qrUploading) {
+      appToast.error("Wait for QR image upload to finish");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -156,6 +175,7 @@ function BanksContent() {
           bankName,
           accountNumber,
           accountHolderName,
+          qrImageUrl: form.qrImageUrl.trim() || undefined,
           ...(edit.transactionCount === 0 ? { openingBalance: openingParsed.amount } : {}),
           isActive: form.isActive,
         });
@@ -166,6 +186,7 @@ function BanksContent() {
           accountNumber,
           accountHolderName,
           openingBalance: openingParsed.amount,
+          qrImageUrl: form.qrImageUrl.trim() || undefined,
         });
         appToast.success("Bank account created");
       }
@@ -232,7 +253,7 @@ function BanksContent() {
         searchPlaceholder={searchPlaceholder}
         isSearching={isSearching}
         searchResultSummary={searchResultSummary}
-        tableColumns={6}
+        tableColumns={7}
         emptyTitle="No Bank Accounts Found"
         emptyDescription="Add your cafe's bank accounts with opening balances."
         emptyIcon={Landmark}
@@ -268,6 +289,18 @@ function BanksContent() {
                 fields={[
                   { label: "Account number", value: row.accountNumber },
                   { label: "Account holder", value: row.accountHolderName },
+                  {
+                    label: "QR",
+                    value: row.qrImageUrl ? (
+                      <img
+                        src={row.qrImageUrl}
+                        alt={`${row.bankName} payment QR`}
+                        className="h-8 w-8 rounded border border-[var(--color-border)] object-cover"
+                      />
+                    ) : (
+                      "—"
+                    ),
+                  },
                   { label: "Opening balance", value: formatMoney(row.openingBalance) },
                   { label: "Current balance", value: formatMoney(row.currentBalance) },
                   {
@@ -304,6 +337,7 @@ function BanksContent() {
               },
               { label: "Account number", thClassName: tableCenterColumnClass },
               "Account holder",
+              { label: "QR", thClassName: tableCenterColumnClass },
               { label: "Opening balance", thClassName: tableCenterColumnClass },
               { label: "Current balance", thClassName: tableCenterColumnClass },
               { label: "Status", thClassName: tableCenterColumnClass },
@@ -320,6 +354,17 @@ function BanksContent() {
                   {row.accountNumber}
                 </td>
                 <td className="px-4 py-3.5 text-sm text-muted">{row.accountHolderName}</td>
+                <td className={cn("px-4 py-3.5", tableCenterCellClass)}>
+                  {row.qrImageUrl ? (
+                    <img
+                      src={row.qrImageUrl}
+                      alt={`${row.bankName} payment QR`}
+                      className="mx-auto h-8 w-8 rounded border border-[var(--color-border)] object-cover"
+                    />
+                  ) : (
+                    <span className="text-sm text-muted">—</span>
+                  )}
+                </td>
                 <td className={cn("px-4 py-3.5 text-sm tabular-nums text-muted", tableCenterCellClass)}>
                   {formatMoney(row.openingBalance)}
                 </td>
@@ -379,7 +424,7 @@ function BanksContent() {
             <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button type="button" onClick={() => void save()} loading={saving}>
+            <Button type="button" onClick={() => void save()} loading={saving} disabled={qrUploading}>
               Save
             </Button>
           </FormFooter>
@@ -424,6 +469,20 @@ function BanksContent() {
               placeholder="0.00"
             />
           </Field>
+          <ImageUploadField
+            id="bankQrImage"
+            label="Payment QR image"
+            hint="Optional QR image customers can scan for this account"
+            value={form.qrImageUrl}
+            onChange={(qrImageUrl) => setForm((f) => ({ ...f, qrImageUrl }))}
+            assetType="module"
+            module="bank-accounts"
+            entityId={uploadEntityId}
+            dropTitle="Drop payment QR image here"
+            previewAlt="Bank payment QR preview"
+            uploadedLabel="QR image uploaded"
+            onUploadingChange={setQrUploading}
+          />
           {edit ? (
             <Field id="isActive" label="Status" hint="Inactive accounts cannot receive new transactions">
               <label className="flex items-center gap-2 text-sm text-foreground">

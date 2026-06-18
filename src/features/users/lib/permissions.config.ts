@@ -21,35 +21,34 @@ const PERMISSION_GROUPS: Array<{
 }> = [
   {
     id: "menuSales",
-    label: "Menu & sales",
-    description: "Catalog setup",
+    label: "Menu & recipes",
+    description: "Catalog setup and recipes",
     codes: ["MENU_CATEGORIES", "MENU_ITEMS", "RECIPES"],
   },
   {
     id: "pos",
     label: "POS",
     description: "Point of sale and table service",
-    codes: ["TABLES", "TABLE_ORDERS", "POS", "INVOICES", "CUSTOMER_RECEIVABLES"],
+    codes: ["TABLES", "TABLE_ORDERS", "POS", "INVOICES"],
   },
   {
     id: "inventory",
     label: "Inventory",
-    description: "Materials, suppliers, stock",
+    description: "Materials, suppliers, and stock",
     codes: [
       "INVENTORY",
       "RAW_MATERIALS",
       "SUPPLIERS",
       "RAW_MATERIAL_PURCHASES",
       "DIRECT_PURCHASES",
-      "BILL_SETTLEMENT",
       "STOCK_REMOVALS",
     ],
   },
   {
     id: "finance",
     label: "Finance",
-    description: "Bank accounts and transactions",
-    codes: ["BANKS", "BANK_TRANSACTIONS"],
+    description: "Banking, receivables, and payables",
+    codes: ["BANKS", "BANK_TRANSACTIONS", "CUSTOMER_RECEIVABLES", "BILL_SETTLEMENT"],
   },
   {
     id: "expenses",
@@ -71,8 +70,8 @@ const PERMISSION_GROUPS: Array<{
   },
   {
     id: "administration",
-    label: "Administration",
-    description: "Roles and user management",
+    label: "Users Management",
+    description: "User roles and management",
     codes: ["ROLES", "USERS"],
   },
   {
@@ -114,3 +113,17 @@ export function buildGroupedMenus<T extends MenuGroupable>(menus: T[]): MenuGrou
 
   return groups;
 }
+
+/** Icon keys for collapsed sidebar group triggers (lucide map in menu-icons). */
+export const SIDEBAR_GROUP_ICONS: Record<string, string> = {
+  menuSales: "utensils-crossed",
+  pos: "scan-line",
+  inventory: "package",
+  finance: "landmark",
+  expenses: "wallet",
+  assets: "armchair",
+  reports: "chart-column",
+  administration: "users",
+  platform: "store",
+  other: "layout-grid",
+};

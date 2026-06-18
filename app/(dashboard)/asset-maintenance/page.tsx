@@ -15,6 +15,7 @@ import { CardListSkeleton } from "@/src/components/skeletons/card-list-skeleton"
 import { PaginationSkeleton } from "@/src/components/skeletons/pagination-skeleton";
 import { TableSkeleton } from "@/src/components/skeletons/table-skeleton";
 import { Button } from "@/src/components/ui/button";
+import { Badge } from "@/src/components/ui/badge";
 import { Card } from "@/src/components/ui/card";
 import { DatePicker } from "@/src/components/ui/date-picker";
 import { Field } from "@/src/components/ui/field";
@@ -44,6 +45,7 @@ const emptyForm = {
   maintenanceCost: "",
   description: "",
   remarks: "",
+  recordAsExpense: true,
 };
 
 export default function AssetMaintenancePage() {
@@ -152,6 +154,7 @@ function AssetMaintenanceContent() {
       maintenanceCost: row.maintenanceCost,
       description: row.description ?? "",
       remarks: row.remarks ?? "",
+      recordAsExpense: row.recordAsExpense,
     });
     setOpen(true);
   };
@@ -170,6 +173,7 @@ function AssetMaintenanceContent() {
       appToast.error("Enter a valid maintenance cost");
       return;
     }
+    const recordAsExpense = cost.amount > 0 ? form.recordAsExpense : false;
     try {
       const payload = {
         assetId: form.assetId,
@@ -177,6 +181,7 @@ function AssetMaintenanceContent() {
         maintenanceCost: cost.amount,
         description: form.description.trim() || undefined,
         remarks: form.remarks.trim() || undefined,
+        recordAsExpense,
       };
       if (edit) {
         await operationsApi.assetMaintenance.update(edit.id, payload);
@@ -208,6 +213,8 @@ function AssetMaintenanceContent() {
   };
 
   const canAdd = assetOptions.length > 0;
+  const parsedFormCost = parseMoneyInput(form.maintenanceCost);
+  const canRecordAsExpense = !parsedFormCost.invalid && parsedFormCost.amount > 0;
 
   return (
     <>
@@ -334,7 +341,12 @@ function AssetMaintenanceContent() {
                     ? `${item.assetCode} — ${item.assetName}`
                     : undefined
                 }
-                fields={[{ label: "Cost", value: formatMoney(item.maintenanceCost) }]}
+                fields={[
+                  { label: "Cost", value: formatMoney(item.maintenanceCost) },
+                  ...(item.expenseEntryId
+                    ? [{ label: "Expense", value: "Recorded" as const }]
+                    : []),
+                ]}
                 actions={
                   <RowActions
                     showLabels
@@ -392,7 +404,16 @@ function AssetMaintenanceContent() {
                     : "—"}
                 </td>
                 <td className="px-4 py-3.5 text-sm">{item.description?.trim() || "—"}</td>
-                <td className="px-4 py-3.5 text-sm tabular-nums">{formatMoney(item.maintenanceCost)}</td>
+                <td className="px-4 py-3.5 text-sm tabular-nums">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span>{formatMoney(item.maintenanceCost)}</span>
+                    {item.expenseEntryId ? (
+                      <Badge variant="success" size="sm">
+                        Expense recorded
+                      </Badge>
+                    ) : null}
+                  </div>
+                </td>
                 <td className="px-4 py-3.5 text-sm">{item.createdBy?.name ?? "—"}</td>
                 <td className="px-4 py-3.5">
                   <div className={tableActionsCellClass}>
@@ -435,6 +456,26 @@ function AssetMaintenanceContent() {
               value={form.maintenanceCost}
               onValueChange={(maintenanceCost) => setForm({ ...form, maintenanceCost })}
             />
+          </Field>
+          <Field
+            id="maintenance-record-expense"
+            label="Expense"
+            hint={
+              canRecordAsExpense
+                ? "Creates a matching entry under Daily expenses."
+                : "Enter a cost above zero to record as an expense."
+            }
+          >
+            <label className="flex items-center gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                checked={form.recordAsExpense}
+                disabled={!canRecordAsExpense}
+                onChange={(e) => setForm({ ...form, recordAsExpense: e.target.checked })}
+                className="size-4 rounded border-[var(--color-border)] disabled:opacity-50"
+              />
+              Record as expense
+            </label>
           </Field>
           <Field id="maintenance-description" label="Description">
             <Input

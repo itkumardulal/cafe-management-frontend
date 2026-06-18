@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   Banknote,
   HandCoins,
-  Percent,
   ShoppingBag,
   TrendingUp,
   Truck,
@@ -26,6 +25,14 @@ type KpiCardConfig = {
   chip: string;
   href?: string;
 };
+
+function KpiCardGrid({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="grid w-full min-w-0 auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 [&>*]:h-full [&>*]:min-w-0">
+      {children}
+    </div>
+  );
+}
 
 function SectionHeader({ title, badge }: { title: string; badge: string }) {
   return (
@@ -53,6 +60,16 @@ export function AnalyticsKpiGrid({
   }
 
   const periodCards: Array<KpiCardConfig | null> = [
+    kpis.totalOrders
+      ? {
+          title: "Orders volume",
+          value: String(kpis.totalOrders.value),
+          trend: kpis.totalOrders,
+          icon: Wallet,
+          chip: "tone-warning-surface tone-warning-text",
+          href: reportHref("/reports/sales", periodParams),
+        }
+      : null,
     kpis.totalSales
       ? {
           title: "Total sales",
@@ -63,44 +80,36 @@ export function AnalyticsKpiGrid({
           href: reportHref("/reports/sales", periodParams),
         }
       : null,
-    kpis.netProfit
+    kpis.grossProfit
       ? {
-          title: "Net profit",
-          value: formatMoney(String(kpis.netProfit.value)),
-          trend: kpis.netProfit,
+          title: "Gross profit",
+          value: formatMoney(String(kpis.grossProfit.value)),
+          trend: kpis.grossProfit,
           icon: TrendingUp,
           chip: "bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300",
           href: reportHref("/reports/profit", periodParams),
         }
       : null,
-    kpis.totalOrders
+    kpis.cashAtHand
       ? {
-          title: "Total orders",
-          value: String(kpis.totalOrders.value),
-          trend: kpis.totalOrders,
-          icon: Wallet,
-          chip: "tone-warning-surface tone-warning-text",
-          href: reportHref("/reports/sales", periodParams),
-        }
-      : null,
-    kpis.averageOrderValue
-      ? {
-          title: "Average order value",
-          value: formatMoney(String(kpis.averageOrderValue.value)),
-          trend: kpis.averageOrderValue,
-          icon: TrendingUp,
-          chip: "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300",
-          href: reportHref("/reports/sales", periodParams),
-        }
-      : null,
-    kpis.discountImpact
-      ? {
-          title: "Discount impact",
-          value: formatMoney(kpis.discountImpact.value),
-          subtitle: kpis.discountImpact.subtitle,
-          icon: Percent,
+          title: "Cash at hand",
+          value: formatMoney(String(kpis.cashAtHand.value)),
+          subtitle: "POS cash receipts",
+          trend: kpis.cashAtHand,
+          icon: HandCoins,
           chip: "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200",
-          href: reportHref("/reports/discounts", periodParams),
+          href: reportHref("/reports/sales", periodParams),
+        }
+      : null,
+    kpis.cashAtBank
+      ? {
+          title: "Cash at bank",
+          value: formatMoney(String(kpis.cashAtBank.value)),
+          subtitle: "POS non-cash receipts",
+          trend: kpis.cashAtBank,
+          icon: Banknote,
+          chip: "bg-teal-50 text-teal-800 dark:bg-teal-950/40 dark:text-teal-200",
+          href: reportHref("/reports/sales", periodParams),
         }
       : null,
   ];
@@ -114,6 +123,7 @@ export function AnalyticsKpiGrid({
       ? {
           title: "Customer receivables",
           value: formatMoney(kpis.customerReceivablesOutstanding.value),
+          subtitle: "Outstanding balance",
           live: kpis.customerReceivablesOutstanding,
           icon: HandCoins,
           chip: "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300",
@@ -124,6 +134,7 @@ export function AnalyticsKpiGrid({
       ? {
           title: "Supplier payables",
           value: formatMoney(kpis.supplierPayablesOutstanding.value),
+          subtitle: "Outstanding balance",
           live: kpis.supplierPayablesOutstanding,
           icon: Truck,
           chip: "bg-orange-50 text-orange-900 dark:bg-orange-950/40 dark:text-orange-300",
@@ -148,12 +159,12 @@ export function AnalyticsKpiGrid({
       : null,
     kpis.bankBalanceSnapshot
       ? {
-          title: "Bank & cash balance",
+          title: "Bank Balance",
           value: formatMoney(kpis.bankBalanceSnapshot.value),
-          subtitle: `${kpis.bankBalanceSnapshot.activeAccountCount} active accounts`,
+          subtitle: `${kpis.bankBalanceSnapshot.activeAccountCount} active accounts (ledger)`,
           live: kpis.bankBalanceSnapshot,
           icon: Banknote,
-          chip: "bg-teal-50 text-teal-800 dark:bg-teal-950/40 dark:text-teal-200",
+          chip: "bg-slate-50 text-slate-800 dark:bg-slate-950/40 dark:text-slate-200",
           href: "/banks",
         }
       : null,
@@ -181,15 +192,11 @@ export function AnalyticsKpiGrid({
     <div className="min-w-0 w-full max-w-full space-y-5">
       <div className="min-w-0 space-y-3">
         <SectionHeader title="Period performance" badge="Period" />
-        <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
-          {renderCards(periodCards, 0)}
-        </div>
+        <KpiCardGrid>{renderCards(periodCards, 0)}</KpiCardGrid>
       </div>
       <div className="min-w-0 space-y-3">
         <SectionHeader title="Live balances" badge="Live" />
-        <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
-          {renderCards(liveCards, periodCards.filter(Boolean).length)}
-        </div>
+        <KpiCardGrid>{renderCards(liveCards, periodCards.filter(Boolean).length)}</KpiCardGrid>
       </div>
     </div>
   );

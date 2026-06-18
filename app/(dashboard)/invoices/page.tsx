@@ -114,6 +114,10 @@ function InvoicesContent() {
                 setViewSale(updated);
                 setSalesRefresh((n) => n + 1);
               }}
+              onNavigateAway={() => {
+                setViewOpen(false);
+                setViewSale(null);
+              }}
             />
           ) : null}
           <div className="flex flex-wrap justify-end gap-2 border-t border-[var(--color-border)] pt-4">

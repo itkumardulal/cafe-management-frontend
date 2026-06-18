@@ -365,7 +365,7 @@ export function CustomerReceivableDetailView({
           >
             <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
               <HandCoins className="h-4 w-4" />
-              Record payment (FIFO)
+              Collect payment (FIFO)
             </h2>
 
             <div className="mb-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-cream-50)] px-3 py-2.5">
@@ -547,7 +547,7 @@ export function CustomerReceivableDetailView({
                   ?.scrollIntoView({ behavior: "smooth", block: "start" })
               }
             >
-              Record payment
+              Collect payment
             </Button>
           </div>
         </div>

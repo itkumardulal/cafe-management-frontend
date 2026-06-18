@@ -72,6 +72,8 @@ export default function UsersPage() {
   });
 
   const staffRoleId = watch("staffRoleId");
+  const selectedRole = roleOptions.find((role) => role.id === staffRoleId);
+  const selectedRoleHasNoPermissions = Boolean(selectedRole && selectedRole.menuCount === 0);
   const hasRoles = roleOptions.length > 0;
 
   const loadRoleOptions = async () => {
@@ -118,6 +120,11 @@ export default function UsersPage() {
   };
 
   const onSubmit = async (values: StaffSchemaType) => {
+    const selected = roleOptions.find((role) => role.id === values.staffRoleId);
+    if (selected && selected.menuCount === 0) {
+      appToast.error("Selected role has no permissions. Configure role permissions first.");
+      return;
+    }
     setCreating(true);
     const payload = {
       fullName: values.fullName,
@@ -280,12 +287,17 @@ export default function UsersPage() {
                 </option>
               ))}
             </Select>
+            {selectedRoleHasNoPermissions ? (
+              <p className="mt-1 text-xs text-[var(--color-danger)]">
+                This role currently has no app access. Please assign permissions in User Roles first.
+              </p>
+            ) : null}
           </Field>
           <FormFooter>
             <Button type="button" variant="secondary" onClick={closeAddModal} disabled={creating}>
               Cancel
             </Button>
-            <Button type="submit" loading={creating}>
+            <Button type="submit" loading={creating} disabled={selectedRoleHasNoPermissions}>
               Add user
             </Button>
           </FormFooter>

@@ -28,7 +28,10 @@ import {
   TableStatusCards,
 } from "@/src/features/analytics/components/widgets/analytics-widgets";
 import { useAnalyticsPeriod } from "@/src/features/analytics/hooks/use-analytics-period";
-import { analyticsCacheKey } from "@/src/features/analytics/types/analytics.types";
+import {
+  ANALYTICS_DEFAULT_PERIOD,
+  analyticsCacheKey,
+} from "@/src/features/analytics/types/analytics.types";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
 import {
   fetchAnalyticsOverviewForceThunk,
@@ -48,7 +51,7 @@ export function CafeAnalyticsDashboard() {
   const { cache, status, error } = useAppSelector((state) => state.analytics);
   const [assetsSummary, setAssetsSummary] = useState<AssetsSummary | null>(null);
 
-  const cacheKey = analyticsCacheKey(effectivePeriodParams ?? { period: "this_month" });
+  const cacheKey = analyticsCacheKey(effectivePeriodParams ?? { period: ANALYTICS_DEFAULT_PERIOD });
   const overview = cache[cacheKey]?.overview;
   const loading = status === "loading" && !overview;
 
@@ -131,12 +134,17 @@ export function CafeAnalyticsDashboard() {
         <StaffTodaySummary data={widgets.staffTodaySummary} />
       ) : null}
 
-      <AnalyticsKpiGrid overview={overview} periodParams={effectivePeriodParams ?? { period: "this_month" }} />
+      <AnalyticsKpiGrid
+        overview={overview}
+        periodParams={effectivePeriodParams ?? { period: ANALYTICS_DEFAULT_PERIOD }}
+      />
 
       {visibility.financials && charts.salesTrend ? (
         <div className="grid w-full min-w-0 grid-cols-1 gap-4 lg:grid-cols-2 [&>*]:min-w-0">
           <SalesTrendChart data={charts.salesTrend} />
-          {charts.profitExpense ? <ProfitExpenseChart data={charts.profitExpense} /> : null}
+          {charts.profitExpense ? (
+            <ProfitExpenseChart data={charts.profitExpense} period={effectivePeriodParams?.period} />
+          ) : null}
         </div>
       ) : null}
 
@@ -176,7 +184,7 @@ export function CafeAnalyticsDashboard() {
         <h2 className="text-sm font-semibold text-foreground">Activity</h2>
         <ActivityFeedWidget
           data={widgets.activityFeed}
-          periodParams={effectivePeriodParams ?? { period: "this_month" }}
+          periodParams={effectivePeriodParams ?? { period: ANALYTICS_DEFAULT_PERIOD }}
         />
       </div>
     </section>

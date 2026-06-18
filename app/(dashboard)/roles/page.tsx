@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { ShieldUser } from "lucide-react";
+import { KeyRound, ShieldUser, SquarePen, Trash2 } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { FormFooter } from "@/src/components/shared/form-footer";
@@ -9,7 +9,6 @@ import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
 import { MobileSortSelect } from "@/src/components/shared/mobile-sort-select";
 import { PageHeader } from "@/src/components/shared/page-header";
 import { PaginatedListSection } from "@/src/components/shared/paginated-list-section";
-import { RowActions } from "@/src/components/shared/row-actions";
 import { TableSkeleton } from "@/src/components/skeletons/table-skeleton";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -66,8 +65,12 @@ function StaffRolesContent() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<StaffRoleRow | null>(null);
   const [saving, setSaving] = useState(false);
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
+  const [permissionsRole, setPermissionsRole] = useState<StaffRoleRow | null>(null);
+  const [permissionCodes, setPermissionCodes] = useState<string[]>([]);
+  const [savingPermissions, setSavingPermissions] = useState(false);
   const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
-  const [pendingValues, setPendingValues] = useState<StaffRoleSchemaType | null>(null);
+  const [pendingPermissionCodes, setPendingPermissionCodes] = useState<string[] | null>(null);
   const [menusChanged, setMenusChanged] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<StaffRoleRow | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -76,8 +79,6 @@ function StaffRolesContent() {
     register,
     handleSubmit,
     reset,
-    watch,
-    setValue,
     formState: { errors },
   } = useForm<StaffRoleSchemaType>({
     resolver: zodResolver(staffRoleSchema),
@@ -87,8 +88,6 @@ function StaffRolesContent() {
       accessMenuCodes: [],
     },
   });
-
-  const accessMenuCodes = watch("accessMenuCodes") ?? [];
 
   useEffect(() => {
     if (authUser?.role === "CAFE_ADMIN") {
@@ -139,13 +138,11 @@ function StaffRolesContent() {
 
   const openEdit = (role: StaffRoleRow) => {
     setEditing(role);
-    const codes = role.menuAccess.map((a) => a.menu.code);
     reset({
       name: role.name,
       description: role.description ?? "",
-      accessMenuCodes: normalizePermissionCodes(codes),
+      accessMenuCodes: [],
     });
-    setMenusChanged(false);
     setModalOpen(true);
   };
 
@@ -154,7 +151,6 @@ function StaffRolesContent() {
     const payload = {
       name: values.name.trim(),
       description: values.description?.trim() || undefined,
-      accessMenuCodes: normalizePermissionCodes(values.accessMenuCodes ?? []),
     };
 
     try {
@@ -172,17 +168,59 @@ function StaffRolesContent() {
     } finally {
       setSaving(false);
       setConfirmSaveOpen(false);
-      setPendingValues(null);
+      setPendingPermissionCodes(null);
     }
   };
 
   const onSubmit = (values: StaffRoleSchemaType) => {
-    if (editing && menusChanged && editing.staffCount > 0) {
-      setPendingValues(values);
+    void submitRole(values);
+  };
+
+  const openPermissions = (role: StaffRoleRow) => {
+    setPermissionsRole(role);
+    setPermissionCodes(normalizePermissionCodes(role.menuAccess.map((a) => a.menu.code)));
+    setMenusChanged(false);
+    setPermissionsOpen(true);
+  };
+
+  const closePermissions = () => {
+    setPermissionsOpen(false);
+    setPermissionsRole(null);
+    setPermissionCodes([]);
+    setMenusChanged(false);
+  };
+
+  const submitPermissions = async (codes: string[]) => {
+    if (!permissionsRole) {
+      return;
+    }
+    setSavingPermissions(true);
+    try {
+      await operationsApi.staffRoles.update(permissionsRole.id, {
+        accessMenuCodes: normalizePermissionCodes(codes),
+      });
+      appToast.success("Role permissions updated");
+      closePermissions();
+      setRefreshKey((n) => n + 1);
+    } catch (error) {
+      appToast.error(getApiErrorMessage(error, "Failed to update role permissions"));
+    } finally {
+      setSavingPermissions(false);
+      setConfirmSaveOpen(false);
+      setPendingPermissionCodes(null);
+    }
+  };
+
+  const onSavePermissions = () => {
+    if (!permissionsRole) {
+      return;
+    }
+    if (permissionsRole.staffCount > 0 && menusChanged) {
+      setPendingPermissionCodes(permissionCodes);
       setConfirmSaveOpen(true);
       return;
     }
-    void submitRole(values);
+    void submitPermissions(permissionCodes);
   };
 
   const requestDelete = async (role: StaffRoleRow) => {
@@ -242,9 +280,9 @@ function StaffRolesContent() {
         searchPlaceholder={searchPlaceholder}
         isSearching={isSearching}
         searchResultSummary={searchResultSummary}
-        tableColumns={4}
+        tableColumns={5}
         emptyTitle="No staff roles yet"
-        emptyDescription="Create your first staff role to assign access when adding team members."
+        emptyDescription="Create your first staff role, then set permissions from the Permissions action."
         emptyIcon={ShieldUser}
         emptyAction={{ label: "Add role", onClick: openCreate }}
         onClearFilters={() => {
@@ -282,14 +320,40 @@ function StaffRolesContent() {
                     layout: "stack",
                     value: <PermissionChips menuAccess={role.menuAccess} />,
                   },
+                  {
+                    label: "Permission settings",
+                    value: (
+                      <Button type="button" size="sm" variant="secondary" onClick={() => openPermissions(role)}>
+                        <span className="inline-flex items-center gap-1.5">
+                          <KeyRound size={15} strokeWidth={1.75} aria-hidden />
+                          Manage permissions
+                        </span>
+                      </Button>
+                    ),
+                  },
                   { label: "Staff assigned", value: String(role.staffCount) },
                 ]}
                 actions={
-                  <RowActions
-                    showLabels
-                    onEdit={() => openEdit(role)}
-                    onDelete={() => void requestDelete(role)}
-                  />
+                  <div className="flex flex-wrap justify-end gap-1.5">
+                    <Button type="button" size="sm" variant="secondary" onClick={() => openEdit(role)}>
+                      <span className="inline-flex items-center gap-1.5">
+                        <SquarePen size={15} strokeWidth={1.75} aria-hidden />
+                        Edit
+                      </span>
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="border-[var(--color-danger)]/50 text-[var(--color-danger)] hover:border-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 hover:text-[var(--color-danger)]"
+                      onClick={() => void requestDelete(role)}
+                    >
+                      <span className="inline-flex items-center gap-1.5">
+                        <Trash2 size={15} strokeWidth={1.75} aria-hidden />
+                        Delete
+                      </span>
+                    </Button>
+                  </div>
                 }
               />
             ))}
@@ -312,6 +376,7 @@ function StaffRolesContent() {
                 ),
               },
               { label: "Permissions" },
+              { label: "Permission settings", thClassName: tableCenterColumnClass },
               { label: "Staff", thClassName: tableCenterColumnClass },
               { label: "Actions", thClassName: tableActionsColumnClass },
             ]}
@@ -333,17 +398,40 @@ function StaffRolesContent() {
                   <PermissionChips menuAccess={role.menuAccess} />
                 </td>
                 <td className={cn("px-4 py-3.5", tableCenterCellClass)}>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => openPermissions(role)}>
+                    <span className="inline-flex items-center gap-1.5">
+                      <KeyRound size={15} strokeWidth={1.75} aria-hidden />
+                      Manage permissions
+                    </span>
+                  </Button>
+                </td>
+                <td className={cn("px-4 py-3.5", tableCenterCellClass)}>
                   <Badge size="sm" variant="default">
                     {role.staffCount}
                   </Badge>
                 </td>
                 <td className="px-4 py-3.5">
                   <div className={tableActionsCellClass}>
-                    <RowActions
-                      showLabels
-                      onEdit={() => openEdit(role)}
-                      onDelete={() => void requestDelete(role)}
-                    />
+                    <div className="flex flex-wrap justify-end gap-1.5">
+                      <Button type="button" size="sm" variant="secondary" onClick={() => openEdit(role)}>
+                        <span className="inline-flex items-center gap-1.5">
+                          <SquarePen size={15} strokeWidth={1.75} aria-hidden />
+                          Edit
+                        </span>
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="border-[var(--color-danger)]/50 text-[var(--color-danger)] hover:border-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 hover:text-[var(--color-danger)]"
+                        onClick={() => void requestDelete(role)}
+                      >
+                        <span className="inline-flex items-center gap-1.5">
+                          <Trash2 size={15} strokeWidth={1.75} aria-hidden />
+                          Delete
+                        </span>
+                      </Button>
+                    </div>
                   </div>
                 </td>
               </tr>
@@ -391,7 +479,11 @@ function StaffRolesContent() {
       <Modal
         open={modalOpen}
         title={editing ? "Edit staff role" : "Add staff role"}
-        description="Name the role and choose which sidebar areas staff with this role can access."
+        description={
+          editing
+            ? "Update role details. Use Permissions to manage menu access."
+            : "Create a role with name and description. Configure menu access from Permissions after creation."
+        }
         onClose={closeModal}
         size="lg"
       >
@@ -406,22 +498,6 @@ function StaffRolesContent() {
           <Field id="roleDescription" label="Description" error={errors.description?.message}>
             <Input {...register("description")} placeholder="Optional" />
           </Field>
-          <Field
-            id="accessMenuCodes"
-            label="App access"
-            error={errors.accessMenuCodes?.message as string | undefined}
-            required
-          >
-            <PermissionsPicker
-              menus={assignableMenus}
-              value={accessMenuCodes}
-              description="Pick sidebar areas for this role. Dashboard is optional — not every staff member needs analytics access."
-              onChange={(codes) => {
-                setMenusChanged(true);
-                setValue("accessMenuCodes", codes, { shouldDirty: true, shouldValidate: true });
-              }}
-            />
-          </Field>
           <FormFooter>
             <Button type="button" variant="secondary" onClick={closeModal} disabled={saving}>
               Cancel
@@ -434,16 +510,49 @@ function StaffRolesContent() {
       </Modal>
 
       <Modal
+        open={permissionsOpen}
+        title={permissionsRole ? `Permissions · ${permissionsRole.name}` : "Role permissions"}
+        description="Select which sidebar menus this role can access."
+        onClose={closePermissions}
+        size="lg"
+      >
+        <div className="form-fields">
+          <PermissionsPicker
+            menus={assignableMenus}
+            value={permissionCodes}
+            description="Assign access by menu group. New roles start with no access until configured."
+            onChange={(codes) => {
+              setMenusChanged(true);
+              setPermissionCodes(codes);
+            }}
+          />
+          <FormFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={closePermissions}
+              disabled={savingPermissions}
+            >
+              Cancel
+            </Button>
+            <Button type="button" loading={savingPermissions} onClick={onSavePermissions}>
+              Save permissions
+            </Button>
+          </FormFooter>
+        </div>
+      </Modal>
+
+      <Modal
         open={confirmSaveOpen}
         title="Update role permissions?"
         description={
-          editing
-            ? `Updating this role will immediately change sidebar access for ${editing.staffCount} staff member${editing.staffCount === 1 ? "" : "s"}. Continue?`
+          permissionsRole
+            ? `Updating this role will immediately change sidebar access for ${permissionsRole.staffCount} staff member${permissionsRole.staffCount === 1 ? "" : "s"}. Continue?`
             : undefined
         }
         onClose={() => {
           setConfirmSaveOpen(false);
-          setPendingValues(null);
+          setPendingPermissionCodes(null);
         }}
         size="md"
       >
@@ -453,15 +562,15 @@ function StaffRolesContent() {
             variant="secondary"
             onClick={() => {
               setConfirmSaveOpen(false);
-              setPendingValues(null);
+              setPendingPermissionCodes(null);
             }}
           >
             Cancel
           </Button>
           <Button
             type="button"
-            loading={saving}
-            onClick={() => pendingValues && void submitRole(pendingValues)}
+            loading={savingPermissions}
+            onClick={() => pendingPermissionCodes && void submitPermissions(pendingPermissionCodes)}
           >
             Update role
           </Button>

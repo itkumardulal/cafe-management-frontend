@@ -1,12 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, Coffee, LogOut } from "lucide-react";
+import { ChevronLeft, LayoutDashboard, LogOut } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { Modal } from "@/src/components/ui/modal";
 import { cn } from "@/src/lib/cn";
+import { canAccessDashboard } from "@/src/lib/dashboard-access";
 import { canAccessStockAlerts } from "@/src/lib/stock-alerts-access";
 import { logoutThunk } from "@/src/store/slices/auth.slice";
 import { fetchStockAlertsThunk } from "@/src/store/slices/dashboard.slice";
@@ -42,6 +44,28 @@ export function Sidebar({ collapsed = false, onToggle, className }: SidebarProps
     () => canAccessStockAlerts(user?.role, menus),
     [menus, user?.role],
   );
+
+  const showDashboardLink = useMemo(() => {
+    if (!user?.role) {
+      return false;
+    }
+    if (user.role === "STAFF" && !menusInitialized) {
+      return false;
+    }
+    return canAccessDashboard(user.role, menus);
+  }, [menus, menusInitialized, user?.role]);
+
+  const showDashboardDenied = useMemo(() => {
+    if (!user?.role) {
+      return false;
+    }
+    if (user.role === "STAFF" && !menusInitialized) {
+      return false;
+    }
+    return !canAccessDashboard(user.role, menus);
+  }, [menus, menusInitialized, user?.role]);
+
+  const dashboardActive = pathname === "/dashboard";
 
   useEffect(() => {
     if (!user?.role || user.role === "SUPER_ADMIN") {
@@ -86,16 +110,52 @@ export function Sidebar({ collapsed = false, onToggle, className }: SidebarProps
       )}
     >
       <div className="mb-3 flex shrink-0 items-center justify-between gap-2 px-2 pt-2">
-        <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-          <div className="shrink-0 rounded-lg bg-[var(--color-primary-soft)] p-2 text-[var(--color-primary)]">
-            <Coffee size={16} />
-          </div>
-          {!collapsed ? (
-            <h2 className="truncate text-base font-semibold text-[var(--color-foreground)]">
-              Cafe System
-            </h2>
-          ) : null}
-        </div>
+        {showDashboardLink ? (
+          <Link
+            href="/dashboard"
+            className={cn(
+              "sidebar-nav-link touch-target min-w-0 flex-1",
+              collapsed ? "min-h-11 justify-center px-3 py-2.5" : "px-2 py-2",
+              dashboardActive && "sidebar-nav-link-active",
+              dashboardActive &&
+                collapsed &&
+                "ring-1 ring-[color-mix(in_srgb,var(--color-primary)_22%,transparent)]",
+            )}
+            title="Dashboard"
+            aria-current={dashboardActive ? "page" : undefined}
+          >
+            <LayoutDashboard size={16} className="sidebar-nav-icon shrink-0 opacity-70" aria-hidden />
+            {!collapsed ? (
+              <span className="truncate text-sm font-semibold">Dashboard</span>
+            ) : null}
+          </Link>
+        ) : showDashboardDenied ? (
+          <Card
+            density="compact"
+            title={collapsed ? "You cannot view the dashboard." : undefined}
+            className={cn(
+              "min-w-0 flex-1 border-[var(--color-border)] bg-[var(--color-surface-muted)]/50 shadow-none",
+              collapsed ? "flex min-h-11 items-center justify-center px-2 py-2" : "px-2.5 py-2",
+            )}
+          >
+            {collapsed ? (
+              <>
+                <LayoutDashboard
+                  size={16}
+                  className="shrink-0 text-[var(--color-muted)] opacity-50"
+                  aria-hidden
+                />
+                <span className="sr-only">You cannot view the dashboard.</span>
+              </>
+            ) : (
+              <p className="text-xs leading-snug text-[var(--color-muted)]">
+                You cannot view the dashboard.
+              </p>
+            )}
+          </Card>
+        ) : (
+          <div className="flex-1" aria-hidden />
+        )}
         {onToggle ? (
           <button
             type="button"

@@ -28,8 +28,12 @@ import { useChartLayout } from "@/src/features/analytics/hooks/use-chart-layout"
 import {
   type ChartGranularity,
   rebucketProfitExpense,
-  rebucketSalesTrendPoints,
 } from "@/src/features/analytics/lib/rebucket-time-series";
+import {
+  resolveChartGranularity,
+  resolveChartGranularityOptions,
+} from "@/src/features/analytics/lib/chart-granularity-by-period";
+import type { ReportPeriodKey } from "@/src/features/reports/types/reports.types";
 
 function ChartCard({
   title,
@@ -158,16 +162,16 @@ export function SalesTrendChart({
 }: {
   data: NonNullable<AnalyticsOverview["charts"]["salesTrend"]>;
 }) {
-  const [granularity, setGranularity] = useState<ChartGranularity>("day");
   const { chartMargin, yAxisWidth } = useChartLayout();
 
-  const points = useMemo(() => {
-    const rebucketed = rebucketSalesTrendPoints(data.points, granularity);
-    return rebucketed.map((p) => ({
+  const points = useMemo(
+    () =>
+      data.points.map((p) => ({
       ...p,
       sales: Number(p.totalSales),
-    }));
-  }, [data.points, granularity]);
+      })),
+    [data.points],
+  );
 
   const isEmpty = points.length === 0 || points.every((p) => p.sales === 0 && p.orderCount === 0);
 
@@ -177,10 +181,9 @@ export function SalesTrendChart({
       className="lg:col-span-2"
       isEmpty={isEmpty}
       emptyMessage="No sales in this period"
-      headerAction={<ChartGranularityToggle value={granularity} onChange={setGranularity} />}
     >
       <AnalyticsChartViewport>
-        <LineChart data={points} margin={chartMargin}>
+        <BarChart data={points} margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
           <XAxis dataKey="date" tick={chartAxisStyle} tickFormatter={(v) => v.slice(5)} />
           <YAxis tick={chartAxisStyle} tickFormatter={(v) => formatMoney(String(v))} width={yAxisWidth} />
@@ -189,8 +192,8 @@ export function SalesTrendChart({
             formatter={(value) => [formatMoney(String(value ?? 0)), "Sales"]}
             labelFormatter={(label) => `Date: ${label}`}
           />
-          <Line type="monotone" dataKey="sales" stroke={CHART_COLORS[0]} strokeWidth={2} dot={false} name="Sales" />
-        </LineChart>
+          <Bar dataKey="sales" name="Sales" fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} />
+        </BarChart>
       </AnalyticsChartViewport>
     </ChartCard>
   );
@@ -198,21 +201,28 @@ export function SalesTrendChart({
 
 export function ProfitExpenseChart({
   data,
+  period,
 }: {
   data: NonNullable<AnalyticsOverview["charts"]["profitExpense"]>;
+  period?: ReportPeriodKey;
 }) {
-  const [granularity, setGranularity] = useState<ChartGranularity>("day");
+  const granularityOptions = resolveChartGranularityOptions(period);
+  const [granularity, setGranularity] = useState<ChartGranularity>(
+    () => resolveChartGranularity(period, granularityOptions[0] ?? "day"),
+  );
   const { chartMargin, yAxisWidth } = useChartLayout();
 
+  const effectiveGranularity = resolveChartGranularity(period, granularity);
+
   const buckets = useMemo(() => {
-    const rebucketed = rebucketProfitExpense(data.buckets, granularity);
+    const rebucketed = rebucketProfitExpense(data.buckets, effectiveGranularity);
     return rebucketed.map((b) => ({
       ...b,
       revenueNum: Number(b.revenue),
       expensesNum: Number(b.expenses),
       netProfitNum: Number(b.netProfit),
     }));
-  }, [data.buckets, granularity]);
+  }, [data.buckets, effectiveGranularity]);
 
   const isEmpty =
     buckets.length === 0 ||
@@ -223,7 +233,13 @@ export function ProfitExpenseChart({
       title="Profit vs expense"
       isEmpty={isEmpty}
       emptyMessage="No profit or expense data in this period"
-      headerAction={<ChartGranularityToggle value={granularity} onChange={setGranularity} />}
+      headerAction={
+        <ChartGranularityToggle
+          value={effectiveGranularity}
+          onChange={setGranularity}
+          options={granularityOptions}
+        />
+      }
       footnote="Net profit = revenue − COGS − operating expenses"
     >
       <AnalyticsChartViewport>

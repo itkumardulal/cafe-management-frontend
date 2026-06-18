@@ -53,7 +53,6 @@ import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
 import {
-  fetchDiningTableOptionsThunk,
   fetchSellableCatalogThunk,
 } from "@/src/store/slices/reference-data.slice";
 
@@ -277,12 +276,9 @@ function PosPageContent() {
   const catalog = useAppSelector((state) => state.referenceData.sellableCatalog) as CatalogItem[];
   const sellableCatalogStatus = useAppSelector((state) => state.referenceData.sellableCatalogStatus);
   const catalogLoading = sellableCatalogStatus === "loading" && catalog.length === 0;
-  const tableOptions = useAppSelector((state) => state.referenceData.diningTableOptions);
-  const diningTableOptionsStatus = useAppSelector(
-    (state) => state.referenceData.diningTableOptionsStatus,
-  );
-  const tablesLoading = diningTableOptionsStatus === "loading" && tableOptions.length === 0;
-  const tablesError = diningTableOptionsStatus === "error";
+  const [posTableOptions, setPosTableOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [tablesLoading, setTablesLoading] = useState(false);
+  const [tablesError, setTablesError] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [search, setSearch] = useState("");
 
@@ -312,6 +308,7 @@ function PosPageContent() {
   const [viewOpen, setViewOpen] = useState(false);
   const [viewSale, setViewSale] = useState<PosSaleReceiptData | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
+  const [bankQrOpen, setBankQrOpen] = useState(false);
   const [autoPrintReceipt, setAutoPrintReceipt] = useState(false);
   const [successSale, setSuccessSale] = useState<{ id: string; receiptNo: string } | null>(null);
   const [customerOpen, setCustomerOpen] = useState(false);
@@ -341,6 +338,24 @@ function PosPageContent() {
       })
       .catch(() => setBankAccounts([]));
   }, []);
+
+  const loadPosTableOptions = useCallback(async () => {
+    if (billingFromSession) return;
+    setTablesError(false);
+    setTablesLoading(true);
+    try {
+      const items = await operationsApi.diningTables.options({ excludeOccupied: true });
+      setPosTableOptions(items);
+      if (tableId && !items.some((t) => t.id === tableId)) {
+        setTableId("");
+        appToast.error("Table is no longer available");
+      }
+    } catch {
+      setTablesError(true);
+    } finally {
+      setTablesLoading(false);
+    }
+  }, [billingFromSession, tableId]);
 
   const { printDocument, isPrinting, requestPrint, printLoaded } =
     useThermalPrint<PosSaleReceiptData>({
@@ -483,15 +498,13 @@ function PosPageContent() {
     if (sellableCatalogStatus === "idle") {
       void dispatch(fetchSellableCatalogThunk());
     }
-    if (!billingFromSession && diningTableOptionsStatus === "idle") {
-      void dispatch(fetchDiningTableOptionsThunk());
-    }
-  }, [
-    billingFromSession,
-    dispatch,
-    diningTableOptionsStatus,
-    sellableCatalogStatus,
-  ]);
+  }, [dispatch, sellableCatalogStatus]);
+
+  useEffect(() => {
+    void loadPosTableOptions();
+    const id = setInterval(() => void loadPosTableOptions(), 30_000);
+    return () => clearInterval(id);
+  }, [loadPosTableOptions]);
 
   const hydrateFromBillingHandoff = useCallback(async (sessionId: string) => {
     setBillingLoading(true);
@@ -596,9 +609,13 @@ function PosPageContent() {
 
     const name = customerName.trim();
     const phone = normalizePhone(customerPhone);
+    const email = customerEmail.trim();
     const address = customerAddress.trim();
 
     if (phone && !name) return "Customer name is required when phone is provided";
+    if (phone && !/^9\d{9}$/.test(phone)) {
+      return "Phone number must be 10 digits and start with 9";
+    }
 
     if (serviceType === "DELIVERY") {
       if (!name || !phone || !address) {
@@ -612,6 +629,9 @@ function PosPageContent() {
     ) {
       if (!phone || !name || !address) {
         return "Credit sales require customer name, phone, and address";
+      }
+      if (!email) {
+        return "Email is required for credit and partial payment sales";
       }
     }
 
@@ -744,7 +764,7 @@ function PosPageContent() {
   return (
     <section
       className={cn(
-        "page-shell safe-bottom flex flex-col pb-24 lg:pb-0",
+        "page-shell safe-bottom flex flex-col pb-24 lg:h-full lg:min-h-0 lg:overflow-hidden lg:pb-0",
         cart.length > 0 && "max-lg:pb-36",
       )}
     >
@@ -826,7 +846,7 @@ function PosPageContent() {
         </div>
       </div>
 
-      <div className="flex h-[calc(100dvh-7.25rem)] min-h-0 shrink-0 flex-col overflow-hidden lg:h-[calc(100dvh-7.5rem)]">
+      <div className="flex min-h-0 flex-1 shrink-0 flex-col overflow-hidden">
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,26rem)] xl:grid-cols-[minmax(0,1fr)_minmax(24rem,28rem)]">
           {/* Menu — toolbar fixed, catalog scrolls */}
           <div className={cn(menuPanelShell, "flex min-h-0 flex-col")}>
@@ -910,7 +930,7 @@ function PosPageContent() {
                           className={segmentClass(serviceType === "DINE_IN")}
                           onClick={() => {
                             setServiceType("DINE_IN");
-                            void dispatch(fetchDiningTableOptionsThunk({ force: true }));
+                            void loadPosTableOptions();
                           }}
                         >
                           <UtensilsCrossed className="h-4 w-4" />
@@ -940,7 +960,7 @@ function PosPageContent() {
                           <p className="rounded-md border border-[var(--color-border)] bg-[var(--color-cream-50)] px-2.5 py-2 text-sm font-medium">
                             {sessionTableNames.length > 0
                               ? sessionTableNames.join(", ")
-                              : tableOptions.find((t) => t.id === tableId)?.name ?? "—"}
+                              : posTableOptions.find((t) => t.id === tableId)?.name ?? "—"}
                           </p>
                         )
                       ) : tablesLoading ? (
@@ -951,12 +971,12 @@ function PosPageContent() {
                           <button
                             type="button"
                             className="text-xs font-medium text-[var(--color-primary)] underline-offset-2 hover:underline"
-                            onClick={() => void dispatch(fetchDiningTableOptionsThunk({ force: true }))}
+                            onClick={() => void loadPosTableOptions()}
                           >
                             Try again
                           </button>
                         </div>
-                      ) : tableOptions.length === 0 ? (
+                      ) : posTableOptions.length === 0 ? (
                         <p className="text-xs tone-warning-text">
                           No tables set up. Ask a manager to add tables in the Tables menu.
                         </p>
@@ -967,7 +987,7 @@ function PosPageContent() {
                           onChange={(e) => setTableId(e.target.value)}
                         >
                           <option value="">Select table</option>
-                          {tableOptions.map((t) => (
+                          {posTableOptions.map((t) => (
                             <option key={t.id} value={t.id}>
                               {t.name}
                             </option>
@@ -1224,6 +1244,7 @@ function PosPageContent() {
                   bankAccountId={bankAccountId}
                   onBankAccountIdChange={setBankAccountId}
                   bankAccounts={bankAccounts}
+                  onViewBankQr={() => setBankQrOpen(true)}
                   disabled={submitting || otherChargeResult.invalid || grandTotalPreview <= 0}
                 />
               </section>
@@ -1243,23 +1264,60 @@ function PosPageContent() {
                     />
                     <Input
                       placeholder="Phone number"
+                      inputMode="numeric"
+                      maxLength={10}
                       value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                    />
-                    <Input
-                      type="email"
-                      placeholder="Email (optional)"
-                      value={customerEmail}
-                      onChange={(e) => setCustomerEmail(e.target.value)}
+                      onChange={(e) =>
+                        setCustomerPhone(e.target.value.replace(/\D/g, "").slice(0, 10))
+                      }
+                      onKeyDown={(e) => {
+                        const controlKeys = new Set([
+                          "Backspace",
+                          "Delete",
+                          "Tab",
+                          "ArrowLeft",
+                          "ArrowRight",
+                          "Home",
+                          "End",
+                        ]);
+                        if (controlKeys.has(e.key) || e.ctrlKey || e.metaKey) {
+                          return;
+                        }
+                        if (!/^\d$/.test(e.key)) {
+                          e.preventDefault();
+                          return;
+                        }
+                        if (customerPhone.length >= 10) {
+                          e.preventDefault();
+                        }
+                      }}
+                      onPaste={(e) => {
+                        e.preventDefault();
+                        const pasted = e.clipboardData.getData("text").replace(/\D/g, "");
+                        const next = `${customerPhone}${pasted}`.slice(0, 10);
+                        setCustomerPhone(next);
+                      }}
                     />
                     <Input
                       placeholder={
                         serviceType === "DELIVERY"
                           ? "Delivery address"
-                          : "Address (optional)"
+                          : checkoutPaymentType === "CREDIT" || checkoutPaymentType === "PARTIALLY_PAID"
+                            ? "Address"
+                            : "Address (optional)"
                       }
                       value={customerAddress}
                       onChange={(e) => setCustomerAddress(e.target.value)}
+                    />
+                    <Input
+                      type="email"
+                      placeholder={
+                        checkoutPaymentType === "CREDIT" || checkoutPaymentType === "PARTIALLY_PAID"
+                          ? "Email"
+                          : "Email (optional)"
+                      }
+                      value={customerEmail}
+                      onChange={(e) => setCustomerEmail(e.target.value)}
                     />
                   </div>
                 </CollapsibleBlock>
@@ -1334,6 +1392,24 @@ function PosPageContent() {
       </div>
 
       <Modal
+        open={bankQrOpen}
+        size="md"
+        title="Bank QR image"
+        description={bankAccounts.find((b) => b.id === bankAccountId)?.label ?? "Selected bank account"}
+        onClose={() => setBankQrOpen(false)}
+      >
+        {bankAccounts.find((b) => b.id === bankAccountId)?.qrImageUrl ? (
+          <img
+            src={bankAccounts.find((b) => b.id === bankAccountId)?.qrImageUrl ?? ""}
+            alt="Bank payment QR"
+            className="max-h-[70vh] w-full rounded-lg border border-[var(--color-border)] object-contain bg-[var(--color-surface-muted)]"
+          />
+        ) : (
+          <p className="text-sm text-muted">No QR image available for this bank account.</p>
+        )}
+      </Modal>
+
+      <Modal
         open={viewOpen}
         size="lg"
         title="Sale details"
@@ -1357,6 +1433,10 @@ function PosPageContent() {
               sale={viewSale}
               onSaleUpdated={(updated) => {
                 setViewSale(updated);
+              }}
+              onNavigateAway={() => {
+                setViewOpen(false);
+                setViewSale(null);
               }}
             />
           ) : null}
