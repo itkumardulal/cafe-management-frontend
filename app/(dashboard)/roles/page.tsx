@@ -29,6 +29,7 @@ import { PermissionsPicker } from "@/src/features/users/components/permissions-p
 import { normalizePermissionCodes } from "@/src/features/users/lib/permissions.config";
 import {
   staffRoleSchema,
+  type StaffRoleSchemaInput,
   type StaffRoleSchemaType,
 } from "@/src/features/users/schemas/staff.schema";
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
@@ -80,7 +81,7 @@ function StaffRolesContent() {
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<StaffRoleSchemaType>({
+  } = useForm<StaffRoleSchemaInput, unknown, StaffRoleSchemaType>({
     resolver: zodResolver(staffRoleSchema),
     defaultValues: {
       name: "",
@@ -158,7 +159,10 @@ function StaffRolesContent() {
         await operationsApi.staffRoles.update(editing.id, payload);
         appToast.success("Staff role updated");
       } else {
-        await operationsApi.staffRoles.create(payload);
+        await operationsApi.staffRoles.create({
+          ...payload,
+          accessMenuCodes: values.accessMenuCodes,
+        });
         appToast.success("Staff role created");
       }
       closeModal();

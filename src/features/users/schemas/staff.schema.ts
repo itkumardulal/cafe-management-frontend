@@ -22,7 +22,8 @@ export type StaffSchemaType = z.infer<typeof staffSchema>;
 export const staffRoleSchema = z.object({
   name: z.string().min(2, "Role name is required").max(64),
   description: z.string().max(256).optional(),
-  accessMenuCodes: z.array(z.string()).optional().default([]),
+  accessMenuCodes: z.array(z.string()).default([]),
 });
 
-export type StaffRoleSchemaType = z.infer<typeof staffRoleSchema>;
+export type StaffRoleSchemaInput = z.input<typeof staffRoleSchema>;
+export type StaffRoleSchemaType = z.output<typeof staffRoleSchema>;
