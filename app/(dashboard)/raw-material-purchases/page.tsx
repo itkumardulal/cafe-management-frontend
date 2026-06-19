@@ -40,6 +40,7 @@ import { ResponsiveTable, tableActionsCellClass, tableActionsColumnClass, tableC
 import { Select } from "@/src/components/ui/select";
 import { FilterSelect } from "@/src/components/shared/filter-select";
 import { cn } from "@/src/lib/cn";
+import { getApiErrorMessage } from "@/src/lib/api-error";
 import { formatDateOnly, formatDateTime, formatMoney } from "@/src/lib/format-display";
 import type { ApBillSummary, CreatePaymentType, PurchasePaymentMethod } from "@/src/lib/ap-types";
 import { parseMoneyInput } from "@/src/lib/money-input";

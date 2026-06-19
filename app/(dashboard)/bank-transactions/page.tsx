@@ -100,7 +100,7 @@ export default function BankTransactionsPage() {
 
 function BankTransactionsContent() {
   const [accountFilter, setAccountFilter] = useState("");
-  const [typeFilter, setTypeFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"" | "DEPOSIT" | "WITHDRAWAL">("");
   const {
     items,
     meta,
@@ -388,7 +388,7 @@ function BankTransactionsContent() {
             </FilterSelect>
             <FilterSelect
               value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
+              onChange={(e) => setTypeFilter(e.target.value as "" | "DEPOSIT" | "WITHDRAWAL")}
               className="min-w-[10rem]"
             >
               <option value="">All types</option>
