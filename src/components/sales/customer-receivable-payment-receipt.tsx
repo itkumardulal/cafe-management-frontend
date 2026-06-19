@@ -29,15 +29,15 @@ export function CustomerReceivablePaymentReceipt({
 }: CustomerReceivablePaymentReceiptProps) {
   const name = cafeName ?? payment.cafe?.cafeName ?? "Cafe";
   const contact = payment.cafe?.contactNumber ?? payment.cafe?.email;
-  const methodLabel = formatSalePaymentMethod(payment.paymentMethod);
+  const methodLabel =
+    payment.paymentMethod === "BANK_TRANSFER"
+      ? "Bank"
+      : formatSalePaymentMethod(payment.paymentMethod);
   const amountReceived = payment.amountReceived ?? payment.amount;
   const changeAmount = Number(payment.changeAmount ?? 0);
 
   const paymentRows = [
     { label: "Method", value: methodLabel },
-    payment.bankAccountLabel
-      ? { label: "Bank account", value: payment.bankAccountLabel }
-      : null,
     {
       label: "Amount received",
       value: `Rs ${formatMoneyCompact(amountReceived)}`,
@@ -48,7 +48,7 @@ export function CustomerReceivablePaymentReceipt({
       bold: true,
     },
     {
-      label: "Amount remaining",
+      label: "Due",
       value: `Rs ${formatMoneyCompact(payment.remainingOutstanding ?? 0)}`,
     },
     changeAmount > 0.005
@@ -123,7 +123,7 @@ export function CustomerReceivablePaymentReceipt({
           className="pt-0.5 text-[12px]"
         />
         <ThermalRow
-          label="Amount remaining"
+          label="Due"
           value={`Rs ${formatMoneyCompact(payment.remainingOutstanding ?? 0)}`}
         />
         {changeAmount > 0.005 ? (

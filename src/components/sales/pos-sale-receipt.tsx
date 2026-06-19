@@ -2,9 +2,6 @@
 
 import type { SaleDetailResponse } from "@/src/lib/ar-types";
 import {
-  formatSalePaymentMethod,
-  formatSalePaymentMethodDetail,
-  salePaymentBankName,
   SALE_PAYMENT_TERMS_OPTIONS,
 } from "@/src/lib/ar-display";
 import { ThermalCreditBlock } from "@/src/features/printing/components/thermal-credit-block";
@@ -35,33 +32,6 @@ export type PosSaleReceiptData = SaleDetailResponse & {
 function paymentTermsLabel(preset: PosSaleReceiptData["paymentTermsPreset"]) {
   if (!preset) return null;
   return SALE_PAYMENT_TERMS_OPTIONS.find((o) => o.value === preset)?.label ?? null;
-}
-
-function bankNameFromPayment(payment: PosSaleReceiptData["payments"][number]): string | null {
-  const bankName = salePaymentBankName(payment);
-  if (bankName) return bankName;
-  if (payment.paymentMethod !== "CASH") {
-    return formatSalePaymentMethod(payment.paymentMethod);
-  }
-  return null;
-}
-
-function saleBankPaymentRowLabel(sale: PosSaleReceiptData): string {
-  if (Number(sale.bankPaidAmount) <= 0) return "Bank";
-
-  const bankPayments =
-    sale.payments?.filter(
-      (payment) => payment.paymentMethod !== "CASH" && Number(payment.amount) > 0,
-    ) ?? [];
-
-  const names = bankPayments
-    .map((payment) => bankNameFromPayment(payment))
-    .filter((name): name is string => Boolean(name))
-    .filter((name, index, all) => all.indexOf(name) === index);
-
-  if (names.length === 0) return "Bank";
-  if (names.length === 1) return `Bank (${names[0]})`;
-  return `Bank (${names.join(", ")})`;
 }
 
 type PosSaleReceiptProps = {
@@ -96,7 +66,7 @@ export function PosSaleReceipt({ sale, cafeName, className, id }: PosSaleReceipt
       : null,
     Number(sale.bankPaidAmount) > 0
       ? {
-          label: saleBankPaymentRowLabel(sale),
+          label: "Bank",
           value: formatMoneyCompact(sale.bankPaidAmount),
         }
       : null,

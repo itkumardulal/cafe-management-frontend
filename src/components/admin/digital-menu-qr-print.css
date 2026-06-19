@@ -1,3 +1,9 @@
+/* Named page — scoped to QR prints only; does not affect thermal receipts */
+@page qr-sheet {
+  size: A5 portrait;
+  margin: 12mm;
+}
+
 @media print {
   body.qr-print-active * {
     visibility: hidden !important;
@@ -9,6 +15,7 @@
   }
 
   body.qr-print-active .qr-print-sheet {
+    page: qr-sheet;
     position: fixed !important;
     inset: 0 !important;
     display: flex !important;
@@ -17,9 +24,4 @@
     background: #fff !important;
     padding: 12mm !important;
   }
-}
-
-@page {
-  size: A5 portrait;
-  margin: 12mm;
 }

@@ -29,6 +29,8 @@ import { appToast } from "@/src/lib/toast";
 import { formatMoney } from "@/src/lib/format-display";
 import { operationsApi } from "@/src/services/operations-api";
 
+const AUTO_PRINT_STORAGE_KEY = "pos.autoPrintReceipt";
+
 type ReceivablePrintDocument =
   | { printType: "sale"; sale: PosSaleReceiptData }
   | { printType: "payment"; payment: CustomerReceivablePaymentReceiptData };
@@ -51,8 +53,9 @@ export default function CustomerReceivableDetailPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [printingPaymentId, setPrintingPaymentId] = useState<string | null>(null);
+  const [autoPrintReceipt, setAutoPrintReceipt] = useState(false);
 
-  const { printDocument, requestPrint } = useThermalPrint<ReceivablePrintDocument>({
+  const { printDocument, isPrinting, requestPrint } = useThermalPrint<ReceivablePrintDocument>({
     onError: (error) =>
       appToast.error(getApiErrorMessage(error, "Failed to load receipt for printing")),
     onAfterPrint: () => setPrintingPaymentId(null),
@@ -78,6 +81,18 @@ export default function CustomerReceivableDetailPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setAutoPrintReceipt(localStorage.getItem(AUTO_PRINT_STORAGE_KEY) === "true");
+  }, []);
+
+  const toggleAutoPrintReceipt = () => {
+    setAutoPrintReceipt((prev) => {
+      const next = !prev;
+      localStorage.setItem(AUTO_PRINT_STORAGE_KEY, String(next));
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (loading || !detail) {
@@ -155,6 +170,16 @@ export default function CustomerReceivableDetailPage() {
       setBankAccountId(bankAccounts[0]?.id ?? "");
       setPreview(null);
       await load();
+      if (localStorage.getItem(AUTO_PRINT_STORAGE_KEY) === "true") {
+        setPrintingPaymentId(result.id);
+        void requestPrint(async () => {
+          const response = await operationsApi.customerReceivables.getPaymentPrint(
+            result.id,
+            "CRP",
+          );
+          return mapPrintResponse(response);
+        }).catch(() => setPrintingPaymentId(null));
+      }
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to record payment"));
     } finally {
@@ -216,6 +241,9 @@ export default function CustomerReceivableDetailPage() {
         preview={preview}
         previewLoading={previewLoading}
         saving={saving}
+        isPrinting={isPrinting}
+        autoPrintReceipt={autoPrintReceipt}
+        onAutoPrintReceiptChange={toggleAutoPrintReceipt}
         onSubmit={() => void recordPayment()}
         onPrintPayment={handlePrintPayment}
         printingPaymentId={printingPaymentId}

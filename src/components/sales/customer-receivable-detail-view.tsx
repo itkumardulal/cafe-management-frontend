@@ -37,7 +37,7 @@ import type {
 } from "@/src/lib/ar-types";
 import {
   RECEIVABLE_PAYMENT_METHOD_OPTIONS,
-  formatSalePaymentMethod,
+  formatPaymentMethodWithBankDetail,
 } from "@/src/lib/ar-display";
 import { cn } from "@/src/lib/cn";
 import { formatDateOnly, formatDateTime, formatMoney } from "@/src/lib/format-display";
@@ -70,6 +70,9 @@ type Props = {
   preview: FifoAllocationPreview | null;
   previewLoading: boolean;
   saving: boolean;
+  isPrinting?: boolean;
+  autoPrintReceipt?: boolean;
+  onAutoPrintReceiptChange?: () => void;
   onSubmit: () => void;
   onPrintPayment?: (paymentId: string, kind: CustomerReceivableDetail["paymentHistory"][number]["kind"]) => void;
   printingPaymentId?: string | null;
@@ -120,6 +123,9 @@ export function CustomerReceivableDetailView({
   preview,
   previewLoading,
   saving,
+  isPrinting = false,
+  autoPrintReceipt = false,
+  onAutoPrintReceiptChange,
   onSubmit,
   onPrintPayment,
   printingPaymentId,
@@ -430,7 +436,8 @@ export function CustomerReceivableDetailView({
                       </div>
                     </div>
                     <p className="text-xs text-muted">
-                      {formatDateTime(p.paidAt)} · {formatSalePaymentMethod(p.paymentMethod)}
+                      {formatDateTime(p.paidAt)} ·{" "}
+                      {formatPaymentMethodWithBankDetail(p)}
                       {p.kind === "CRP" ? " · FIFO settlement" : ""}
                       {p.kind === "CRP" &&
                       p.amountReceived &&
@@ -612,13 +619,26 @@ export function CustomerReceivableDetailView({
                 </div>
               ) : null}
 
+              <label className="flex cursor-pointer items-start gap-2 text-[10px] text-muted">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={autoPrintReceipt}
+                  onChange={() => onAutoPrintReceiptChange?.()}
+                />
+                <span>
+                  Auto-print receipt after payment. Use an 80mm thermal printer and disable
+                  headers/footers in the print dialog.
+                </span>
+              </label>
+
               <Button
                 type="button"
                 className="w-full"
-                disabled={!canPay || saving}
+                disabled={!canPay || saving || isPrinting}
                 onClick={onSubmit}
               >
-                {saving ? "Recording…" : "Confirm payment"}
+                {saving ? "Recording…" : isPrinting ? "Printing…" : "Confirm payment"}
               </Button>
               {canPay ? (
                 <p className="flex items-center gap-1 text-xs text-muted">

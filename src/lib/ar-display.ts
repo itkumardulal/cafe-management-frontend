@@ -68,6 +68,19 @@ export function formatSalePaymentMethod(method: string): string {
   return found?.label ?? LEGACY_SALE_PAYMENT_METHOD_LABELS[method] ?? method.replace(/_/g, " ");
 }
 
+export function formatPaymentMethodWithBankDetail(payment: {
+  paymentMethod: string;
+  bankAccountLabel?: string | null;
+  chequeBankName?: string | null;
+}): string {
+  const label = formatSalePaymentMethod(payment.paymentMethod);
+  if (payment.paymentMethod === "BANK_TRANSFER") {
+    const bankName = salePaymentBankName(payment);
+    return bankName ? `${label} (${bankName})` : label;
+  }
+  return label;
+}
+
 export function salePaymentBankName(payment: {
   paymentMethod: string;
   bankAccountLabel?: string | null;

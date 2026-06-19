@@ -718,8 +718,9 @@ function PosPageContent() {
       appToast.success(`Sale ${result.receiptNo} recorded${creditMsg}`);
       if (billingFromSession) {
         invalidateGetCache("/table-orders");
-        router.replace("/table-orders");
-        return;
+        setSessionTableNames([]);
+        billingHandoffLoaded.current = false;
+        router.replace("/pos");
       }
       setSuccessSale({ id: result.id, receiptNo: result.receiptNo });
       if (localStorage.getItem(AUTO_PRINT_STORAGE_KEY) === "true") {
@@ -803,6 +804,17 @@ function PosPageContent() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={() => router.push("/table-orders")}
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <UtensilsCrossed size={15} strokeWidth={1.75} aria-hidden />
+              Table orders
+            </span>
+          </Button>
           {!billingFromSession ? (
             <Button
               type="button"

@@ -1,4 +1,6 @@
-@page {
+/* Named page — avoids clashing with QR/A4 @page rules loaded elsewhere */
+@page thermal-receipt {
+  size: 80mm auto;
   margin: 0;
 }
 
@@ -13,19 +15,29 @@
   }
 
   body.thermal-print-active [data-thermal-print-host] {
-    position: fixed;
-    inset: 0;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
     z-index: 999999;
-    display: flex !important;
-    align-items: flex-start;
-    justify-content: center;
+    display: block !important;
     padding: 0 !important;
     margin: 0 !important;
     background: #fff !important;
     overflow: visible !important;
   }
 
-  body.thermal-print-active .thermal-receipt,
+  body.thermal-print-active .thermal-receipt {
+    page: thermal-receipt;
+    width: 80mm;
+    max-width: 80mm;
+    margin: 0;
+    box-sizing: border-box;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
   body.thermal-print-active .thermal-receipt * {
     color: #000 !important;
     -webkit-print-color-adjust: exact;

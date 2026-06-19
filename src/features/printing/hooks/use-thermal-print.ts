@@ -21,6 +21,24 @@ function waitForNextFrame() {
   });
 }
 
+function waitForPrintHost(timeoutMs = 1000) {
+  const start = Date.now();
+  return new Promise<void>((resolve) => {
+    const tick = () => {
+      if (document.querySelector("[data-thermal-print-host]")) {
+        resolve();
+        return;
+      }
+      if (Date.now() - start >= timeoutMs) {
+        resolve();
+        return;
+      }
+      requestAnimationFrame(tick);
+    };
+    tick();
+  });
+}
+
 function waitForReceiptImages(timeoutMs = 2500) {
   const host = document.querySelector("[data-thermal-print-host]");
   if (!host) return Promise.resolve();
@@ -70,6 +88,7 @@ export function useThermalPrint<T>(options: UseThermalPrintOptions = {}) {
   const runPrint = useCallback(async () => {
     activatePrintMode("thermal");
     await waitForNextFrame();
+    await waitForPrintHost();
     await waitForReceiptImages();
     await waitForNextFrame();
     window.print();

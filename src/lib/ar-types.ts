@@ -141,6 +141,7 @@ export type CustomerReceivableDetail = {
     changeAmount?: string;
     remainingOutstanding?: string;
     paymentMethod: string;
+    bankAccountLabel?: string | null;
     remarks: string | null;
     paidAt: string;
     createdByName: string | null;
