@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { AlertCircle } from "lucide-react";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
@@ -10,6 +11,13 @@ import { parseMoneyInput } from "@/src/lib/money-input";
 import type { CreatePaymentType, PurchasePaymentMethod } from "@/src/lib/ap-types";
 import { PAYMENT_METHOD_OPTIONS } from "@/src/lib/ap-display";
 
+export type PurchaseBankAccountOption = {
+  id: string;
+  bankName: string;
+  accountNumber: string;
+  label: string;
+};
+
 type Props = {
   grandTotal: number;
   paymentType: CreatePaymentType;
@@ -18,8 +26,9 @@ type Props = {
   onPaidAmountStrChange: (v: string) => void;
   paymentMethod: PurchasePaymentMethod;
   onPaymentMethodChange: (v: PurchasePaymentMethod) => void;
-  referenceNumber: string;
-  onReferenceNumberChange: (v: string) => void;
+  bankAccountId: string;
+  onBankAccountIdChange: (v: string) => void;
+  bankAccounts: PurchaseBankAccountOption[];
   remarks: string;
   onRemarksChange: (v: string) => void;
   bankProofSlot?: React.ReactNode;
@@ -34,8 +43,9 @@ export function PurchasePaymentTypeSection({
   onPaidAmountStrChange,
   paymentMethod,
   onPaymentMethodChange,
-  referenceNumber,
-  onReferenceNumberChange,
+  bankAccountId,
+  onBankAccountIdChange,
+  bankAccounts,
   remarks,
   onRemarksChange,
   bankProofSlot,
@@ -51,6 +61,7 @@ export function PurchasePaymentTypeSection({
           ? 0
           : paidResult.amount;
   const remaining = Math.max(0, Math.round((grandTotal - paid) * 100) / 100);
+  const showBankFields = paymentMethod === "BANK_TRANSFER";
 
   return (
     <div className="space-y-4 rounded-lg border border-(--color-border) bg-surface-muted/50 p-4">
@@ -102,16 +113,18 @@ export function PurchasePaymentTypeSection({
         </div>
       </div>
 
-      {paymentType === "PARTIALLY_PAID" ? (
+      {paymentType === "FULLY_PAID" || paymentType === "PARTIALLY_PAID" ? (
         <div className="space-y-3 border-t border-(--color-border) pt-3">
-          <Field id="initial-paid" label="Paid amount" required>
-            <Input
-              value={paidAmountStr}
-              onChange={(e) => onPaidAmountStrChange(e.target.value)}
-              inputMode="decimal"
-              disabled={disabled}
-            />
-          </Field>
+          {paymentType === "PARTIALLY_PAID" ? (
+            <Field id="initial-paid" label="Paid amount" required>
+              <Input
+                value={paidAmountStr}
+                onChange={(e) => onPaidAmountStrChange(e.target.value)}
+                inputMode="decimal"
+                disabled={disabled}
+              />
+            </Field>
+          ) : null}
           <Field id="pay-method" label="Payment method" required>
             <Select
               searchable={false}
@@ -126,13 +139,40 @@ export function PurchasePaymentTypeSection({
               ))}
             </Select>
           </Field>
-          <Field id="pay-ref" label="Reference number">
-            <Input
-              value={referenceNumber}
-              onChange={(e) => onReferenceNumberChange(e.target.value)}
-              disabled={disabled}
-            />
-          </Field>
+          {showBankFields ? (
+            <Field
+              id="pay-bank-account"
+              label="Bank account"
+              required
+              hint="Records a withdrawal in bank transactions for this payment"
+            >
+              {bankAccounts.length === 0 ? (
+                <p className="text-sm text-muted">
+                  No active bank accounts.{" "}
+                  <Link
+                    href="/banks"
+                    className="font-medium text-[var(--color-primary)] hover:underline"
+                  >
+                    Add a bank account
+                  </Link>
+                </p>
+              ) : (
+                <Select
+                  searchable
+                  value={bankAccountId}
+                  onChange={(e) => onBankAccountIdChange(e.target.value)}
+                  disabled={disabled}
+                >
+                  <option value="">Choose account</option>
+                  {bankAccounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.label}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+          ) : null}
           <Field id="pay-remarks" label="Remarks">
             <Input
               value={remarks}
@@ -140,7 +180,7 @@ export function PurchasePaymentTypeSection({
               disabled={disabled}
             />
           </Field>
-          {bankProofSlot}
+          {showBankFields && bankAccountId ? bankProofSlot : null}
         </div>
       ) : null}
 

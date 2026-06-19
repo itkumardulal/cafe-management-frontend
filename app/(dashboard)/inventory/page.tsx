@@ -29,6 +29,7 @@ import {
 } from "@/src/components/ui/table";
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { getApiErrorMessage } from "@/src/lib/api-error";
+import { hasEditChanges } from "@/src/lib/form-snapshot";
 import { cn } from "@/src/lib/cn";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
@@ -158,6 +159,8 @@ function InventoryContent() {
   const [edit, setEdit] = useState<Row | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [stockInSaving, setStockInSaving] = useState(false);
   const [stockInTarget, setStockInTarget] = useState<Row | null>(null);
   const [stockInQty, setStockInQty] = useState("");
   const [stockInNotes, setStockInNotes] = useState("");
@@ -168,22 +171,28 @@ function InventoryContent() {
     openingQuantity: "",
     reorderLevel: "",
   });
+  const [initialForm, setInitialForm] = useState<typeof form | null>(null);
+
+  const canSave = hasEditChanges(Boolean(edit), form, initialForm);
 
   const openCreate = () => {
     setEdit(null);
     setForm({ name: "", unit: "", description: "", openingQuantity: "", reorderLevel: "" });
+    setInitialForm(null);
     setOpen(true);
   };
 
   const openEdit = (item: Row) => {
-    setEdit(item);
-    setForm({
+    const next = {
       name: item.name,
       unit: item.unit ?? "",
       description: item.description ?? "",
       openingQuantity: "",
       reorderLevel: item.reorderLevel ?? "",
-    });
+    };
+    setEdit(item);
+    setForm(next);
+    setInitialForm(next);
     setOpen(true);
   };
 
@@ -192,6 +201,10 @@ function InventoryContent() {
       appToast.error("Name is required");
       return;
     }
+    if (edit && !canSave) {
+      return;
+    }
+    setSaving(true);
     try {
       if (edit) {
         await operationsApi.stockItems.update(edit.id, {
@@ -220,6 +233,8 @@ function InventoryContent() {
       await refetch();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to save stock item"));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -230,6 +245,7 @@ function InventoryContent() {
       appToast.error("Enter a valid quantity");
       return;
     }
+    setStockInSaving(true);
     try {
       if (stockInTarget.itemKind === "MENU") {
         await operationsApi.menuItems.stockAdjustment(stockInTarget.id, {
@@ -249,6 +265,8 @@ function InventoryContent() {
       await refetch();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to add stock"));
+    } finally {
+      setStockInSaving(false);
     }
   };
 
@@ -437,13 +455,17 @@ function InventoryContent() {
       <Modal
         open={open}
         title={edit ? "Edit stock item" : "Add stock item"}
-        onClose={() => setOpen(false)}
+        onClose={() => {
+          if (!saving) {
+            setOpen(false);
+          }
+        }}
         footer={
           <FormFooter variant="modal">
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
+            <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button type="button" onClick={() => void save()}>
+            <Button type="button" onClick={() => void save()} loading={saving} disabled={!canSave}>
               Save
             </Button>
           </FormFooter>
@@ -490,13 +512,27 @@ function InventoryContent() {
         mobileVariant="sheet"
         title={`Stock in — ${stockInTarget?.name ?? ""}`}
         description="Add quantity received into stock."
-        onClose={() => setStockInTarget(null)}
+        onClose={() => {
+          if (!stockInSaving) {
+            setStockInTarget(null);
+          }
+        }}
         footer={
           <FormFooter variant="modal">
-            <Button type="button" variant="secondary" onClick={() => setStockInTarget(null)}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setStockInTarget(null)}
+              disabled={stockInSaving}
+            >
               Cancel
             </Button>
-            <Button type="button" variant="primary" onClick={() => void confirmStockIn()}>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => void confirmStockIn()}
+              loading={stockInSaving}
+            >
               Add stock
             </Button>
           </FormFooter>

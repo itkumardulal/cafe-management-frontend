@@ -27,6 +27,7 @@ import {
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { cn } from "@/src/lib/cn";
 import { getApiErrorMessage } from "@/src/lib/api-error";
+import { hasEditChanges } from "@/src/lib/form-snapshot";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
 
@@ -95,21 +96,30 @@ function RawMaterialsContent() {
   const [edit, setEdit] = useState<Row | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [initialForm, setInitialForm] = useState<{ name: string; unit: string; description: string } | null>(
+    null,
+  );
   const [form, setForm] = useState({ name: "", unit: "", description: "" });
+
+  const canSave = hasEditChanges(Boolean(edit), form, initialForm);
 
   const openCreate = () => {
     setEdit(null);
     setForm({ name: "", unit: "", description: "" });
+    setInitialForm(null);
     setOpen(true);
   };
 
   const openEdit = (item: Row) => {
-    setEdit(item);
-    setForm({
+    const next = {
       name: item.name,
       unit: item.unit,
       description: item.description ?? "",
-    });
+    };
+    setEdit(item);
+    setForm(next);
+    setInitialForm(next);
     setOpen(true);
   };
 
@@ -122,7 +132,11 @@ function RawMaterialsContent() {
       appToast.error("Unit is required");
       return;
     }
+    if (edit && !canSave) {
+      return;
+    }
 
+    setSaving(true);
     try {
       const payload = {
         name: form.name.trim(),
@@ -140,6 +154,8 @@ function RawMaterialsContent() {
       await refetch();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to save raw material"));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -346,10 +362,10 @@ function RawMaterialsContent() {
             />
           </Field>
           <FormFooter>
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
+            <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button type="button" onClick={() => void save()}>
+            <Button type="button" onClick={() => void save()} loading={saving} disabled={!canSave}>
               {edit ? "Save changes" : "Add material"}
             </Button>
           </FormFooter>

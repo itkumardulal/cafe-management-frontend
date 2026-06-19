@@ -574,7 +574,12 @@ export function CustomerReceivableDetailView({
                 </Select>
               </Field>
               {paymentMethod === "BANK_TRANSFER" ? (
-                <Field id="crp-bank-account" label="Bank account" required>
+                <Field
+                  id="crp-bank-account"
+                  label="Bank account"
+                  required
+                  hint="Records a deposit in bank transactions for this payment"
+                >
                   {bankAccounts.length === 0 ? (
                     <p className="text-sm text-muted">
                       No active bank accounts.{" "}

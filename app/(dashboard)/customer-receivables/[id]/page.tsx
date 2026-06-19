@@ -126,6 +126,16 @@ export default function CustomerReceivableDetailPage() {
   }, []);
 
   useEffect(() => {
+    if (paymentMethod === "BANK_TRANSFER") {
+      if (!bankAccountId && bankAccounts[0]) {
+        setBankAccountId(bankAccounts[0].id);
+      }
+    } else {
+      setBankAccountId("");
+    }
+  }, [paymentMethod, bankAccountId, bankAccounts]);
+
+  useEffect(() => {
     const amount = Number(amountStr);
     if (!detail || !Number.isFinite(amount) || amount <= 0) {
       setPreview(null);
@@ -151,6 +161,10 @@ export default function CustomerReceivableDetailPage() {
   const recordPayment = async () => {
     const amount = Number(amountStr);
     if (!detail || !Number.isFinite(amount) || amount <= 0) return;
+    if (paymentMethod === "BANK_TRANSFER" && !bankAccountId) {
+      appToast.error("Select a bank account for bank transfer");
+      return;
+    }
     setSaving(true);
     try {
       const result = await operationsApi.customerReceivables.recordPayment({

@@ -25,6 +25,7 @@ import {
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { cn } from "@/src/lib/cn";
 import { getApiErrorMessage } from "@/src/lib/api-error";
+import { hasEditChanges } from "@/src/lib/form-snapshot";
 import { formatDateOnly } from "@/src/lib/format-display";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
@@ -90,20 +91,27 @@ function ExpenseItemsContent() {
   const [edit, setEdit] = useState<Row | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [initialForm, setInitialForm] = useState<typeof emptyForm | null>(null);
   const [form, setForm] = useState(emptyForm);
+
+  const canSave = hasEditChanges(Boolean(edit), form, initialForm);
 
   const openCreate = () => {
     setEdit(null);
     setForm(emptyForm);
+    setInitialForm(null);
     setOpen(true);
   };
 
   const openEditForm = (item: Row) => {
-    setEdit(item);
-    setForm({
+    const next = {
       name: item.name,
       description: item.description ?? "",
-    });
+    };
+    setEdit(item);
+    setForm(next);
+    setInitialForm(next);
     setOpen(true);
   };
 
@@ -113,7 +121,11 @@ function ExpenseItemsContent() {
       appToast.error("Name is required");
       return;
     }
+    if (edit && !canSave) {
+      return;
+    }
 
+    setSaving(true);
     try {
       const payload = {
         name,
@@ -130,6 +142,8 @@ function ExpenseItemsContent() {
       await refetch();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to save"));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -337,13 +351,17 @@ function ExpenseItemsContent() {
         mobileVariant="fullscreen"
         title={edit ? "Edit expense item" : "New expense item"}
         description="Add a named expense item for daily logging."
-        onClose={() => setOpen(false)}
+        onClose={() => {
+          if (!saving) {
+            setOpen(false);
+          }
+        }}
         footer={
           <FormFooter>
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
+            <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button type="button" onClick={() => void save()}>
+            <Button type="button" onClick={() => void save()} loading={saving} disabled={!canSave}>
               Save item
             </Button>
           </FormFooter>

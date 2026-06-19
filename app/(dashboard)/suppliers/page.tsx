@@ -26,6 +26,7 @@ import {
 } from "@/src/components/ui/table";
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { getApiErrorMessage } from "@/src/lib/api-error";
+import { hasEditChanges } from "@/src/lib/form-snapshot";
 import { cn } from "@/src/lib/cn";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
@@ -98,24 +99,31 @@ function SuppliersContent() {
   const [edit, setEdit] = useState<Row | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [initialForm, setInitialForm] = useState<typeof emptyForm | null>(null);
   const [form, setForm] = useState(emptyForm);
+
+  const canSave = hasEditChanges(Boolean(edit), form, initialForm);
 
   const openCreate = () => {
     setEdit(null);
     setForm(emptyForm);
+    setInitialForm(null);
     setOpen(true);
   };
 
   const openEdit = (item: Row) => {
-    setEdit(item);
-    setForm({
+    const next = {
       name: item.name,
       contactPerson: item.contactPerson ?? "",
       phone: item.phone ?? "",
       email: item.email ?? "",
       address: item.address ?? "",
       notes: item.notes ?? "",
-    });
+    };
+    setEdit(item);
+    setForm(next);
+    setInitialForm(next);
     setOpen(true);
   };
 
@@ -124,7 +132,11 @@ function SuppliersContent() {
       appToast.error("Supplier name is required");
       return;
     }
+    if (edit && !canSave) {
+      return;
+    }
 
+    setSaving(true);
     try {
       const payload = {
         name: form.name.trim(),
@@ -145,6 +157,8 @@ function SuppliersContent() {
       await refetch();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to save supplier"));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -419,10 +433,10 @@ function SuppliersContent() {
           </section>
 
           <FormFooter>
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
+            <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button type="button" onClick={() => void save()}>
+            <Button type="button" onClick={() => void save()} loading={saving} disabled={!canSave}>
               {edit ? "Save changes" : "Add supplier"}
             </Button>
           </FormFooter>

@@ -22,7 +22,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/lib/cn";
 import type { ApBillDetail, PurchasePaymentMethod } from "@/src/lib/ap-types";
-import { formatPaymentMethod } from "@/src/lib/ap-display";
+import { formatPurchasePaymentMethodWithBank } from "@/src/lib/ap-display";
 import { formatDateOnly, formatDateTime, formatMoney } from "@/src/lib/format-display";
 
 type PaymentFormProps = {
@@ -304,7 +304,8 @@ export function SupplierBillDetailView({
                         <div>
                           <p className="text-sm font-semibold tabular-nums">{p.receiptNo}</p>
                           <p className="mt-0.5 text-xs text-[var(--color-muted)]">
-                            {formatDateOnly(p.paymentDate)} · {formatPaymentMethod(p.paymentMethod)}
+                            {formatDateOnly(p.paymentDate)} ·{" "}
+                            {formatPurchasePaymentMethodWithBank(p)}
                           </p>
                         </div>
                         <p className="text-sm font-semibold tabular-nums text-[var(--color-success)]">
@@ -344,7 +345,9 @@ export function SupplierBillDetailView({
                           <td className="px-4 py-3 text-right font-semibold tabular-nums">
                             {formatMoney(p.amount)}
                           </td>
-                          <td className="px-4 py-3">{formatPaymentMethod(p.paymentMethod)}</td>
+                          <td className="px-4 py-3">
+                            {formatPurchasePaymentMethodWithBank(p)}
+                          </td>
                           <td className="px-4 py-3 text-[var(--color-muted)]">{p.referenceNumber ?? "—"}</td>
                           <td className="px-4 py-3 text-[var(--color-muted)] max-w-[12rem] truncate" title={p.remarks ?? undefined}>
                             {p.remarks ?? "—"}

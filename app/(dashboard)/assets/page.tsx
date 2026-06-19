@@ -39,6 +39,7 @@ import {
   formatWarrantyRemaining,
 } from "@/src/lib/asset-types";
 import { getApiErrorMessage } from "@/src/lib/api-error";
+import { hasEditChanges } from "@/src/lib/form-snapshot";
 import { formatDateOnly, formatMoney } from "@/src/lib/format-display";
 import { parseMoneyInput } from "@/src/lib/money-input";
 import { appToast } from "@/src/lib/toast";
@@ -152,7 +153,11 @@ function AssetsContent() {
   const [edit, setEdit] = useState<AssetRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AssetRow | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [initialForm, setInitialForm] = useState<typeof emptyForm | null>(null);
   const [form, setForm] = useState(emptyForm);
+
+  const canSave = hasEditChanges(Boolean(edit), form, initialForm);
 
   const invalidateRefs = () => {
     dispatch(invalidateAssetCategoryOptions());
@@ -166,12 +171,12 @@ function AssetsContent() {
       assetCategoryId: categories[0]?.id ?? "",
       purchaseDate: new Date().toISOString().slice(0, 10),
     });
+    setInitialForm(null);
     setOpen(true);
   };
 
   const openEdit = (item: AssetRow) => {
-    setEdit(item);
-    setForm({
+    const next = {
       assetCategoryId: item.assetCategoryId,
       assetName: item.assetName,
       purchaseDate: item.purchaseDate.slice(0, 10),
@@ -179,7 +184,10 @@ function AssetsContent() {
       warrantyExpiryDate: item.warrantyExpiryDate?.slice(0, 10) ?? "",
       status: item.status,
       remarks: item.remarks ?? "",
-    });
+    };
+    setEdit(item);
+    setForm(next);
+    setInitialForm(next);
     setOpen(true);
   };
 
@@ -201,6 +209,10 @@ function AssetsContent() {
       appToast.error("Purchase date is required");
       return;
     }
+    if (edit && !canSave) {
+      return;
+    }
+    setSaving(true);
     try {
       const payload = {
         assetCategoryId: form.assetCategoryId,
@@ -223,6 +235,8 @@ function AssetsContent() {
       await refetch();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to save asset"));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -556,10 +570,12 @@ function AssetsContent() {
           </Field>
         </div>
         <FormFooter>
-          <Button variant="secondary" onClick={() => setOpen(false)}>
+          <Button variant="secondary" onClick={() => setOpen(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={save}>Save</Button>
+          <Button onClick={() => void save()} loading={saving} disabled={!canSave}>
+            Save
+          </Button>
         </FormFooter>
       </Modal>
 

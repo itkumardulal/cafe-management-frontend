@@ -388,8 +388,8 @@ export const operationsApi = {
       }>("/table-orders/board", undefined, options),
     createSession: (data: { tableId: string }) =>
       mutate<TableOrderSessionDetail>("post", "/table-orders/sessions", data),
-    getSession: (id: string) =>
-      getData<TableOrderSessionDetail>(`/table-orders/sessions/${id}`),
+    getSession: (id: string, options?: { force?: boolean }) =>
+      getData<TableOrderSessionDetail>(`/table-orders/sessions/${id}`, undefined, options),
     updateLines: (
       id: string,
       data: {
@@ -449,6 +449,7 @@ export const operationsApi = {
       initialPayment?: {
         amount: number;
         paymentMethod: import("@/src/lib/ap-types").PurchasePaymentMethod;
+        bankAccountId?: string;
         referenceNumber?: string;
         remarks?: string;
         proofAttachmentUrl?: string;
@@ -519,6 +520,7 @@ export const operationsApi = {
       initialPayment?: {
         amount: number;
         paymentMethod: import("@/src/lib/ap-types").PurchasePaymentMethod;
+        bankAccountId?: string;
         referenceNumber?: string;
         remarks?: string;
         proofAttachmentUrl?: string;
@@ -613,6 +615,7 @@ export const operationsApi = {
       supplierId: string;
       amount: number;
       paymentMethod: import("@/src/lib/ap-types").PurchasePaymentMethod;
+      bankAccountId?: string;
       remarks?: string;
     }) =>
       mutate<{
@@ -627,6 +630,7 @@ export const operationsApi = {
       supplierId: string;
       amount: number;
       paymentMethod: import("@/src/lib/ap-types").PurchasePaymentMethod;
+      bankAccountId?: string;
       remarks?: string;
     }) =>
       mutate<{

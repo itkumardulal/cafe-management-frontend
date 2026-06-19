@@ -31,6 +31,7 @@ import {
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { cn } from "@/src/lib/cn";
 import { getApiErrorMessage } from "@/src/lib/api-error";
+import { hasEditChanges } from "@/src/lib/form-snapshot";
 import {
   buildRecipePayload,
   emptyRecipeForm,
@@ -92,7 +93,10 @@ function RecipesContent() {
   const [deleteTarget, setDeleteTarget] = useState<RecipeListItem | null>(null);
   const [selectedMenuItemId, setSelectedMenuItemId] = useState("");
   const [form, setForm] = useState<RecipeFormState>(emptyRecipeForm);
+  const [initialForm, setInitialForm] = useState<RecipeFormState | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const canSave = hasEditChanges(Boolean(editRow), form, initialForm);
   const [deleting, setDeleting] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [preparedDishes, setPreparedDishes] = useState<PreparedDishOption[]>([]);
@@ -170,6 +174,7 @@ function RecipesContent() {
     setEditRow(null);
     setSelectedMenuItemId("");
     setForm(emptyRecipeForm());
+    setInitialForm(null);
     setFormOpen(true);
   };
 
@@ -180,7 +185,9 @@ function RecipesContent() {
     setModalLoading(true);
     try {
       const detail = await operationsApi.recipes.get(item.menuItemId);
-      setForm(recipeDetailToForm(detail));
+      const nextForm = recipeDetailToForm(detail);
+      setForm(nextForm);
+      setInitialForm(nextForm);
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to load recipe"));
       setFormOpen(false);
@@ -246,6 +253,9 @@ function RecipesContent() {
     }
     const payload = validateForm();
     if (!payload) return;
+    if (editRow && !canSave) {
+      return;
+    }
 
     setSaving(true);
     try {
@@ -552,7 +562,8 @@ function RecipesContent() {
                 loading={saving}
                 disabled={
                   (!editRow && (preparedDishes.length === 0 || !selectedMenuItemId)) ||
-                  rawMaterialOptions.length === 0
+                  rawMaterialOptions.length === 0 ||
+                  !canSave
                 }
               >
                 {editRow ? "Save changes" : "Add recipe"}

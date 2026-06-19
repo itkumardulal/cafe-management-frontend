@@ -32,6 +32,7 @@ export type RmPurchaseReceiptData = {
   cashPaidAmount?: string;
   bankPaidAmount?: string;
   creditAmount?: string;
+  bankPaymentBankLabel?: string | null;
   bankPaymentScreenshotUrl?: string | null;
   lines: RmPurchaseReceiptLine[];
   cafe?: {
@@ -64,6 +65,7 @@ function toThermalData(purchase: RmPurchaseReceiptData): PurchaseThermalReceiptD
     cashPaidAmount: purchase.cashPaidAmount,
     bankPaidAmount: purchase.bankPaidAmount,
     creditAmount: purchase.creditAmount,
+    bankPaymentBankLabel: purchase.bankPaymentBankLabel,
     bankPaymentScreenshotUrl: purchase.bankPaymentScreenshotUrl,
     cafe: purchase.cafe,
     lines: purchase.lines.map((line) => ({

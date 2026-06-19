@@ -31,6 +31,7 @@ import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { useUploadEntityId } from "@/src/hooks/use-upload-entity-id";
 import { cn } from "@/src/lib/cn";
 import { getApiErrorMessage } from "@/src/lib/api-error";
+import { hasEditChanges } from "@/src/lib/form-snapshot";
 import { formatMoney } from "@/src/lib/format-display";
 import { parseMoneyInput } from "@/src/lib/money-input";
 import { appToast } from "@/src/lib/toast";
@@ -119,7 +120,10 @@ function BanksContent() {
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [initialForm, setInitialForm] = useState<typeof emptyForm | null>(null);
   const [qrUploading, setQrUploading] = useState(false);
+
+  const canSave = hasEditChanges(Boolean(edit), form, initialForm);
   const {
     entityId: uploadEntityId,
     resetForCreate: resetUploadEntityId,
@@ -129,21 +133,24 @@ function BanksContent() {
   const openCreate = () => {
     setEdit(null);
     setForm(emptyForm);
+    setInitialForm(null);
     resetUploadEntityId();
     setQrUploading(false);
     setOpen(true);
   };
 
   const openEdit = (row: BankAccountRow) => {
-    setEdit(row);
-    setForm({
+    const next = {
       bankName: row.bankName,
       accountNumber: row.accountNumber,
       accountHolderName: row.accountHolderName,
       openingBalance: row.openingBalance,
       qrImageUrl: row.qrImageUrl ?? "",
       isActive: row.isActive,
-    });
+    };
+    setEdit(row);
+    setForm(next);
+    setInitialForm(next);
     setUploadEntityForEdit(row.id);
     setQrUploading(false);
     setOpen(true);
@@ -155,6 +162,9 @@ function BanksContent() {
     const accountHolderName = form.accountHolderName.trim();
     if (!bankName || !accountNumber || !accountHolderName) {
       appToast.error("Bank name, account number, and account holder are required");
+      return;
+    }
+    if (edit && !canSave) {
       return;
     }
 
@@ -424,7 +434,12 @@ function BanksContent() {
             <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button type="button" onClick={() => void save()} loading={saving} disabled={qrUploading}>
+            <Button
+              type="button"
+              onClick={() => void save()}
+              loading={saving}
+              disabled={qrUploading || !canSave}
+            >
               Save
             </Button>
           </FormFooter>

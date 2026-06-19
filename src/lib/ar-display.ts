@@ -117,6 +117,41 @@ export function formatSalePaymentMethodDetail(payment: {
   return label;
 }
 
+/** Full bank detail for purchase payment (`Bank name · account`). */
+export function purchaseBankPaymentDetail(
+  label: string | null | undefined,
+  payments?: Array<{
+    paymentMethod: string;
+    bankAccountLabel?: string | null;
+  }>,
+): string | null {
+  if (label?.trim()) {
+    return label
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join(", ");
+  }
+  if (!payments?.length) return null;
+  const details = payments
+    .filter((p) => p.paymentMethod === "BANK_TRANSFER")
+    .map((p) => p.bankAccountLabel?.trim())
+    .filter((detail): detail is string => Boolean(detail));
+  const unique = [...new Set(details)];
+  return unique.length > 0 ? unique.join(", ") : null;
+}
+
+/** Unique bank names from purchase aggregate label (`Bank · acct, Bank2 · acct2`). */
+export function purchaseBankNamesFromLabel(label: string | null | undefined): string | null {
+  if (!label?.trim()) return null;
+  const names = label
+    .split(",")
+    .map((part) => part.split(" · ")[0]?.trim())
+    .filter((name): name is string => Boolean(name));
+  const unique = [...new Set(names)];
+  return unique.length > 0 ? unique.join(", ") : null;
+}
+
 export const SALE_PAYMENT_TERMS_OPTIONS = [
   { value: "IMMEDIATE" as const, label: "Immediate" },
   { value: "NET_7" as const, label: "7 days" },

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { Tags } from "lucide-react";
 import { FormFooter } from "@/src/components/shared/form-footer";
 import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
@@ -27,6 +27,7 @@ import {
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { cn } from "@/src/lib/cn";
 import { getApiErrorMessage } from "@/src/lib/api-error";
+import { hasEditChanges } from "@/src/lib/form-snapshot";
 import { appToast } from "@/src/lib/toast";
 import { DigitalMenuQrCard } from "@/src/components/admin/digital-menu-qr-card";
 import { NumberInput } from "@/src/components/ui/number-input";
@@ -70,18 +71,30 @@ function MenuCategoriesContent() {
   const [catSortOrder, setCatSortOrder] = useState("0");
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [initialCategory, setInitialCategory] = useState<{ name: string; sortOrder: string } | null>(
+    null,
+  );
+
+  const categoryDraft = useMemo(
+    () => ({ name: catName, sortOrder: catSortOrder }),
+    [catName, catSortOrder],
+  );
+  const canSaveCategory = hasEditChanges(catModal === "edit", categoryDraft, initialCategory);
 
   const openCreate = () => {
     setCatModal("create");
     setEditCat(null);
     setCatName("");
     setCatSortOrder("0");
+    setInitialCategory(null);
   };
 
   const openEdit = (cat: Category) => {
     setEditCat(cat);
     setCatName(cat.name);
     setCatSortOrder(String(cat.sortOrder ?? 0));
+    setInitialCategory({ name: cat.name, sortOrder: String(cat.sortOrder ?? 0) });
     setCatModal("edit");
   };
 
@@ -114,6 +127,10 @@ function MenuCategoriesContent() {
   };
 
   const saveCategory = async () => {
+    if (catModal === "edit" && !canSaveCategory) {
+      return;
+    }
+    setSavingCategory(true);
     try {
       const sortOrder = Math.max(0, Number.parseInt(catSortOrder, 10) || 0);
       if (catModal === "edit" && editCat) {
@@ -136,6 +153,8 @@ function MenuCategoriesContent() {
       dispatch(invalidateMenuCategoryOptions());
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to save category"));
+    } finally {
+      setSavingCategory(false);
     }
   };
 
@@ -310,7 +329,11 @@ function MenuCategoriesContent() {
       <Modal
         open={catModal !== null}
         title={catModal === "edit" ? "Edit category" : "New category"}
-        onClose={() => setCatModal(null)}
+        onClose={() => {
+          if (!savingCategory) {
+            setCatModal(null);
+          }
+        }}
       >
         <div className="form-fields">
           <Field id="catName" label="Name" required>
@@ -331,10 +354,20 @@ function MenuCategoriesContent() {
             />
           </Field>
           <FormFooter>
-            <Button type="button" variant="secondary" onClick={() => setCatModal(null)}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setCatModal(null)}
+              disabled={savingCategory}
+            >
               Cancel
             </Button>
-            <Button type="button" onClick={() => void saveCategory()}>
+            <Button
+              type="button"
+              onClick={() => void saveCategory()}
+              loading={savingCategory}
+              disabled={!canSaveCategory}
+            >
               Save
             </Button>
           </FormFooter>

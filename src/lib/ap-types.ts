@@ -39,6 +39,7 @@ export type ApBillSummary = {
   cashPaidAmount?: string;
   bankPaidAmount?: string;
   creditAmount?: string;
+  bankPaymentBankLabel?: string | null;
   bankPaymentScreenshotUrl?: string | null;
   /** Direct purchases list: comma-separated line item names. */
   itemNameSummary?: string | null;
@@ -49,6 +50,8 @@ export type PurchasePaymentRow = {
   receiptNo: string;
   amount: string;
   paymentMethod: PurchasePaymentMethod;
+  bankAccountId?: string | null;
+  bankAccountLabel?: string | null;
   referenceNumber?: string | null;
   remarks?: string | null;
   proofAttachmentUrl?: string | null;

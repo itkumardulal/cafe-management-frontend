@@ -41,6 +41,7 @@ import { fetchStockAlertsThunk } from "@/src/store/slices/dashboard.slice";
 import { canAccessStockAlerts } from "@/src/lib/stock-alerts-access";
 import { canAccessAssets } from "@/src/lib/assets-access";
 import type { AssetsSummary } from "@/src/lib/asset-types";
+import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
 
 export function CafeAnalyticsDashboard() {
@@ -54,6 +55,7 @@ export function CafeAnalyticsDashboard() {
   const cacheKey = analyticsCacheKey(effectivePeriodParams ?? { period: ANALYTICS_DEFAULT_PERIOD });
   const overview = cache[cacheKey]?.overview;
   const loading = status === "loading" && !overview;
+  const refreshing = status === "loading" && Boolean(overview);
 
   useEffect(() => {
     if (!effectivePeriodParams) return;
@@ -67,14 +69,29 @@ export function CafeAnalyticsDashboard() {
   }, [dispatch, effectivePeriodParams, menus, user?.role]);
 
   const handleRefresh = () => {
-    if (!effectivePeriodParams) return;
-    void dispatch(fetchAnalyticsOverviewForceThunk(effectivePeriodParams));
-    if (canAccessStockAlerts(user?.role, menus)) {
-      void dispatch(fetchStockAlertsThunk({ force: true }));
-    }
-    if (canAccessAssets(user?.role, menus)) {
-      void operationsApi.assets.summary().then(setAssetsSummary).catch(() => setAssetsSummary(null));
-    }
+    if (!effectivePeriodParams || refreshing) return;
+
+    void (async () => {
+      const result = await dispatch(fetchAnalyticsOverviewForceThunk(effectivePeriodParams));
+      if (fetchAnalyticsOverviewForceThunk.fulfilled.match(result)) {
+        appToast.success("Dashboard data reloaded");
+      } else if (
+        fetchAnalyticsOverviewForceThunk.rejected.match(result) &&
+        !result.meta.aborted
+      ) {
+        appToast.error(result.payload ?? "Failed to reload dashboard");
+      }
+
+      if (canAccessStockAlerts(user?.role, menus)) {
+        void dispatch(fetchStockAlertsThunk({ force: true }));
+      }
+      if (canAccessAssets(user?.role, menus)) {
+        void operationsApi.assets
+          .summary()
+          .then(setAssetsSummary)
+          .catch(() => setAssetsSummary(null));
+      }
+    })();
   };
 
   if (loading) {
@@ -118,6 +135,7 @@ export function CafeAnalyticsDashboard() {
           <AnalyticsDashboardToolbar
             overview={overview}
             showExport={visibility.financials}
+            refreshing={refreshing}
             onRefresh={handleRefresh}
           />
         }
@@ -127,6 +145,8 @@ export function CafeAnalyticsDashboard() {
         <ReportPeriodFilter period={periodParams} onPeriodChange={setPeriodParams} compact showSnapshotHint />
         <p className="break-words text-xs leading-relaxed text-[var(--color-muted)]">
           Compared to {overview.comparisonPeriod.label}
+          {" · "}
+          Last updated {new Date(overview.generatedAt).toLocaleString()}
         </p>
       </div>
 

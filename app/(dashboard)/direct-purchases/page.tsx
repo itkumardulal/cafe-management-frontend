@@ -17,6 +17,7 @@ import { RowActions } from "@/src/components/shared/row-actions";
 import { FormFooter } from "@/src/components/shared/form-footer";
 import { ImageUploadField } from "@/src/components/shared/image-upload-field";
 import { PurchasePaymentTypeSection } from "@/src/components/purchases/purchase-payment-type-section";
+import type { PurchaseBankAccountOption } from "@/src/components/purchases/purchase-payment-type-section";
 import { PaymentStatusBadge } from "@/src/components/purchases/ap-status-badges";
 import { SortableTableHeader } from "@/src/components/ui/sortable-table-header";
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
@@ -39,9 +40,16 @@ import { ResponsiveTable, tableActionsCellClass, tableActionsColumnClass, tableC
 import { FilterSelect } from "@/src/components/shared/filter-select";
 import { Select } from "@/src/components/ui/select";
 import { getApiErrorMessage } from "@/src/lib/api-error";
+import { hasEditChanges } from "@/src/lib/form-snapshot";
 import { cn } from "@/src/lib/cn";
 import { formatDateOnly, formatDateTime, formatMoney } from "@/src/lib/format-display";
-import type { ApBillSummary, CreatePaymentType, PurchasePaymentMethod } from "@/src/lib/ap-types";
+import { purchaseBankPaymentDetail } from "@/src/lib/ar-display";
+import type {
+  ApBillSummary,
+  CreatePaymentType,
+  PurchasePaymentMethod,
+  PurchasePaymentRow,
+} from "@/src/lib/ap-types";
 import { parseMoneyInput } from "@/src/lib/money-input";
 import Link from "next/link";
 import { appToast } from "@/src/lib/toast";
@@ -56,6 +64,13 @@ type Line = {
   supplierId: string;
   quantity: string;
   ratePerUnit: string;
+};
+
+type PurchaseEditSnapshot = {
+  purchaseDate: string;
+  notes: string;
+  supplierInvoiceNo: string;
+  lines: Line[];
 };
 
 const emptyLine = (): Line => ({
@@ -78,6 +93,7 @@ function lineTotal(quantity: string, ratePerUnit: string): number {
 
 type ViewPurchaseData = DirectPurchaseReceiptData & {
   id: string;
+  payments?: PurchasePaymentRow[];
 };
 
 type PurchaseRow = ApBillSummary;
@@ -171,10 +187,12 @@ function DirectPurchasesContent() {
   const [supplierInvoiceNo, setSupplierInvoiceNo] = useState("");
   const [paidAmountStr, setPaidAmountStr] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PurchasePaymentMethod>("CASH");
-  const [payReference, setPayReference] = useState("");
+  const [bankAccountId, setBankAccountId] = useState("");
+  const [bankAccounts, setBankAccounts] = useState<PurchaseBankAccountOption[]>([]);
   const [payRemarks, setPayRemarks] = useState("");
   const [bankScreenshotUrl, setBankScreenshotUrl] = useState("");
   const [bankScreenshotUploading, setBankScreenshotUploading] = useState(false);
+  const [editSnapshot, setEditSnapshot] = useState<PurchaseEditSnapshot | null>(null);
   const { entityId: uploadEntityId, resetForCreate: resetUploadEntityId } = useUploadEntityId();
   const [splitResultOpen, setSplitResultOpen] = useState(false);
   const [createdBills, setCreatedBills] = useState<
@@ -183,6 +201,16 @@ function DirectPurchasesContent() {
   const [viewOpen, setViewOpen] = useState(false);
   const [viewLoading, setViewLoading] = useState(false);
   const [viewPurchase, setViewPurchase] = useState<ViewPurchaseData | null>(null);
+  const viewBankPaymentDetail = useMemo(
+    () =>
+      viewPurchase
+        ? purchaseBankPaymentDetail(
+            viewPurchase.bankPaymentBankLabel,
+            viewPurchase.payments,
+          )
+        : null,
+    [viewPurchase],
+  );
   const { printDocument, isPrinting, requestPrint, printLoaded } =
     useThermalPrint<DirectPurchaseReceiptData>({
       onError: (error) =>
@@ -194,11 +222,35 @@ function DirectPurchasesContent() {
     [lines],
   );
 
+  const editDraft = useMemo(
+    (): PurchaseEditSnapshot => ({ purchaseDate, notes, supplierInvoiceNo, lines }),
+    [purchaseDate, notes, supplierInvoiceNo, lines],
+  );
+
+  const canSave = hasEditChanges(Boolean(editId), editDraft, editSnapshot);
+
   useEffect(() => {
-    if (paymentMethod !== "BANK_TRANSFER") {
-      setBankScreenshotUrl("");
+    if (paymentMethod === "BANK_TRANSFER") {
+      if (!bankAccountId && bankAccounts[0]) {
+        setBankAccountId(bankAccounts[0].id);
+      }
+      return;
     }
-  }, [paymentMethod]);
+    setBankScreenshotUrl("");
+    setBankAccountId("");
+  }, [paymentMethod, bankAccountId, bankAccounts]);
+
+  useEffect(() => {
+    void operationsApi.bankAccounts
+      .options()
+      .then((items) => {
+        setBankAccounts(items);
+        if (items.length === 1) {
+          setBankAccountId(items[0]!.id);
+        }
+      })
+      .catch(() => setBankAccounts([]));
+  }, []);
 
   const loadRefs = useCallback(async () => {
     try {
@@ -237,10 +289,11 @@ function DirectPurchasesContent() {
     setPaymentType("FULLY_PAID");
     setPaidAmountStr("");
     setPaymentMethod("CASH");
-    setPayReference("");
+    setBankAccountId(bankAccounts[0]?.id ?? "");
     setPayRemarks("");
     setBankScreenshotUrl("");
     setBankScreenshotUploading(false);
+    setEditSnapshot(null);
   };
 
   const openCreate = () => {
@@ -311,10 +364,18 @@ function DirectPurchasesContent() {
         appToast.error("Enter a valid partial payment amount");
         return;
       }
-      if (paymentMethod === "BANK_TRANSFER" && !bankScreenshotUrl.trim()) {
-        appToast.error("Bank transfer proof is required");
-        return;
-      }
+    }
+    if (
+      !editId &&
+      (paymentType === "FULLY_PAID" || paymentType === "PARTIALLY_PAID") &&
+      paymentMethod === "BANK_TRANSFER" &&
+      !bankAccountId.trim()
+    ) {
+      appToast.error("Choose a bank account for bank transfer payment");
+      return;
+    }
+    if (editId && !canSave) {
+      return;
     }
 
     setSaving(true);
@@ -348,15 +409,19 @@ function DirectPurchasesContent() {
         notes: notes.trim() || undefined,
         supplierInvoiceNo: supplierInvoiceNo.trim() || undefined,
         paymentType,
-        ...(paymentType === "PARTIALLY_PAID"
+        ...(paymentType === "FULLY_PAID" || paymentType === "PARTIALLY_PAID"
           ? {
               initialPayment: {
-                amount: parseMoneyInput(paidAmountStr).amount,
+                amount:
+                  paymentType === "FULLY_PAID"
+                    ? roundedGrandTotal
+                    : parseMoneyInput(paidAmountStr).amount,
                 paymentMethod,
-                referenceNumber: payReference.trim() || undefined,
+                ...(paymentMethod === "BANK_TRANSFER"
+                  ? { bankAccountId: bankAccountId.trim() }
+                  : {}),
                 remarks: payRemarks.trim() || undefined,
-                proofAttachmentUrl:
-                  paymentMethod === "BANK_TRANSFER" ? bankScreenshotUrl.trim() : undefined,
+                proofAttachmentUrl: bankScreenshotUrl.trim() || undefined,
               },
             }
           : {}),
@@ -416,7 +481,9 @@ function DirectPurchasesContent() {
       cashPaidAmount: detail.cashPaidAmount ?? "0",
       bankPaidAmount: detail.bankPaidAmount ?? "0",
       creditAmount: detail.creditAmount ?? "0",
+      bankPaymentBankLabel: detail.bankPaymentBankLabel ?? null,
       bankPaymentScreenshotUrl: detail.bankPaymentScreenshotUrl,
+      payments: detail.payments ?? [],
       cafe: detail.cafe,
       lines: apiLines.map((line) => ({
         ...line,
@@ -443,12 +510,10 @@ function DirectPurchasesContent() {
     try {
       const detail = await operationsApi.directPurchases.getOne(id);
       const supplierId = detail.supplierId ?? detail.lines[0]?.supplier.id ?? "";
-      setEditId(id);
-      setEditSupplierId(supplierId);
-      setPurchaseDate(detail.purchaseDate.slice(0, 10));
-      setNotes(detail.notes ?? "");
-      setSupplierInvoiceNo(detail.supplierInvoiceNo ?? "");
-      setLines(
+      const purchaseDateStr = detail.purchaseDate.slice(0, 10);
+      const notesStr = detail.notes ?? "";
+      const invoiceNo = detail.supplierInvoiceNo ?? "";
+      const loadedLines =
         detail.lines.length > 0
           ? detail.lines.map((line) => ({
               directPurchaseItemId: line.directPurchaseItemId ?? line.item.id,
@@ -459,8 +524,19 @@ function DirectPurchasesContent() {
               quantity: String(line.quantity),
               ratePerUnit: String(line.ratePerUnit),
             }))
-          : [{ ...emptyLine(), supplierId }],
-      );
+          : [{ ...emptyLine(), supplierId }];
+      setEditId(id);
+      setEditSupplierId(supplierId);
+      setPurchaseDate(purchaseDateStr);
+      setNotes(notesStr);
+      setSupplierInvoiceNo(invoiceNo);
+      setLines(loadedLines);
+      setEditSnapshot({
+        purchaseDate: purchaseDateStr,
+        notes: notesStr,
+        supplierInvoiceNo: invoiceNo,
+        lines: loadedLines,
+      });
       setViewOpen(false);
       setViewPurchase(null);
       setOpen(true);
@@ -750,8 +826,15 @@ function DirectPurchasesContent() {
                       ) : null}
                       {Number(viewPurchase.bankPaidAmount) > 0 ? (
                         <div className="flex justify-between gap-2 text-[var(--color-muted)]">
-                          <dt>Bank paid</dt>
-                          <dd className="font-mono tabular-nums">
+                          <dt>
+                            Bank paid
+                            {viewBankPaymentDetail ? (
+                              <span className="mt-0.5 block text-xs font-normal text-[var(--color-muted)]">
+                                {viewBankPaymentDetail}
+                              </span>
+                            ) : null}
+                          </dt>
+                          <dd className="shrink-0 font-mono tabular-nums">
                             {formatMoney(viewPurchase.bankPaidAmount ?? 0)}
                           </dd>
                         </div>
@@ -937,7 +1020,7 @@ function DirectPurchasesContent() {
               type="button"
               onClick={() => void submit()}
               loading={saving}
-              disabled={!hasRefs || saving || bankScreenshotUploading}
+              disabled={!hasRefs || saving || bankScreenshotUploading || !canSave}
             >
               {editId ? "Save changes" : "Save purchase"}
             </Button>
@@ -1193,17 +1276,17 @@ function DirectPurchasesContent() {
               onPaidAmountStrChange={setPaidAmountStr}
               paymentMethod={paymentMethod}
               onPaymentMethodChange={setPaymentMethod}
-              referenceNumber={payReference}
-              onReferenceNumberChange={setPayReference}
+              bankAccountId={bankAccountId}
+              onBankAccountIdChange={setBankAccountId}
+              bankAccounts={bankAccounts}
               remarks={payRemarks}
               onRemarksChange={setPayRemarks}
               disabled={!hasRefs || saving}
               bankProofSlot={
-                paymentMethod === "BANK_TRANSFER" ? (
+                paymentMethod === "BANK_TRANSFER" && bankAccountId ? (
                   <ImageUploadField
                     id="dpPurchaseBankProof"
                     label="Bank transfer proof"
-                    required
                     value={bankScreenshotUrl}
                     onChange={setBankScreenshotUrl}
                     assetType="module"

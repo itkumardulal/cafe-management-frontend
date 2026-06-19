@@ -33,6 +33,7 @@ import {
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import type { AssetMaintenanceRow } from "@/src/lib/asset-types";
 import { getApiErrorMessage } from "@/src/lib/api-error";
+import { hasEditChanges } from "@/src/lib/form-snapshot";
 import { formatDateOnly, formatMoney } from "@/src/lib/format-display";
 import { parseMoneyInput } from "@/src/lib/money-input";
 import { appToast } from "@/src/lib/toast";
@@ -137,7 +138,11 @@ function AssetMaintenanceContent() {
   const [edit, setEdit] = useState<AssetMaintenanceRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AssetMaintenanceRow | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [initialForm, setInitialForm] = useState<typeof emptyForm | null>(null);
   const [form, setForm] = useState(emptyForm);
+
+  const canSave = hasEditChanges(Boolean(edit), form, initialForm);
 
   const openCreate = () => {
     setEdit(null);
@@ -146,19 +151,22 @@ function AssetMaintenanceContent() {
       assetId: assetFilter || assetOptions[0]?.id || "",
       maintenanceDate: new Date().toISOString().slice(0, 10),
     });
+    setInitialForm(null);
     setOpen(true);
   };
 
   const openEdit = (row: AssetMaintenanceRow) => {
-    setEdit(row);
-    setForm({
+    const next = {
       assetId: row.assetId,
       maintenanceDate: row.maintenanceDate.slice(0, 10),
       maintenanceCost: row.maintenanceCost,
       description: row.description ?? "",
       remarks: row.remarks ?? "",
       recordAsExpense: row.recordAsExpense,
-    });
+    };
+    setEdit(row);
+    setForm(next);
+    setInitialForm(next);
     setOpen(true);
   };
 
@@ -176,7 +184,11 @@ function AssetMaintenanceContent() {
       appToast.error("Enter a valid maintenance cost");
       return;
     }
+    if (edit && !canSave) {
+      return;
+    }
     const recordAsExpense = cost.amount > 0 ? form.recordAsExpense : false;
+    setSaving(true);
     try {
       const payload = {
         assetId: form.assetId,
@@ -197,6 +209,8 @@ function AssetMaintenanceContent() {
       await refetch();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to save maintenance"));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -480,10 +494,12 @@ function AssetMaintenanceContent() {
           </Field>
         </div>
         <FormFooter>
-          <Button variant="secondary" onClick={() => setOpen(false)}>
+          <Button variant="secondary" onClick={() => setOpen(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={save}>Save</Button>
+          <Button onClick={() => void save()} loading={saving} disabled={!canSave}>
+            Save
+          </Button>
         </FormFooter>
       </Modal>
 

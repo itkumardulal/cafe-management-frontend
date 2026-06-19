@@ -87,6 +87,7 @@ export default function TableOrdersPage() {
   const catalogLoading = sellableCatalogStatus === "loading" && catalog.length === 0;
   const [board, setBoard] = useState<FloorTable[]>([]);
   const [boardLoading, setBoardLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [menuSearch, setMenuSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
 
@@ -184,9 +185,9 @@ export default function TableOrdersPage() {
     setCategoryFilter("");
   }, []);
 
-  const resolveSession = useCallback(async (sessionId: string) => {
+  const resolveSession = useCallback(async (sessionId: string, force = false) => {
     try {
-      return await operationsApi.tableOrders.getSession(sessionId);
+      return await operationsApi.tableOrders.getSession(sessionId, { force });
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         return null;
@@ -194,6 +195,32 @@ export default function TableOrdersPage() {
       throw error;
     }
   }, []);
+
+  const handleRefresh = useCallback(async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      const data = await operationsApi.tableOrders.board({ force: true });
+      setBoard(data.items);
+
+      if (session?.id) {
+        const fresh = await resolveSession(session.id, true);
+        if (!fresh || fresh.status === "CLOSED" || fresh.status === "CANCELLED") {
+          setSession(null);
+          setOrderLines([]);
+          setLastAddedKey(null);
+        } else {
+          await openSession(fresh);
+        }
+      }
+
+      appToast.success("Floor plan updated");
+    } catch (error) {
+      appToast.error(getApiErrorMessage(error, "Failed to reload floor plan"));
+    } finally {
+      setRefreshing(false);
+    }
+  }, [openSession, refreshing, resolveSession, session?.id]);
 
   const handleTableClick = async (item: FloorTable) => {
     try {
@@ -470,12 +497,14 @@ export default function TableOrdersPage() {
             <Button
               type="button"
               size="sm"
-              variant="ghost"
-              onClick={() => void loadBoard(false, true)}
-              disabled={boardLoading}
+              variant="secondary"
+              loading={refreshing}
+              disabled={refreshing || boardLoading}
+              onClick={() => void handleRefresh()}
+              title="Reload table statuses, order totals, and the open order slip from the server"
             >
-              <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", boardLoading && "animate-spin")} />
-              Refresh
+              {!refreshing ? <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden /> : null}
+              {refreshing ? "Reloading…" : "Reload floor plan"}
             </Button>
             <Link href="/invoices">
               <Button type="button" size="sm" variant="secondary">
@@ -518,11 +547,13 @@ export default function TableOrdersPage() {
               size="sm"
               variant="ghost"
               className="h-8 w-8 p-0"
-              onClick={() => void loadBoard(false, true)}
-              disabled={boardLoading}
-              aria-label="Refresh floor plan"
+              loading={refreshing}
+              disabled={refreshing || boardLoading}
+              onClick={() => void handleRefresh()}
+              title="Reload table statuses and order totals from the server"
+              aria-label="Reload floor plan"
             >
-              <RefreshCw className={cn("h-4 w-4", boardLoading && "animate-spin")} />
+              {!refreshing ? <RefreshCw className="h-4 w-4" aria-hidden /> : null}
             </Button>
           }
         >

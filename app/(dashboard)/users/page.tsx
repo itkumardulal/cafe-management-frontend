@@ -31,6 +31,7 @@ import { UserLifecycleActions } from "@/src/features/users/components/user-lifec
 import { staffSchema, type StaffSchemaType } from "@/src/features/users/schemas/staff.schema";
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { getApiErrorMessage } from "@/src/lib/api-error";
+import { hasEditChanges } from "@/src/lib/form-snapshot";
 import { cn } from "@/src/lib/cn";
 import { appToast } from "@/src/lib/toast";
 import { userStatusBadgeVariant, userStatusLabel } from "@/src/lib/user-status";
@@ -49,12 +50,27 @@ export default function UsersPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [roleOptions, setRoleOptions] = useState<RoleOption[]>([]);
   const [rolesLoading, setRolesLoading] = useState(true);
   const [editStaff, setEditStaff] = useState<StaffRecord | null>(null);
   const [editName, setEditName] = useState("");
   const [editContact, setEditContact] = useState("");
   const [editRoleId, setEditRoleId] = useState("");
+  const [initialEditDraft, setInitialEditDraft] = useState<{
+    fullName: string;
+    contactNumber: string;
+    staffRoleId: string;
+  } | null>(null);
+
+  const editDraft = {
+    fullName: editName,
+    contactNumber: editContact,
+    staffRoleId: editRoleId,
+  };
+  const canSaveEdit =
+    editStaff === null ||
+    hasEditChanges(true, editDraft, initialEditDraft);
 
   const {
     register,
@@ -158,26 +174,37 @@ export default function UsersPage() {
     setEditName(member.fullName);
     setEditContact(member.contactNumber ?? "");
     setEditRoleId(member.staffRole?.id ?? roleOptions[0]?.id ?? "");
+    setInitialEditDraft({
+      fullName: member.fullName,
+      contactNumber: member.contactNumber ?? "",
+      staffRoleId: member.staffRole?.id ?? roleOptions[0]?.id ?? "",
+    });
   };
 
   const saveEdit = async () => {
     if (!editStaff || !editRoleId) return;
-    const result = await dispatch(
-      updateStaffThunk({
-        id: editStaff.id,
-        fullName: editName,
-        contactNumber: editContact || undefined,
-        staffRoleId: editRoleId,
-      }),
-    );
-    if (updateStaffThunk.fulfilled.match(result)) {
-      appToast.success("Staff updated");
-      setEditStaff(null);
-      setStaffRefresh((n) => n + 1);
-    } else if (updateStaffThunk.rejected.match(result)) {
-      appToast.error(result.payload ?? "Failed to update staff");
-    } else {
-      appToast.error("Failed to update staff");
+    if (!canSaveEdit) return;
+    setSavingEdit(true);
+    try {
+      const result = await dispatch(
+        updateStaffThunk({
+          id: editStaff.id,
+          fullName: editName,
+          contactNumber: editContact || undefined,
+          staffRoleId: editRoleId,
+        }),
+      );
+      if (updateStaffThunk.fulfilled.match(result)) {
+        appToast.success("Staff updated");
+        setEditStaff(null);
+        setStaffRefresh((n) => n + 1);
+      } else if (updateStaffThunk.rejected.match(result)) {
+        appToast.error(result.payload ?? "Failed to update staff");
+      } else {
+        appToast.error("Failed to update staff");
+      }
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -331,10 +358,20 @@ export default function UsersPage() {
             </Select>
           </Field>
           <FormFooter>
-            <Button type="button" variant="secondary" onClick={() => setEditStaff(null)}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setEditStaff(null)}
+              disabled={savingEdit}
+            >
               Cancel
             </Button>
-            <Button type="button" onClick={() => void saveEdit()} disabled={!editRoleId}>
+            <Button
+              type="button"
+              onClick={() => void saveEdit()}
+              loading={savingEdit}
+              disabled={!editRoleId || !canSaveEdit}
+            >
               Save
             </Button>
           </FormFooter>

@@ -47,7 +47,7 @@ export function EditCafeAdminForm({ record, onSuccess, onCancel }: EditCafeAdmin
     handleSubmit,
     setValue,
     reset,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<EditCafeAdminFormValues>({
     defaultValues: {
       cafeName: record.cafeName,
@@ -74,6 +74,9 @@ export function EditCafeAdminForm({ record, onSuccess, onCancel }: EditCafeAdmin
   }, [record, reset]);
 
   const onSubmit = async (values: EditCafeAdminFormValues) => {
+    if (!isDirty) {
+      return;
+    }
     setSubmitting(true);
     try {
       await operationsApi.cafes.update(record.cafeId, {
@@ -176,7 +179,7 @@ export function EditCafeAdminForm({ record, onSuccess, onCancel }: EditCafeAdmin
         <Button type="button" variant="secondary" onClick={onCancel} disabled={submitting || logoUploading}>
           Cancel
         </Button>
-        <Button type="submit" loading={submitting} disabled={logoUploading}>
+        <Button type="submit" loading={submitting} disabled={logoUploading || !isDirty}>
           Save changes
         </Button>
       </FormFooter>

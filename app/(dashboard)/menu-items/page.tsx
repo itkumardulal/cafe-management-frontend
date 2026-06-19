@@ -27,6 +27,7 @@ import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { useUploadEntityId } from "@/src/hooks/use-upload-entity-id";
 import { cn } from "@/src/lib/cn";
 import { getApiErrorMessage } from "@/src/lib/api-error";
+import { hasEditChanges } from "@/src/lib/form-snapshot";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
@@ -129,9 +130,13 @@ function MenuItemsContent() {
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [initialForm, setInitialForm] = useState<typeof emptyForm | null>(null);
   const { entityId: imageUploadEntityId, resetForCreate: resetImageUploadEntityId, setForEdit: setImageUploadEntityForEdit } =
     useUploadEntityId();
   const [form, setForm] = useState(emptyForm);
+
+  const canSave = hasEditChanges(Boolean(editId), form, initialForm);
   const [linkOptions, setLinkOptions] = useState<
     Array<{
       id: string;
@@ -226,15 +231,14 @@ function MenuItemsContent() {
     setEditId(null);
     resetImageUploadEntityId();
     setForm(emptyForm);
+    setInitialForm(null);
     setLinkOptions([]);
     setLinkedDirectPurchaseNames([]);
     setOpen(true);
   };
 
   const openEdit = (item: MenuItemRow) => {
-    setEditId(item.id);
-    setImageUploadEntityForEdit(item.id);
-    setForm({
+    const next = {
       menuCategoryId: item.menuCategoryId,
       name: item.name,
       itemType: item.itemType ?? "",
@@ -250,7 +254,11 @@ function MenuItemsContent() {
       stockAdjustmentQty: "",
       reorderLevel: item.reorderLevel ?? "",
       notes: item.notes ?? "",
-    });
+    };
+    setEditId(item.id);
+    setImageUploadEntityForEdit(item.id);
+    setForm(next);
+    setInitialForm(next);
     setOpen(true);
   };
 
@@ -301,6 +309,9 @@ function MenuItemsContent() {
       appToast.error("Selling price must be greater than cost price");
       return;
     }
+    if (editId && !canSave) {
+      return;
+    }
 
     const payload = {
       menuCategoryId: form.menuCategoryId,
@@ -311,6 +322,7 @@ function MenuItemsContent() {
       notes: form.notes.trim() || undefined,
     };
 
+    setSaving(true);
     try {
       const reorderLevel =
         form.trackStock && form.reorderLevel.trim() !== ""
@@ -353,6 +365,8 @@ function MenuItemsContent() {
       await refetch();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to save menu item"));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -668,17 +682,26 @@ function MenuItemsContent() {
             ? "Update details, pricing, and stock for this item."
             : "Add a new item under a category with image, units, and pricing."
         }
-        onClose={() => setOpen(false)}
+        onClose={() => {
+          if (!saving && !imageUploading) {
+            setOpen(false);
+          }
+        }}
         footer={
           <FormFooter>
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setOpen(false)}
+              disabled={saving || imageUploading}
+            >
               Cancel
             </Button>
             <Button
               type="button"
               onClick={() => void save()}
-              loading={imageUploading}
-              disabled={Boolean(nameError)}
+              loading={saving || imageUploading}
+              disabled={Boolean(nameError) || saving || imageUploading || !canSave}
             >
               {editId ? "Save changes" : "Add item"}
             </Button>

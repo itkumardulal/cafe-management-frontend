@@ -35,6 +35,7 @@ import {
   tableCenterColumnClass,
 } from "@/src/components/ui/table";
 import { getApiErrorMessage } from "@/src/lib/api-error";
+import { hasEditChanges } from "@/src/lib/form-snapshot";
 import { cn } from "@/src/lib/cn";
 import { formatDateTime, formatMoney } from "@/src/lib/format-display";
 import { appToast } from "@/src/lib/toast";
@@ -43,6 +44,14 @@ import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
 import { fetchStockRemovalRefsThunk } from "@/src/store/slices/reference-data.slice";
 
 type Line = { itemKey: string; quantity: string };
+
+type RemovalEditSnapshot = {
+  entryAt: string;
+  reason: "DAMAGE" | "STAFF_USE";
+  staffUserId: string;
+  notes: string;
+  lines: Line[];
+};
 
 type RemovalRow = {
   id: string;
@@ -171,6 +180,7 @@ function StockRemovalsContent() {
   const [staffUserId, setStaffUserId] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<Line[]>([emptyLine()]);
+  const [editSnapshot, setEditSnapshot] = useState<RemovalEditSnapshot | null>(null);
   const [viewOpen, setViewOpen] = useState(false);
   const [viewLoading, setViewLoading] = useState(false);
   const [viewRemoval, setViewRemoval] = useState<RemovalDetail | null>(null);
@@ -208,6 +218,13 @@ function StockRemovalsContent() {
     setFilters({ fromDate: draftFromDate, toDate: draftToDate });
   };
 
+  const editDraft = useMemo(
+    (): RemovalEditSnapshot => ({ entryAt, reason, staffUserId, notes, lines }),
+    [entryAt, reason, staffUserId, notes, lines],
+  );
+
+  const canSave = hasEditChanges(Boolean(editId), editDraft, editSnapshot);
+
   const openCreate = () => {
     setEditId(null);
     setEntryAt(new Date().toISOString().slice(0, 16));
@@ -215,6 +232,7 @@ function StockRemovalsContent() {
     setStaffUserId("");
     setNotes("");
     setLines([emptyLine()]);
+    setEditSnapshot(null);
     setOpen(true);
   };
 
@@ -224,25 +242,36 @@ function StockRemovalsContent() {
     try {
       const detail = await operationsApi.stockRemovals.getOne(id);
       const entry = detail.entryAt.slice(0, 16);
-      setEntryAt(entry.length === 16 ? entry : new Date(detail.entryAt).toISOString().slice(0, 16));
-      setReason(detail.reason as "DAMAGE" | "STAFF_USE");
-      setStaffUserId(detail.staffUserId ?? "");
-      setNotes(detail.notes ?? "");
-      setLines(
-        detail.lines.map((line) => ({
-          itemKey:
-            line.lineType === "MENU" && line.menuItemId
-              ? `MENU:${line.menuItemId}`
-              : line.stockItemId
-                ? `INVENTORY:${line.stockItemId}`
-                : "",
-          quantity: line.quantity,
-        })),
-      );
+      const entryAtStr = entry.length === 16 ? entry : new Date(detail.entryAt).toISOString().slice(0, 16);
+      const reasonValue = detail.reason as "DAMAGE" | "STAFF_USE";
+      const staffId = detail.staffUserId ?? "";
+      const notesStr = detail.notes ?? "";
+      const loadedLines = detail.lines.map((line) => ({
+        itemKey:
+          line.lineType === "MENU" && line.menuItemId
+            ? `MENU:${line.menuItemId}`
+            : line.stockItemId
+              ? `INVENTORY:${line.stockItemId}`
+              : "",
+        quantity: line.quantity,
+      }));
+      setEntryAt(entryAtStr);
+      setReason(reasonValue);
+      setStaffUserId(staffId);
+      setNotes(notesStr);
+      setLines(loadedLines);
+      setEditSnapshot({
+        entryAt: entryAtStr,
+        reason: reasonValue,
+        staffUserId: staffId,
+        notes: notesStr,
+        lines: loadedLines,
+      });
       setViewOpen(false);
     } catch (error) {
       setOpen(false);
       setEditId(null);
+      setEditSnapshot(null);
       appToast.error(getApiErrorMessage(error, "Failed to load removal for editing"));
     }
   };
@@ -311,6 +340,9 @@ function StockRemovalsContent() {
         appToast.error(`Line ${row}: invalid item`);
         return;
       }
+    }
+    if (editId && !canSave) {
+      return;
     }
 
     setSaving(true);
@@ -754,7 +786,7 @@ function StockRemovalsContent() {
             >
               Cancel
             </Button>
-            <Button type="button" onClick={() => void submit()} loading={saving} disabled={!canCreate}>
+            <Button type="button" onClick={() => void submit()} loading={saving} disabled={!canCreate || !canSave}>
               {editId ? "Save changes" : "Record removal"}
             </Button>
           </FormFooter>

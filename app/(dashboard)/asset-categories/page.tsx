@@ -25,6 +25,7 @@ import {
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import type { AssetCategoryRow } from "@/src/lib/asset-types";
 import { getApiErrorMessage } from "@/src/lib/api-error";
+import { hasEditChanges } from "@/src/lib/form-snapshot";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
 import { useAppDispatch } from "@/src/store/hooks";
@@ -82,7 +83,11 @@ function AssetCategoriesContent() {
   const [edit, setEdit] = useState<AssetCategoryRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AssetCategoryRow | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [initialForm, setInitialForm] = useState<typeof emptyForm | null>(null);
   const [form, setForm] = useState(emptyForm);
+
+  const canSave = hasEditChanges(Boolean(edit), form, initialForm);
 
   const invalidateOptions = () => {
     dispatch(invalidateAssetCategoryOptions());
@@ -91,15 +96,18 @@ function AssetCategoriesContent() {
   const openCreate = () => {
     setEdit(null);
     setForm(emptyForm);
+    setInitialForm(null);
     setOpen(true);
   };
 
   const openEdit = (item: AssetCategoryRow) => {
-    setEdit(item);
-    setForm({
+    const next = {
       name: item.name,
       description: item.description ?? "",
-    });
+    };
+    setEdit(item);
+    setForm(next);
+    setInitialForm(next);
     setOpen(true);
   };
 
@@ -108,6 +116,10 @@ function AssetCategoriesContent() {
       appToast.error("Category name is required");
       return;
     }
+    if (edit && !canSave) {
+      return;
+    }
+    setSaving(true);
     try {
       const payload = {
         name: form.name.trim(),
@@ -125,6 +137,8 @@ function AssetCategoriesContent() {
       await refetch();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to save category"));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -250,7 +264,7 @@ function AssetCategoriesContent() {
         </Card>
       </PaginatedListSection>
 
-      <Modal open={open} onClose={() => setOpen(false)} title={edit ? "Edit category" : "Add category"}>
+      <Modal open={open} onClose={() => !saving && setOpen(false)} title={edit ? "Edit category" : "Add category"}>
         <div className="space-y-4">
           <Field id="category-name" label="Name" required>
             <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -263,10 +277,12 @@ function AssetCategoriesContent() {
           </Field>
         </div>
         <FormFooter>
-          <Button variant="secondary" onClick={() => setOpen(false)}>
+          <Button variant="secondary" onClick={() => setOpen(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={save}>Save</Button>
+          <Button onClick={() => void save()} loading={saving} disabled={!canSave}>
+            Save
+          </Button>
         </FormFooter>
       </Modal>
 

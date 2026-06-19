@@ -115,18 +115,6 @@ function PurchaseBillRow({
         </td>
         <td className="px-3 py-2.5">
           <p className="text-xs text-foreground">{formatDateOnly(bill.purchaseDate)}</p>
-          {bill.dueDate ? (
-            <p
-              className={cn(
-                "mt-0.5 text-[11px] leading-tight",
-                bill.billStatus === "OVERDUE"
-                  ? "font-medium text-red-600 dark:text-red-400"
-                  : "text-muted",
-              )}
-            >
-              Due {formatDateOnly(bill.dueDate)}
-            </p>
-          ) : null}
         </td>
         <td className={cn(tableCenterCellClass, "px-3 py-2.5 font-mono text-xs tabular-nums")}>
           {formatMoney(bill.grandTotal)}
@@ -194,15 +182,7 @@ function PurchaseBillMobileCard({
               </span>
             ),
           },
-          bill.dueDate
-            ? {
-                label: "Due date",
-                value: formatDateOnly(bill.dueDate),
-              }
-            : {
-                label: "Items",
-                value: String(bill.lines.length),
-              },
+          { label: "Items", value: String(bill.lines.length) },
         ]}
         actions={
           <button

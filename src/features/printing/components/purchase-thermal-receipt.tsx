@@ -1,6 +1,7 @@
 "use client";
 
 import { formatDateOnly } from "@/src/lib/format-display";
+import { purchaseBankPaymentDetail } from "@/src/lib/ar-display";
 import {
   getPurchasePaymentStatus,
   purchasePaymentStatusLabel,
@@ -39,6 +40,7 @@ export type PurchaseThermalReceiptData = {
   cashPaidAmount?: string;
   bankPaidAmount?: string;
   creditAmount?: string;
+  bankPaymentBankLabel?: string | null;
   bankPaymentScreenshotUrl?: string | null;
   lines: PurchaseThermalReceiptLine[];
   cafe?: {
@@ -93,7 +95,15 @@ export function PurchaseThermalReceipt({
 
   const paymentRows = [
     cash > 0.005 ? { label: "Cash paid", value: formatMoneyCompact(cash) } : null,
-    bank > 0.005 ? { label: "Bank paid", value: formatMoneyCompact(bank) } : null,
+    bank > 0.005
+      ? {
+          label: (() => {
+            const bankDetail = purchaseBankPaymentDetail(purchase.bankPaymentBankLabel);
+            return bankDetail ? `Bank paid (${bankDetail})` : "Bank paid";
+          })(),
+          value: formatMoneyCompact(bank),
+        }
+      : null,
     credit > 0.005
       ? { label: "Credit due", value: formatMoneyCompact(credit), bold: true }
       : null,

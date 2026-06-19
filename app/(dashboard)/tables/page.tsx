@@ -23,6 +23,7 @@ import {
 } from "@/src/components/ui/table";
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { getApiErrorMessage } from "@/src/lib/api-error";
+import { hasEditChanges } from "@/src/lib/form-snapshot";
 import { formatDateOnly } from "@/src/lib/format-display";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
@@ -82,17 +83,23 @@ function TablesContent() {
   const [edit, setEdit] = useState<Row | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [initialName, setInitialName] = useState("");
   const [name, setName] = useState("");
+
+  const canSave = hasEditChanges(Boolean(edit), name, edit ? initialName : null);
 
   const openCreate = () => {
     setEdit(null);
     setName("");
+    setInitialName("");
     setOpen(true);
   };
 
   const openEdit = (item: Row) => {
     setEdit(item);
     setName(item.name);
+    setInitialName(item.name);
     setOpen(true);
   };
 
@@ -102,7 +109,11 @@ function TablesContent() {
       appToast.error("Table name is required");
       return;
     }
+    if (edit && !canSave) {
+      return;
+    }
 
+    setSaving(true);
     try {
       if (edit) {
         await operationsApi.diningTables.update(edit.id, { name: trimmedName });
@@ -115,6 +126,8 @@ function TablesContent() {
       await refetch();
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to save table"));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -307,10 +320,10 @@ function TablesContent() {
             />
           </Field>
           <div className="flex flex-wrap justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
+            <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button type="button" onClick={() => void save()}>
+            <Button type="button" onClick={() => void save()} loading={saving} disabled={!canSave}>
               {edit ? "Save changes" : "Add table"}
             </Button>
           </div>

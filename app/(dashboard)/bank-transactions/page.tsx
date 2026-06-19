@@ -39,6 +39,7 @@ import { ReportSummaryCard } from "@/src/features/reports/components/report-deta
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { cn } from "@/src/lib/cn";
 import { getApiErrorMessage } from "@/src/lib/api-error";
+import { hasEditChanges } from "@/src/lib/form-snapshot";
 import { formatDateOnly, formatMoney } from "@/src/lib/format-display";
 import { parseMoneyInput } from "@/src/lib/money-input";
 import { appToast } from "@/src/lib/toast";
@@ -148,6 +149,9 @@ function BankTransactionsContent() {
   const [deleteTarget, setDeleteTarget] = useState<TransactionRow | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [initialForm, setInitialForm] = useState<typeof emptyForm | null>(null);
+
+  const canSave = hasEditChanges(Boolean(edit), form, initialForm);
   const { entityId: uploadEntityId, resetForCreate: resetUploadEntityId, setForEdit: setUploadEntityForEdit } =
     useUploadEntityId();
   const [proofUploading, setProofUploading] = useState(false);
@@ -200,14 +204,14 @@ function BankTransactionsContent() {
       transactionDate: new Date().toISOString().slice(0, 10),
       bankAccountId: bankAccounts[0]?.id ?? "",
     });
+    setInitialForm(null);
     resetUploadEntityId();
     setProofUploading(false);
     setOpen(true);
   };
 
   const openEdit = (row: TransactionRow) => {
-    setEdit(row);
-    setForm({
+    const next = {
       bankAccountId: row.bankAccountId,
       type: row.type,
       amount: row.amount,
@@ -215,7 +219,10 @@ function BankTransactionsContent() {
       referenceNumber: row.referenceNumber ?? "",
       proofAttachmentUrl: row.proofAttachmentUrl ?? "",
       notes: row.notes ?? "",
-    });
+    };
+    setEdit(row);
+    setForm(next);
+    setInitialForm(next);
     setUploadEntityForEdit(row.id);
     setProofUploading(false);
     setOpen(true);
@@ -237,6 +244,9 @@ function BankTransactionsContent() {
     }
     if (proofUploading) {
       appToast.error("Wait for the voucher image to finish uploading");
+      return;
+    }
+    if (edit && !canSave) {
       return;
     }
 
@@ -663,7 +673,12 @@ function BankTransactionsContent() {
             <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button type="button" onClick={() => void save()} loading={saving} disabled={proofUploading}>
+            <Button
+              type="button"
+              onClick={() => void save()}
+              loading={saving}
+              disabled={proofUploading || !canSave}
+            >
               {edit ? "Save changes" : "Record transaction"}
             </Button>
           </FormFooter>

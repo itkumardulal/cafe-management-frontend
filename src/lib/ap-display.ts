@@ -66,6 +66,17 @@ export function formatPaymentMethod(method: string): string {
   );
 }
 
+export function formatPurchasePaymentMethodWithBank(payment: {
+  paymentMethod: string;
+  bankAccountLabel?: string | null;
+}): string {
+  const label = formatPaymentMethod(payment.paymentMethod);
+  if (payment.paymentMethod === "BANK_TRANSFER" && payment.bankAccountLabel?.trim()) {
+    return `${label} · ${payment.bankAccountLabel.trim()}`;
+  }
+  return label;
+}
+
 export const PAYMENT_TERMS_OPTIONS = [
   { value: "IMMEDIATE", label: "Immediate" },
   { value: "NET_7", label: "7 days" },

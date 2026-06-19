@@ -80,7 +80,7 @@ function StaffRolesContent() {
     register,
     handleSubmit,
     reset,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<StaffRoleSchemaInput, unknown, StaffRoleSchemaType>({
     resolver: zodResolver(staffRoleSchema),
     defaultValues: {
@@ -506,7 +506,7 @@ function StaffRolesContent() {
             <Button type="button" variant="secondary" onClick={closeModal} disabled={saving}>
               Cancel
             </Button>
-            <Button type="submit" loading={saving}>
+            <Button type="submit" loading={saving} disabled={Boolean(editing) && !isDirty}>
               {editing ? "Save changes" : "Create role"}
             </Button>
           </FormFooter>
@@ -539,7 +539,12 @@ function StaffRolesContent() {
             >
               Cancel
             </Button>
-            <Button type="button" loading={savingPermissions} onClick={onSavePermissions}>
+            <Button
+              type="button"
+              loading={savingPermissions}
+              onClick={onSavePermissions}
+              disabled={!menusChanged}
+            >
               Save permissions
             </Button>
           </FormFooter>

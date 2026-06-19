@@ -33,6 +33,7 @@ import {
 } from "@/src/components/ui/table";
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import { getApiErrorMessage } from "@/src/lib/api-error";
+import { hasEditChanges } from "@/src/lib/form-snapshot";
 import { cn } from "@/src/lib/cn";
 import { formatDateOnly, formatMoney } from "@/src/lib/format-display";
 import { appToast } from "@/src/lib/toast";
@@ -121,6 +122,9 @@ function DailyExpensesContent() {
   const [deleteTarget, setDeleteTarget] = useState<ExpenseEntryRow | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [initialForm, setInitialForm] = useState<typeof emptyForm | null>(null);
+
+  const canSave = hasEditChanges(Boolean(edit), form, initialForm);
 
   const loadExpenseItems = useCallback(async () => {
     try {
@@ -155,17 +159,20 @@ function DailyExpensesContent() {
       ...emptyForm,
       expenseDate: new Date().toISOString().slice(0, 10),
     });
+    setInitialForm(null);
     setOpen(true);
   };
 
   const openEdit = (entry: ExpenseEntryRow) => {
-    setEdit(entry);
-    setForm({
+    const next = {
       expenseItemId: entry.expenseItemId,
       amount: entry.amount,
       expenseDate: String(entry.expenseDate).slice(0, 10),
       notes: entry.notes ?? "",
-    });
+    };
+    setEdit(entry);
+    setForm(next);
+    setInitialForm(next);
     setOpen(true);
   };
 
@@ -181,6 +188,9 @@ function DailyExpensesContent() {
     }
     if (!form.expenseDate) {
       appToast.error("Expense date is required");
+      return;
+    }
+    if (edit && !canSave) {
       return;
     }
 
@@ -511,7 +521,7 @@ function DailyExpensesContent() {
             <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button type="button" onClick={() => void save()} loading={saving}>
+            <Button type="button" onClick={() => void save()} loading={saving} disabled={!canSave}>
               {edit ? "Save changes" : "Record expense"}
             </Button>
           </FormFooter>

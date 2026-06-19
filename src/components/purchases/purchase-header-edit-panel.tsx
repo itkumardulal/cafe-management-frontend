@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PaymentTermsSection } from "@/src/components/purchases/payment-terms-section";
 import { Button } from "@/src/components/ui/button";
 import { Field } from "@/src/components/ui/field";
 import type { ApBillSummary, PaymentTermsPreset } from "@/src/lib/ap-types";
+import { hasEditChanges } from "@/src/lib/form-snapshot";
 
 export type PurchaseHeaderEditPayload = {
   notes?: string;
@@ -30,12 +31,27 @@ export function PurchaseHeaderEditPanel({ purchase, saving, onSave, onCancel }: 
   const [customDueDate, setCustomDueDate] = useState(
     purchase.dueDate?.slice(0, 10) ?? purchase.purchaseDate.slice(0, 10),
   );
+  const [initialDraft, setInitialDraft] = useState<{
+    notes: string;
+    preset: PaymentTermsPreset;
+    customDueDate: string;
+  } | null>(null);
 
   useEffect(() => {
-    setNotes(purchase.notes ?? "");
-    setPreset(purchase.paymentTermsPreset ?? "IMMEDIATE");
-    setCustomDueDate(purchase.dueDate?.slice(0, 10) ?? purchase.purchaseDate.slice(0, 10));
+    const nextNotes = purchase.notes ?? "";
+    const nextPreset = purchase.paymentTermsPreset ?? "IMMEDIATE";
+    const nextDueDate = purchase.dueDate?.slice(0, 10) ?? purchase.purchaseDate.slice(0, 10);
+    setNotes(nextNotes);
+    setPreset(nextPreset);
+    setCustomDueDate(nextDueDate);
+    setInitialDraft({ notes: nextNotes, preset: nextPreset, customDueDate: nextDueDate });
   }, [purchase]);
+
+  const draft = useMemo(
+    () => ({ notes, preset, customDueDate }),
+    [notes, preset, customDueDate],
+  );
+  const canSave = hasEditChanges(true, draft, initialDraft);
 
   return (
     <div className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)]/40 p-4">
@@ -63,6 +79,7 @@ export function PurchaseHeaderEditPanel({ purchase, saving, onSave, onCancel }: 
         <Button
           type="button"
           loading={saving}
+          disabled={!canSave}
           onClick={() =>
             void onSave({
               notes: notes.trim() || undefined,
