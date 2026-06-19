@@ -4,12 +4,7 @@ export type SalePaymentStatus = "PAID" | "PARTIAL" | "UNPAID";
 
 export type SaleBillStatus = "OPEN" | "OVERDUE" | "CLOSED";
 
-export type SalePaymentMethod =
-  | "CASH"
-  | "BANK_TRANSFER"
-  | "ESEWA"
-  | "KHALTI"
-  | "CHEQUE";
+export type SalePaymentMethod = "CASH" | "BANK_TRANSFER" | "CHEQUE";
 
 export type CustomerType = "WALK_IN" | "REGISTERED";
 
@@ -27,6 +22,7 @@ export type SalePaymentRow = {
   amount: string;
   paymentMethod: SalePaymentMethod;
   bankAccountId?: string | null;
+  bankAccountLabel?: string | null;
   referenceNumber?: string | null;
   chequeBankName?: string | null;
   remarks?: string | null;
@@ -143,6 +139,7 @@ export type CustomerReceivableDetail = {
     amount: string;
     amountReceived?: string;
     changeAmount?: string;
+    remainingOutstanding?: string;
     paymentMethod: string;
     remarks: string | null;
     paidAt: string;
@@ -156,6 +153,7 @@ export type CustomerReceivablePaymentReceiptData = {
   amount: string;
   amountReceived?: string;
   changeAmount?: string;
+  remainingOutstanding?: string;
   paymentMethod: string;
   remarks: string | null;
   paidAt: string;

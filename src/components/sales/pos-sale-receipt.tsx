@@ -1,8 +1,14 @@
 "use client";
 
 import type { SaleDetailResponse } from "@/src/lib/ar-types";
-import { SALE_PAYMENT_TERMS_OPTIONS } from "@/src/lib/ar-display";
+import {
+  formatSalePaymentMethod,
+  formatSalePaymentMethodDetail,
+  salePaymentBankName,
+  SALE_PAYMENT_TERMS_OPTIONS,
+} from "@/src/lib/ar-display";
 import { ThermalCreditBlock } from "@/src/features/printing/components/thermal-credit-block";
+import { ThermalCustomerBlock } from "@/src/features/printing/components/thermal-customer-block";
 import { ThermalDivider } from "@/src/features/printing/components/thermal-divider";
 import { ThermalLineItems } from "@/src/features/printing/components/thermal-line-items";
 import { ThermalPaymentBlock } from "@/src/features/printing/components/thermal-payment-block";
@@ -12,8 +18,7 @@ import { ThermalReceiptShell } from "@/src/features/printing/components/thermal-
 import { ThermalRow } from "@/src/features/printing/components/thermal-row";
 import { serviceLabel } from "@/src/features/printing/lib/pos-labels";
 import { formatMoneyCompact } from "@/src/features/printing/lib/thermal-money";
-import { formatCompactDateTime, wrapThermalText } from "@/src/features/printing/lib/thermal-text";
-import { DEFAULT_PAPER_PROFILE } from "@/src/features/printing/constants/paper-profiles";
+import { formatCompactDateTime } from "@/src/features/printing/lib/thermal-text";
 import { cn } from "@/src/lib/cn";
 
 export type PosSaleReceiptLine = {
@@ -32,6 +37,33 @@ function paymentTermsLabel(preset: PosSaleReceiptData["paymentTermsPreset"]) {
   return SALE_PAYMENT_TERMS_OPTIONS.find((o) => o.value === preset)?.label ?? null;
 }
 
+function bankNameFromPayment(payment: PosSaleReceiptData["payments"][number]): string | null {
+  const bankName = salePaymentBankName(payment);
+  if (bankName) return bankName;
+  if (payment.paymentMethod !== "CASH") {
+    return formatSalePaymentMethod(payment.paymentMethod);
+  }
+  return null;
+}
+
+function saleBankPaymentRowLabel(sale: PosSaleReceiptData): string {
+  if (Number(sale.bankPaidAmount) <= 0) return "Bank";
+
+  const bankPayments =
+    sale.payments?.filter(
+      (payment) => payment.paymentMethod !== "CASH" && Number(payment.amount) > 0,
+    ) ?? [];
+
+  const names = bankPayments
+    .map((payment) => bankNameFromPayment(payment))
+    .filter((name): name is string => Boolean(name))
+    .filter((name, index, all) => all.indexOf(name) === index);
+
+  if (names.length === 0) return "Bank";
+  if (names.length === 1) return `Bank (${names[0]})`;
+  return `Bank (${names.join(", ")})`;
+}
+
 type PosSaleReceiptProps = {
   sale: PosSaleReceiptData;
   cafeName?: string;
@@ -45,7 +77,8 @@ export function PosSaleReceipt({ sale, cafeName, className, id }: PosSaleReceipt
   const hasCustomer =
     sale.customerName?.trim() ||
     sale.customerPhone?.trim() ||
-    sale.customerAddress?.trim();
+    sale.customerAddress?.trim() ||
+    sale.customerEmail?.trim();
 
   const creditNum = Number(sale.creditAmount);
   const hasCredit = Number.isFinite(creditNum) && creditNum > 0.005;
@@ -62,7 +95,10 @@ export function PosSaleReceipt({ sale, cafeName, className, id }: PosSaleReceipt
       ? { label: "Cash", value: formatMoneyCompact(sale.cashPaidAmount) }
       : null,
     Number(sale.bankPaidAmount) > 0
-      ? { label: "Bank", value: formatMoneyCompact(sale.bankPaidAmount) }
+      ? {
+          label: saleBankPaymentRowLabel(sale),
+          value: formatMoneyCompact(sale.bankPaidAmount),
+        }
       : null,
     hasCredit
       ? { label: "Credit due", value: formatMoneyCompact(sale.creditAmount), bold: true }
@@ -75,12 +111,10 @@ export function PosSaleReceipt({ sale, cafeName, className, id }: PosSaleReceipt
       : null,
   ].filter((row): row is { label: string; value: string; bold?: boolean } => row !== null);
 
-  const addressLines =
-    sale.customerAddress && sale.serviceType === "DELIVERY"
-      ? wrapThermalText(`Deliver to: ${sale.customerAddress}`, DEFAULT_PAPER_PROFILE.maxChars)
-      : sale.customerAddress
-        ? wrapThermalText(sale.customerAddress, DEFAULT_PAPER_PROFILE.maxChars)
-        : [];
+  const addressPrefix =
+    sale.customerAddress?.trim() && sale.serviceType === "DELIVERY"
+      ? "Deliver to:"
+      : null;
 
   return (
     <ThermalReceiptShell id={id} className={cn(className)}>
@@ -105,19 +139,13 @@ export function PosSaleReceipt({ sale, cafeName, className, id }: PosSaleReceipt
       {hasCustomer ? (
         <>
           <ThermalDivider />
-          <div className="text-[10px]">
-            <p className="font-semibold uppercase tracking-wide">Customer</p>
-            {sale.customerName ? <p className="mt-0.5 font-medium">{sale.customerName}</p> : null}
-            {sale.customerPhone ? (
-              <p className="mt-0.5 font-mono">{sale.customerPhone}</p>
-            ) : null}
-            {addressLines.map((line, idx) => (
-              <p key={idx} className="mt-0.5 leading-snug">
-                {line}
-              </p>
-            ))}
-            {sale.customerEmail ? <p className="mt-0.5">{sale.customerEmail}</p> : null}
-          </div>
+          <ThermalCustomerBlock
+            name={sale.customerName}
+            phone={sale.customerPhone}
+            address={sale.customerAddress}
+            email={sale.customerEmail}
+            addressPrefix={addressPrefix}
+          />
         </>
       ) : null}
 
@@ -137,16 +165,18 @@ export function PosSaleReceipt({ sale, cafeName, className, id }: PosSaleReceipt
 
       <div className="space-y-0.5 text-[10px]">
         <ThermalRow label="Subtotal" value={formatMoneyCompact(sale.subtotal)} />
+        <ThermalRow
+          label={`Discount${sale.discountPercent ? ` (${sale.discountPercent}%)` : ""}`}
+          value={
+            Number(sale.discountAmount) > 0
+              ? `-${formatMoneyCompact(sale.discountAmount)}`
+              : formatMoneyCompact(0)
+          }
+        />
         {Number(sale.otherChargeAmount) > 0 ? (
           <ThermalRow
             label={sale.serviceType === "DELIVERY" ? "Delivery fee" : "Other"}
             value={formatMoneyCompact(sale.otherChargeAmount)}
-          />
-        ) : null}
-        {Number(sale.discountAmount) > 0 ? (
-          <ThermalRow
-            label={`Discount${sale.discountPercent ? ` (${sale.discountPercent}%)` : ""}`}
-            value={`-${formatMoneyCompact(sale.discountAmount)}`}
           />
         ) : null}
         <ThermalRow

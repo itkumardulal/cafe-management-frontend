@@ -115,13 +115,11 @@ function dispatchReduxInvalidations(path: string) {
     store.dispatch(invalidateAssetOptions());
     store.dispatch(invalidateAssetCategoryOptions());
     invalidateGetCache("/assets/summary");
-    invalidateGetCache("/asset-reports");
   }
 
   if (path.startsWith("/asset-maintenance")) {
     store.dispatch(invalidateAssetOptions());
     invalidateGetCache("/expense-entries");
-    invalidateGetCache("/asset-reports");
   }
 }
 

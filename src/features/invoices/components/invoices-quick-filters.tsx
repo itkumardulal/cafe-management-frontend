@@ -6,6 +6,7 @@ import { cn } from "@/src/lib/cn";
 
 type ServiceFilter = "" | "DINE_IN" | "DELIVERY";
 type BillingFilter = "" | "PAID" | "CREDIT";
+type PaymentChannelFilter = "" | "CASH" | "BANK";
 
 function filterPillClass(active: boolean) {
   return cn(
@@ -36,17 +37,21 @@ function FilterGroup({
 export function InvoicesQuickFilters({
   serviceFilter,
   billingFilter,
+  paymentChannelFilter,
   openBalanceFilter,
   onServiceChange,
   onBillingChange,
+  onPaymentChannelChange,
   onOpenBalanceToggle,
   className,
 }: {
   serviceFilter: ServiceFilter;
   billingFilter: BillingFilter;
+  paymentChannelFilter: PaymentChannelFilter;
   openBalanceFilter: boolean;
   onServiceChange: (value: ServiceFilter) => void;
   onBillingChange: (value: BillingFilter) => void;
+  onPaymentChannelChange: (value: PaymentChannelFilter) => void;
   onOpenBalanceToggle: () => void;
   className?: string;
 }) {
@@ -74,7 +79,19 @@ export function InvoicesQuickFilters({
             </button>
           ))}
         </FilterGroup>
-        <FilterGroup label="Payment">
+        <FilterGroup label="Tender">
+          {(["", "CASH", "BANK"] as const).map((f) => (
+            <button
+              key={f || "all-tender"}
+              type="button"
+              onClick={() => onPaymentChannelChange(f)}
+              className={filterPillClass(paymentChannelFilter === f)}
+            >
+              {f === "" ? "All" : f === "CASH" ? "Cash" : "Bank"}
+            </button>
+          ))}
+        </FilterGroup>
+        <FilterGroup label="Billing">
           {(["", "PAID", "CREDIT"] as const).map((f) => (
             <button
               key={f || "all-billing"}

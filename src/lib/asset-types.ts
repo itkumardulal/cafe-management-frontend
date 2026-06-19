@@ -78,6 +78,27 @@ export type AssetsSummary = {
   warrantyExpiringWithinDays: number;
 };
 
+export const ASSET_WARRANTY_EXPIRING_DAYS = 30;
+
+export type AssetWarrantyFilter = "" | "expiring" | "has";
+
+export function getWarrantyDaysRemaining(expiry: string | null | undefined): number | null {
+  if (!expiry) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const exp = new Date(`${expiry.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(exp.getTime())) return null;
+  return Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+export function formatWarrantyRemaining(expiry: string | null | undefined): string {
+  const days = getWarrantyDaysRemaining(expiry);
+  if (days == null) return "—";
+  if (days < 0) return `Expired ${Math.abs(days)}d ago`;
+  if (days === 0) return "Expires today";
+  return `${days}d left`;
+}
+
 export const ASSET_STATUS_OPTIONS: Array<{ value: AssetStatus; label: string }> = [
   { value: "ACTIVE", label: "Active" },
   { value: "UNDER_MAINTENANCE", label: "Under maintenance" },

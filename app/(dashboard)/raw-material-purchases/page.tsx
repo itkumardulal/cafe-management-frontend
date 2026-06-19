@@ -38,7 +38,7 @@ import { NumberInput } from "@/src/components/ui/number-input";
 import { Modal } from "@/src/components/ui/modal";
 import { ResponsiveTable, tableActionsCellClass, tableActionsColumnClass, tableCenterCellClass, tableCenterColumnClass } from "@/src/components/ui/table";
 import { Select } from "@/src/components/ui/select";
-import { getApiErrorMessage } from "@/src/lib/api-error";
+import { FilterSelect } from "@/src/components/shared/filter-select";
 import { cn } from "@/src/lib/cn";
 import { formatDateOnly, formatDateTime, formatMoney } from "@/src/lib/format-display";
 import type { ApBillSummary, CreatePaymentType, PurchasePaymentMethod } from "@/src/lib/ap-types";
@@ -83,7 +83,7 @@ export default function RawMaterialPurchasesPage() {
       <Suspense
         fallback={
           <div className="space-y-4">
-            <TableSkeleton columns={7} />
+            <TableSkeleton columns={8} />
             <PaginationSkeleton />
           </div>
         }
@@ -96,6 +96,8 @@ export default function RawMaterialPurchasesPage() {
 
 function RawMaterialPurchasesContent() {
   const authUser = useAppSelector((state) => state.auth.user);
+  const [supplierFilter, setSupplierFilter] = useState("");
+  const [rawMaterialFilter, setRawMaterialFilter] = useState("");
   const {
     items: purchases,
     meta,
@@ -118,10 +120,16 @@ function RawMaterialPurchasesContent() {
     refetch,
   } = usePaginatedList<PurchaseRow>({
     queryKey: "raw-material-purchases",
-    fetchFn: (p) => operationsApi.rmPurchases.list(p),
+    fetchFn: (p) =>
+      operationsApi.rmPurchases.list({
+        ...p,
+        ...(supplierFilter ? { supplierId: supplierFilter } : {}),
+        ...(rawMaterialFilter ? { rawMaterialItemId: rawMaterialFilter } : {}),
+      }),
     defaultSort: { sortBy: "purchaseDate", sortOrder: "desc" },
     filterKeys: ["fromDate", "toDate"],
     errorMessage: "Failed to load purchases",
+    extraCacheKey: `${supplierFilter}\0${rawMaterialFilter}`,
   });
 
   const [materials, setMaterials] = useState<{ id: string; name: string }[]>([]);
@@ -464,14 +472,14 @@ function RawMaterialPurchasesContent() {
         loading={loading}
         isFetching={isFetching}
         itemsCount={purchases.length}
-        hasActiveFilters={hasActiveFilters}
+        hasActiveFilters={hasActiveFilters || Boolean(supplierFilter || rawMaterialFilter)}
         searchValue={searchInput}
         onSearchChange={setSearch}
         onSearchClear={clearSearch}
         searchPlaceholder={searchPlaceholder}
         isSearching={isSearching}
         searchResultSummary={searchResultSummary}
-        tableColumns={7}
+        tableColumns={8}
         emptyTitle="No Purchases Found"
         emptyDescription="Record raw material purchases for the selected period, or clear filters."
         emptyIcon={Receipt}
@@ -481,6 +489,8 @@ function RawMaterialPurchasesContent() {
           setDraftFromDate("");
           setDraftToDate("");
           clearFilters();
+          setSupplierFilter("");
+          setRawMaterialFilter("");
         }}
         currentPage={meta.page}
         totalPages={meta.totalPages}
@@ -489,26 +499,52 @@ function RawMaterialPurchasesContent() {
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
         filters={
-          <FilterDrawer
-            open={filterDrawerOpen}
-            onOpenChange={setFilterDrawerOpen}
-            hasActiveFilters={Boolean(params.filters.fromDate || params.filters.toDate)}
-            onApply={applyDateFilter}
-            onReset={() => {
-              setDraftFromDate("");
-              setDraftToDate("");
-              clearFilters();
-            }}
-          >
-            <DateRangeFilter
-              compact
-              fromDate={draftFromDate}
-              toDate={draftToDate}
-              onFromDateChange={setDraftFromDate}
-              onToDateChange={setDraftToDate}
+          <>
+            <FilterSelect
+              value={supplierFilter}
+              onChange={(e) => setSupplierFilter(e.target.value)}
+              className="min-w-[10rem]"
+            >
+              <option value="">All suppliers</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </FilterSelect>
+            <FilterSelect
+              value={rawMaterialFilter}
+              onChange={(e) => setRawMaterialFilter(e.target.value)}
+              className="min-w-[10rem]"
+            >
+              <option value="">All materials</option>
+              {materials.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </FilterSelect>
+            <FilterDrawer
+              open={filterDrawerOpen}
+              onOpenChange={setFilterDrawerOpen}
+              hasActiveFilters={Boolean(params.filters.fromDate || params.filters.toDate)}
               onApply={applyDateFilter}
-            />
-          </FilterDrawer>
+              onReset={() => {
+                setDraftFromDate("");
+                setDraftToDate("");
+                clearFilters();
+              }}
+            >
+              <DateRangeFilter
+                compact
+                fromDate={draftFromDate}
+                toDate={draftToDate}
+                onFromDateChange={setDraftFromDate}
+                onToDateChange={setDraftToDate}
+                onApply={applyDateFilter}
+              />
+            </FilterDrawer>
+          </>
         }
         mobileSort={
           <MobileSortSelect
@@ -531,6 +567,8 @@ function RawMaterialPurchasesContent() {
                 subtitle={formatDateOnly(p.purchaseDate)}
                 badge={<PaymentStatusBadge status={p.paymentStatus} />}
                 fields={[
+                  { label: "Supplier", value: p.supplierName ?? "—" },
+                  { label: "Item", value: p.itemNameSummary ?? "—" },
                   { label: "Total", value: formatMoney(p.grandTotal) },
                   { label: "Lines", value: String(p.lineCount ?? 0) },
                 ]}
@@ -583,18 +621,8 @@ function RawMaterialPurchasesContent() {
                   />
                 ),
               },
-              {
-                label: "Recorded",
-                headerContent: (
-                  <SortableTableHeader
-                    label="Recorded"
-                    sortKey="createdAt"
-                    currentSortBy={params.sortBy}
-                    currentSortOrder={params.sortOrder}
-                    onSort={toggleSort}
-                  />
-                ),
-              },
+              { label: "Supplier" },
+              { label: "Item" },
               { label: "Lines", thClassName: tableCenterColumnClass },
               { label: "Grand total", thClassName: tableCenterColumnClass },
               { label: "Payment", thClassName: tableCenterColumnClass },
@@ -612,8 +640,11 @@ function RawMaterialPurchasesContent() {
                 <td className="px-4 py-3.5 text-sm text-muted whitespace-nowrap">
                   {formatDateOnly(p.purchaseDate)}
                 </td>
-                <td className="px-4 py-3.5 text-sm text-muted whitespace-nowrap">
-                  <span title={p.createdAt}>{formatDateTime(p.createdAt)}</span>
+                <td className="px-4 py-3.5 text-sm text-foreground whitespace-nowrap">
+                  {p.supplierName ?? "—"}
+                </td>
+                <td className="px-4 py-3.5 text-sm text-foreground">
+                  {p.itemNameSummary ?? "—"}
                 </td>
                 <td className={cn("px-4 py-3.5 text-sm tabular-nums text-muted", tableCenterCellClass)}>
                   {p.lineCount ?? 0}

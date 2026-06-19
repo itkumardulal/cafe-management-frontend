@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { Wallet } from "lucide-react";
 import { DateRangeFilter } from "@/src/components/shared/date-range-filter";
+import { FilterSelect } from "@/src/components/shared/filter-select";
 import { FilterDrawer, FilterDrawerDesktop } from "@/src/components/shared/filter-drawer";
 import { FormFooter } from "@/src/components/shared/form-footer";
 import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
@@ -76,6 +77,7 @@ export default function DailyExpensesPage() {
 }
 
 function DailyExpensesContent() {
+  const [expenseItemFilter, setExpenseItemFilter] = useState("");
   const {
     items: entries,
     meta,
@@ -98,10 +100,15 @@ function DailyExpensesContent() {
     refetch,
   } = usePaginatedList<ExpenseEntryRow>({
     queryKey: "daily-expenses",
-    fetchFn: (p) => operationsApi.expenseEntries.list(p),
+    fetchFn: (p) =>
+      operationsApi.expenseEntries.list({
+        ...p,
+        ...(expenseItemFilter ? { expenseItemId: expenseItemFilter } : {}),
+      }),
     defaultSort: { sortBy: "expenseDate", sortOrder: "desc" },
     filterKeys: ["fromDate", "toDate"],
     errorMessage: "Failed to load expenses",
+    extraCacheKey: expenseItemFilter,
   });
 
   const [expenseItems, setExpenseItems] = useState<ExpenseItemOption[]>([]);
@@ -254,7 +261,7 @@ function DailyExpensesContent() {
         loading={loading}
         isFetching={isFetching}
         itemsCount={entries.length}
-        hasActiveFilters={hasActiveFilters}
+        hasActiveFilters={hasActiveFilters || Boolean(expenseItemFilter)}
         searchValue={searchInput}
         onSearchChange={setSearch}
         onSearchClear={clearSearch}
@@ -271,6 +278,7 @@ function DailyExpensesContent() {
           setDraftFromDate("");
           setDraftToDate("");
           clearFilters();
+          setExpenseItemFilter("");
         }}
         currentPage={meta.page}
         totalPages={meta.totalPages}
@@ -280,6 +288,18 @@ function DailyExpensesContent() {
         onPageSizeChange={setPageSize}
         filters={
           <>
+            <FilterSelect
+              value={expenseItemFilter}
+              onChange={(e) => setExpenseItemFilter(e.target.value)}
+              className="min-w-[10rem]"
+            >
+              <option value="">All expense items</option>
+              {expenseItems.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </FilterSelect>
             <FilterDrawer
               open={filterDrawerOpen}
               onOpenChange={setFilterDrawerOpen}

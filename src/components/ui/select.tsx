@@ -37,6 +37,8 @@ type SelectProps = Omit<SelectHTMLAttributes<HTMLButtonElement>, "onChange" | "v
   appearance?: "field" | "button";
   /** Show a search field in the dropdown. Defaults to true when there are 3+ options. */
   searchable?: boolean;
+  /** When true, the empty-value option is pinned at the top of the dropdown list. */
+  includeEmptyOptionInList?: boolean;
   searchPlaceholder?: string;
 };
 
@@ -87,6 +89,11 @@ function matchesSearch(label: string, query: string): boolean {
   return label.toLowerCase().includes(query.trim().toLowerCase());
 }
 
+/** Empty-value options like "All categories" are filter resets and belong in the list. */
+function isAllClearOption(option: ParsedOption): boolean {
+  return option.value === "" && /^all(\s|$)/i.test(option.label.trim());
+}
+
 export function Select({
   className,
   hasError,
@@ -94,6 +101,7 @@ export function Select({
   fullWidth = true,
   appearance = "field",
   searchable,
+  includeEmptyOptionInList,
   searchPlaceholder = "Search…",
   value,
   onChange,
@@ -107,7 +115,14 @@ export function Select({
   const listboxId = `${id}-listbox`;
 
   const parsed = useMemo(() => parseOptions(children), [children]);
-  const placeholderOption = parsed.find((option) => option.value === "");
+  const emptyValueOption = parsed.find((option) => option.value === "");
+  const clearOption =
+    emptyValueOption &&
+    (includeEmptyOptionInList || isAllClearOption(emptyValueOption))
+      ? emptyValueOption
+      : null;
+  const placeholderOption =
+    emptyValueOption && emptyValueOption !== clearOption ? emptyValueOption : undefined;
   const selectableOptions = parsed.filter((option) => option.value !== "" && !option.disabled);
   const selectedOption = parsed.find((option) => option.value === value);
 
@@ -122,13 +137,23 @@ export function Select({
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const isSearchable =
-    searchable ?? selectableOptions.length >= SEARCHABLE_OPTION_THRESHOLD;
-  const filteredOptions = useMemo(() => {
-    if (!isSearchable || !searchQuery.trim()) {
-      return selectableOptions;
+    searchable ??
+    (placeholderOption != null ||
+      clearOption != null ||
+      selectableOptions.length >= SEARCHABLE_OPTION_THRESHOLD);
+  const listOptions = useMemo(() => {
+    const query = searchQuery.trim();
+    const filtered =
+      !isSearchable || !query
+        ? selectableOptions
+        : selectableOptions.filter((option) => matchesSearch(option.label, query));
+
+    if (clearOption && (!query || matchesSearch(clearOption.label, query))) {
+      return [clearOption, ...filtered];
     }
-    return selectableOptions.filter((option) => matchesSearch(option.label, searchQuery));
-  }, [isSearchable, searchQuery, selectableOptions]);
+
+    return filtered;
+  }, [clearOption, isSearchable, searchQuery, selectableOptions]);
 
   const displayLabel =
     selectedOption?.label ??
@@ -147,7 +172,7 @@ export function Select({
     const searchHeaderHeight = isSearchable ? 44 : 0;
     const menuHeight =
       listRef.current?.offsetHeight ??
-      searchHeaderHeight + Math.min(filteredOptions.length * 44 + 8, 224);
+      searchHeaderHeight + Math.min(listOptions.length * 44 + 8, 224);
     const gap = 6;
     const spaceBelow = window.innerHeight - rect.bottom - gap;
     const spaceAbove = rect.top - gap;
@@ -158,7 +183,7 @@ export function Select({
       left: Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8)),
       width: menuWidth,
     });
-  }, [filteredOptions.length, isButtonAppearance, isSearchable]);
+  }, [listOptions.length, isButtonAppearance, isSearchable]);
 
   useEffect(() => {
     setMounted(true);
@@ -221,9 +246,9 @@ export function Select({
       return;
     }
 
-    const selectedIndex = filteredOptions.findIndex((option) => option.value === value);
-    setHighlightIndex(selectedIndex >= 0 ? selectedIndex : filteredOptions.length > 0 ? 0 : -1);
-  }, [open, filteredOptions, value]);
+    const selectedIndex = listOptions.findIndex((option) => option.value === value);
+    setHighlightIndex(selectedIndex >= 0 ? selectedIndex : listOptions.length > 0 ? 0 : -1);
+  }, [open, listOptions, value]);
 
   useEffect(() => {
     if (!open || !isSearchable) {
@@ -269,7 +294,7 @@ export function Select({
   const handleListKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setHighlightIndex((index) => Math.min(index + 1, filteredOptions.length - 1));
+      setHighlightIndex((index) => Math.min(index + 1, listOptions.length - 1));
       return;
     }
 
@@ -281,7 +306,7 @@ export function Select({
 
     if (event.key === "Enter" && highlightIndex >= 0) {
       event.preventDefault();
-      const option = filteredOptions[highlightIndex];
+      const option = listOptions[highlightIndex];
       if (option) {
         selectValue(option.value);
       }
@@ -289,7 +314,7 @@ export function Select({
   };
 
   const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "ArrowDown" && filteredOptions.length > 0) {
+    if (event.key === "ArrowDown" && listOptions.length > 0) {
       event.preventDefault();
       setHighlightIndex((index) => (index < 0 ? 0 : index));
       listRef.current?.focus();
@@ -298,7 +323,7 @@ export function Select({
 
     if (event.key === "Enter" && highlightIndex >= 0) {
       event.preventDefault();
-      const option = filteredOptions[highlightIndex];
+      const option = listOptions[highlightIndex];
       if (option) {
         selectValue(option.value);
       }
@@ -312,7 +337,7 @@ export function Select({
   };
 
   const menu =
-    open && mounted && selectableOptions.length > 0
+    open && mounted && (selectableOptions.length > 0 || clearOption)
       ? createPortal(
           <div
             ref={listRef}
@@ -361,13 +386,14 @@ export function Select({
               </div>
             ) : null}
             <ul className="min-h-0 flex-1 overflow-y-auto p-1">
-              {filteredOptions.length > 0 ? (
-                filteredOptions.map((option, index) => {
+              {listOptions.length > 0 ? (
+                listOptions.map((option, index) => {
                   const isSelected = option.value === value;
                   const isHighlighted = index === highlightIndex;
+                  const isClearOption = clearOption != null && option === clearOption;
 
                   return (
-                    <li key={option.value} role="presentation">
+                    <li key={option.value || "__all__"} role="presentation">
                       <button
                         type="button"
                         role="option"
@@ -381,6 +407,8 @@ export function Select({
                             : isHighlighted
                               ? "bg-[var(--color-cream-100)] text-[var(--color-nav-idle-hover)]"
                               : "text-[var(--color-nav-idle)] hover:bg-[var(--color-cream-100)] hover:text-[var(--color-nav-idle-hover)]",
+                          isClearOption && index === 0 && listOptions.length > 1 &&
+                            "border-b border-[var(--color-border)] mb-0.5",
                         )}
                         onMouseEnter={() => setHighlightIndex(index)}
                         onClick={() => selectValue(option.value)}

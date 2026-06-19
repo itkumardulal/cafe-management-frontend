@@ -2,7 +2,7 @@
 
 import { PackageMinus, Pencil, Trash2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { DateRangeFilter } from "@/src/components/shared/date-range-filter";
 import { DetailInfoCard } from "@/src/components/shared/detail-info-card";
 import { DetailLineItemsSection } from "@/src/components/shared/detail-line-items-section";
@@ -25,6 +25,7 @@ import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import { NumberInput } from "@/src/components/ui/number-input";
 import { Modal } from "@/src/components/ui/modal";
+import { FilterSelect } from "@/src/components/shared/filter-select";
 import { Select } from "@/src/components/ui/select";
 import {
   ResponsiveTable,
@@ -53,6 +54,7 @@ type RemovalRow = {
   staffName: string | null;
   createdByName: string | null;
   lineCount: number;
+  itemNameSummary?: string | null;
 };
 
 type RemovalDetail = RemovalRow & {
@@ -86,9 +88,21 @@ export default function StockRemovalsPage() {
   );
 }
 
+function parseItemFilterKey(itemKey: string) {
+  if (itemKey.startsWith("MENU:")) {
+    return { menuItemId: itemKey.slice(5) };
+  }
+  if (itemKey.startsWith("INVENTORY:")) {
+    return { stockItemId: itemKey.slice(10) };
+  }
+  return {};
+}
+
 function StockRemovalsContent() {
   const dispatch = useAppDispatch();
   const searchParams = useSearchParams();
+  const [reasonFilter, setReasonFilter] = useState("");
+  const [itemFilter, setItemFilter] = useState("");
   const lineOptions = useAppSelector(
     (state) =>
       state.referenceData.stockRemovalLineOptions ?? { menuItems: [], stockItems: [] },
@@ -119,11 +133,32 @@ function StockRemovalsContent() {
     refetch,
   } = usePaginatedList<RemovalRow>({
     queryKey: "stock-removals",
-    fetchFn: (p) => operationsApi.stockRemovals.list(p),
+    fetchFn: (p) =>
+      operationsApi.stockRemovals.list({
+        ...p,
+        ...(reasonFilter ? { reason: reasonFilter as "DAMAGE" | "STAFF_USE" } : {}),
+        ...parseItemFilterKey(itemFilter),
+      }),
     defaultSort: { sortBy: "entryAt", sortOrder: "desc" },
     filterKeys: ["fromDate", "toDate"],
     errorMessage: "Failed to load stock removals",
+    extraCacheKey: `${reasonFilter}\0${itemFilter}`,
   });
+
+  const itemFilterOptions = useMemo(
+    () =>
+      [
+        ...lineOptions.menuItems.map((item) => ({
+          key: `MENU:${item.id}`,
+          label: item.name,
+        })),
+        ...lineOptions.stockItems.map((item) => ({
+          key: `INVENTORY:${item.id}`,
+          label: item.name,
+        })),
+      ].sort((a, b) => a.label.localeCompare(b.label)),
+    [lineOptions.menuItems, lineOptions.stockItems],
+  );
 
   const [draftFromDate, setDraftFromDate] = useState(params.filters.fromDate ?? "");
   const [draftToDate, setDraftToDate] = useState(params.filters.toDate ?? "");
@@ -358,7 +393,7 @@ function StockRemovalsContent() {
         loading={loading}
         isFetching={isFetching}
         itemsCount={removals.length}
-        hasActiveFilters={hasActiveFilters}
+        hasActiveFilters={hasActiveFilters || Boolean(reasonFilter || itemFilter)}
         searchValue={searchInput}
         onSearchChange={setSearch}
         onSearchClear={clearSearch}
@@ -375,6 +410,8 @@ function StockRemovalsContent() {
           setDraftFromDate("");
           setDraftToDate("");
           clearFilters();
+          setReasonFilter("");
+          setItemFilter("");
         }}
         currentPage={meta.page}
         totalPages={meta.totalPages}
@@ -383,26 +420,49 @@ function StockRemovalsContent() {
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
         filters={
-          <FilterDrawer
-            open={filterDrawerOpen}
-            onOpenChange={setFilterDrawerOpen}
-            hasActiveFilters={Boolean(params.filters.fromDate || params.filters.toDate)}
-            onApply={applyDateFilter}
-            onReset={() => {
-              setDraftFromDate("");
-              setDraftToDate("");
-              clearFilters();
-            }}
-          >
-            <DateRangeFilter
-              compact
-              fromDate={draftFromDate}
-              toDate={draftToDate}
-              onFromDateChange={setDraftFromDate}
-              onToDateChange={setDraftToDate}
+          <>
+            <FilterSelect
+              value={reasonFilter}
+              onChange={(e) => setReasonFilter(e.target.value)}
+              className="min-w-[10rem]"
+            >
+              <option value="">All reasons</option>
+              <option value="DAMAGE">Damage</option>
+              <option value="STAFF_USE">Staff use</option>
+            </FilterSelect>
+            <FilterSelect
+              value={itemFilter}
+              onChange={(e) => setItemFilter(e.target.value)}
+              className="min-w-[10rem]"
+            >
+              <option value="">All items</option>
+              {itemFilterOptions.map((item) => (
+                <option key={item.key} value={item.key}>
+                  {item.label}
+                </option>
+              ))}
+            </FilterSelect>
+            <FilterDrawer
+              open={filterDrawerOpen}
+              onOpenChange={setFilterDrawerOpen}
+              hasActiveFilters={Boolean(params.filters.fromDate || params.filters.toDate)}
               onApply={applyDateFilter}
-            />
-          </FilterDrawer>
+              onReset={() => {
+                setDraftFromDate("");
+                setDraftToDate("");
+                clearFilters();
+              }}
+            >
+              <DateRangeFilter
+                compact
+                fromDate={draftFromDate}
+                toDate={draftToDate}
+                onFromDateChange={setDraftFromDate}
+                onToDateChange={setDraftToDate}
+                onApply={applyDateFilter}
+              />
+            </FilterDrawer>
+          </>
         }
         mobileSort={
           <MobileSortSelect
@@ -423,6 +483,7 @@ function StockRemovalsContent() {
                 title={r.receiptNo}
                 subtitle={formatDateTime(r.entryAt)}
                 fields={[
+                  { label: "Item", value: r.itemNameSummary ?? "—" },
                   { label: "Reason", value: reasonLabel(r.reason) },
                   ...(r.reason === "STAFF_USE" && r.staffName
                     ? [{ label: "Staff", value: r.staffName }]
@@ -459,7 +520,7 @@ function StockRemovalsContent() {
                   />
                 ),
               },
-              "Recorded",
+              "Item name",
               "Reason",
               { label: "Lines", thClassName: tableCenterColumnClass },
               "Notes",
@@ -480,8 +541,8 @@ function StockRemovalsContent() {
                 <td className="px-4 py-3.5 text-sm text-muted whitespace-nowrap">
                   {formatDateTime(r.entryAt)}
                 </td>
-                <td className="px-4 py-3.5 text-sm text-muted whitespace-nowrap">
-                  {r.createdAt ? formatDateTime(r.createdAt) : "—"}
+                <td className="px-4 py-3.5 text-sm text-foreground">
+                  {r.itemNameSummary ?? "—"}
                 </td>
                 <td className="px-4 py-3.5 text-sm text-muted">
                   <span>{reasonLabel(r.reason)}</span>

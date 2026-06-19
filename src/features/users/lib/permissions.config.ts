@@ -60,7 +60,7 @@ const PERMISSION_GROUPS: Array<{
     id: "assets",
     label: "Assets",
     description: "Fixed assets and maintenance",
-    codes: ["ASSET_CATEGORIES", "ASSETS", "ASSET_MAINTENANCE", "ASSET_REPORTS"],
+    codes: ["ASSET_CATEGORIES", "ASSETS", "ASSET_MAINTENANCE"],
   },
   {
     id: "reports",

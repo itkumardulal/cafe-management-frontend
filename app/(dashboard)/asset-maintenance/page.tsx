@@ -22,6 +22,7 @@ import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import { Modal } from "@/src/components/ui/modal";
 import { NumberInput } from "@/src/components/ui/number-input";
+import { FilterSelect } from "@/src/components/shared/filter-select";
 import { Select } from "@/src/components/ui/select";
 import { SortableTableHeader } from "@/src/components/ui/sortable-table-header";
 import {
@@ -70,8 +71,7 @@ function AssetMaintenanceContent() {
   const searchParams = useSearchParams();
   const dispatch = useAppDispatch();
   const assetOptions = useAppSelector((s) => s.referenceData.assetOptions);
-
-  const [draftAssetId, setDraftAssetId] = useState(searchParams.get("assetId") ?? "");
+  const [assetFilter, setAssetFilter] = useState(searchParams.get("assetId") ?? "");
   const [draftFromDate, setDraftFromDate] = useState("");
   const [draftToDate, setDraftToDate] = useState("");
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
@@ -83,7 +83,7 @@ function AssetMaintenanceContent() {
   useEffect(() => {
     const assetId = searchParams.get("assetId");
     if (assetId) {
-      setDraftAssetId(assetId);
+      setAssetFilter(assetId);
     }
   }, [searchParams]);
 
@@ -109,21 +109,24 @@ function AssetMaintenanceContent() {
     refetch,
   } = usePaginatedList<AssetMaintenanceRow>({
     queryKey: "asset-maintenance",
-    fetchFn: (p) => operationsApi.assetMaintenance.list(p),
-    filterKeys: ["assetId", "fromDate", "toDate"],
+    fetchFn: (p) =>
+      operationsApi.assetMaintenance.list({
+        ...p,
+        ...(assetFilter ? { assetId: assetFilter } : {}),
+      }),
+    filterKeys: ["fromDate", "toDate"],
     defaultSort: { sortBy: "maintenanceDate", sortOrder: "desc" },
     errorMessage: "Failed to load maintenance records",
+    extraCacheKey: assetFilter,
   });
 
   useEffect(() => {
     setDraftFromDate(params.filters.fromDate ?? "");
     setDraftToDate(params.filters.toDate ?? "");
-    setDraftAssetId(params.filters.assetId ?? searchParams.get("assetId") ?? "");
-  }, [params.filters.assetId, params.filters.fromDate, params.filters.toDate, searchParams]);
+  }, [params.filters.fromDate, params.filters.toDate]);
 
-  const applyFilters = () => {
+  const applyDateFilter = () => {
     setFilters({
-      assetId: draftAssetId,
       fromDate: draftFromDate,
       toDate: draftToDate,
     });
@@ -140,7 +143,7 @@ function AssetMaintenanceContent() {
     setEdit(null);
     setForm({
       ...emptyForm,
-      assetId: draftAssetId || assetOptions[0]?.id || "",
+      assetId: assetFilter || assetOptions[0]?.id || "",
       maintenanceDate: new Date().toISOString().slice(0, 10),
     });
     setOpen(true);
@@ -233,33 +236,21 @@ function AssetMaintenanceContent() {
       ) : null}
 
       <FilterDrawerDesktop>
-        <div className="flex flex-wrap items-end gap-3">
-          <Field id="filter-asset" label="Asset" className="min-w-[12rem]">
-            <Select value={draftAssetId} onChange={(e) => setDraftAssetId(e.target.value)}>
-              <option value="">All assets</option>
-              {assetOptions.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.displayLabel}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <DateRangeFilter
-            fromDate={draftFromDate}
-            toDate={draftToDate}
-            onFromDateChange={setDraftFromDate}
-            onToDateChange={setDraftToDate}
-            onApply={applyFilters}
-            description="Filter by maintenance date."
-          />
-        </div>
+        <DateRangeFilter
+          fromDate={draftFromDate}
+          toDate={draftToDate}
+          onFromDateChange={setDraftFromDate}
+          onToDateChange={setDraftToDate}
+          onApply={applyDateFilter}
+          description="Filter by maintenance date."
+        />
       </FilterDrawerDesktop>
 
       <PaginatedListSection
         loading={loading}
         isFetching={isFetching}
         itemsCount={items.length}
-        hasActiveFilters={hasActiveFilters}
+        hasActiveFilters={hasActiveFilters || Boolean(assetFilter)}
         searchValue={searchInput}
         onSearchChange={setSearch}
         onSearchClear={clearSearch}
@@ -273,7 +264,7 @@ function AssetMaintenanceContent() {
         emptyAction={{ label: "Add maintenance", onClick: openCreate }}
         onClearFilters={() => {
           clearSearch();
-          setDraftAssetId("");
+          setAssetFilter("");
           setDraftFromDate("");
           setDraftToDate("");
           clearFilters();
@@ -285,39 +276,40 @@ function AssetMaintenanceContent() {
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
         filters={
-          <FilterDrawer
-            open={filterDrawerOpen}
-            onOpenChange={setFilterDrawerOpen}
-            hasActiveFilters={Boolean(
-              params.filters.assetId || params.filters.fromDate || params.filters.toDate,
-            )}
-            onApply={applyFilters}
-            onReset={() => {
-              setDraftAssetId("");
-              setDraftFromDate("");
-              setDraftToDate("");
-              clearFilters();
-            }}
-          >
-            <Field id="filter-asset-mobile" label="Asset">
-              <Select value={draftAssetId} onChange={(e) => setDraftAssetId(e.target.value)}>
-                <option value="">All assets</option>
-                {assetOptions.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.displayLabel}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <DateRangeFilter
-              compact
-              fromDate={draftFromDate}
-              toDate={draftToDate}
-              onFromDateChange={setDraftFromDate}
-              onToDateChange={setDraftToDate}
-              onApply={applyFilters}
-            />
-          </FilterDrawer>
+          <>
+            <FilterSelect
+              value={assetFilter}
+              onChange={(e) => setAssetFilter(e.target.value)}
+              className="min-w-[10rem]"
+            >
+              <option value="">All assets</option>
+              {assetOptions.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.displayLabel}
+                </option>
+              ))}
+            </FilterSelect>
+            <FilterDrawer
+              open={filterDrawerOpen}
+              onOpenChange={setFilterDrawerOpen}
+              hasActiveFilters={Boolean(params.filters.fromDate || params.filters.toDate)}
+              onApply={applyDateFilter}
+              onReset={() => {
+                setDraftFromDate("");
+                setDraftToDate("");
+                clearFilters();
+              }}
+            >
+              <DateRangeFilter
+                compact
+                fromDate={draftFromDate}
+                toDate={draftToDate}
+                onFromDateChange={setDraftFromDate}
+                onToDateChange={setDraftToDate}
+                onApply={applyDateFilter}
+              />
+            </FilterDrawer>
+          </>
         }
         mobileSort={
           <MobileSortSelect

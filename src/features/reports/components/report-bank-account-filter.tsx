@@ -48,6 +48,7 @@ export function ReportBankAccountFilter({
 
       <Select
         id={id}
+        searchable
         value={value}
         disabled={disabled || banks.length === 0}
         onChange={(event) => {

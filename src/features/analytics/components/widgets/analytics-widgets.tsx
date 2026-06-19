@@ -212,7 +212,7 @@ export function AssetsSummaryWidget({ data }: { data: AssetsSummary }) {
     {
       label: `Warranty expiring (${data.warrantyExpiringWithinDays}d)`,
       value: String(data.warrantyExpiringSoon),
-      href: "/asset-reports",
+      href: `/assets?warrantyExpiringWithinDays=${data.warrantyExpiringWithinDays}`,
     },
   ];
 
@@ -220,8 +220,8 @@ export function AssetsSummaryWidget({ data }: { data: AssetsSummary }) {
     <div className="min-w-0 w-full max-w-full space-y-3">
       <div className="flex min-w-0 items-center justify-between gap-2">
         <h2 className="min-w-0 text-sm font-semibold text-foreground">Assets</h2>
-        <Link href="/asset-reports" className="shrink-0 text-xs text-[var(--color-primary)] hover:underline">
-          Asset reports
+        <Link href="/assets" className="shrink-0 text-xs text-[var(--color-primary)] hover:underline">
+          View assets
         </Link>
       </div>
       <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">

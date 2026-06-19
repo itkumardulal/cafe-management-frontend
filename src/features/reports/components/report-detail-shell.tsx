@@ -143,12 +143,14 @@ export function ReportSummaryCard({
 }
 
 export function ReportSection({
+  id,
   title,
   description,
   count,
   children,
   action,
 }: {
+  id?: string;
   title: string;
   description?: string;
   count?: number;
@@ -156,7 +158,7 @@ export function ReportSection({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="space-y-3">
+    <div id={id} className={id ? "scroll-mt-24 space-y-3" : "space-y-3"}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <div>

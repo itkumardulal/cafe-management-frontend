@@ -40,7 +40,7 @@ export function ReportsHubSkeleton() {
       <div className="space-y-3">
         <Skeleton className="h-4 w-32" />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 7 }).map((_, i) => (
+          {Array.from({ length: 9 }).map((_, i) => (
             <Card key={`r-${i}`} density="comfortable" className="h-40 space-y-3">
               <Skeleton className="h-11 w-11 rounded-xl" />
               <Skeleton className="h-4 w-40" />

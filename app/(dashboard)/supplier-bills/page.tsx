@@ -3,12 +3,12 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Receipt } from "lucide-react";
+import { FilterSelect } from "@/src/components/shared/filter-select";
 import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
 import { MobileSortSelect } from "@/src/components/shared/mobile-sort-select";
 import { PageHeader } from "@/src/components/shared/page-header";
 import { PaginatedListSection } from "@/src/components/shared/paginated-list-section";
 import { TableSkeleton } from "@/src/components/skeletons/table-skeleton";
-import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import {
   ResponsiveTable,
@@ -26,6 +26,7 @@ import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
 import { fetchBillSettlementAgingThunk } from "@/src/store/slices/reference-data.slice";
 
 const FILTER_KEYS = ["hasOutstanding", "fullySettled", "activeVendors"] as const;
+type VendorStatusFilter = "" | (typeof FILTER_KEYS)[number];
 
 export default function SupplierBillsPage() {
   return (
@@ -39,6 +40,7 @@ export default function SupplierBillsPage() {
 
 function SupplierBillsContent() {
   const dispatch = useAppDispatch();
+  const [statusFilter, setStatusFilter] = useState<VendorStatusFilter>("");
   const aging = useAppSelector((state) => state.referenceData.billSettlementAging);
   const agingStatus = useAppSelector((state) => state.referenceData.billSettlementAgingStatus);
 
@@ -63,7 +65,7 @@ function SupplierBillsContent() {
     setPageSize,
     setSort,
     params,
-    setFilters,
+    clearFilters,
   } = usePaginatedList<BillSettlementSupplierRow>({
     queryKey: "bill-settlement",
     fetchFn: (p) =>
@@ -73,14 +75,14 @@ function SupplierBillsContent() {
         search: p.search,
         sortBy: p.sortBy as "outstandingAmount" | "lastPurchaseAt" | "name",
         sortOrder: p.sortOrder,
-        hasOutstanding: p.hasOutstanding === "true",
-        fullySettled: p.fullySettled === "true",
-        activeVendors: p.activeVendors === "true",
+        hasOutstanding: statusFilter === "hasOutstanding" ? true : undefined,
+        fullySettled: statusFilter === "fullySettled" ? true : undefined,
+        activeVendors: statusFilter === "activeVendors" ? true : undefined,
       }),
     defaultSort,
-    filterKeys: [...FILTER_KEYS],
     errorMessage: "Failed to load bill settlement",
     searchPlaceholder: "Search supplier name or phone…",
+    extraCacheKey: statusFilter,
   });
 
   useEffect(() => {
@@ -115,65 +117,37 @@ function SupplierBillsContent() {
         </Card>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
-        {[
-          { label: "All", clear: true },
-          { label: "Has outstanding", hasOutstanding: true },
-          { label: "Fully settled", fullySettled: true },
-          { label: "Active vendors", activeVendors: true },
-        ].map((f) => (
-          <Button
-            key={f.label}
-            type="button"
-            size="sm"
-            variant={
-              f.clear
-                ? !params.filters.hasOutstanding &&
-                  !params.filters.fullySettled &&
-                  !params.filters.activeVendors
-                  ? "soft"
-                  : "secondary"
-                : (f.hasOutstanding && params.filters.hasOutstanding) ||
-                    (f.fullySettled && params.filters.fullySettled) ||
-                    (f.activeVendors && params.filters.activeVendors)
-                  ? "soft"
-                  : "secondary"
-            }
-            onClick={() => {
-              if (f.clear) {
-                setFilters({});
-                return;
-              }
-              setFilters({
-                hasOutstanding: f.hasOutstanding ? "true" : "",
-                fullySettled: f.fullySettled ? "true" : "",
-                activeVendors: f.activeVendors ? "true" : "",
-              });
-            }}
-          >
-            {f.label}
-          </Button>
-        ))}
-      </div>
-
       <PaginatedListSection
         loading={loading}
         isFetching={isFetching}
         itemsCount={items.length}
-        hasActiveFilters={hasActiveFilters}
+        hasActiveFilters={hasActiveFilters || Boolean(statusFilter)}
         searchValue={searchInput}
         onSearchChange={setSearch}
         onSearchClear={clearSearch}
         searchPlaceholder={searchPlaceholder}
         isSearching={isSearching}
         searchResultSummary={searchResultSummary}
+        filters={
+          <FilterSelect
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as VendorStatusFilter)}
+            className="min-w-[10rem]"
+          >
+            <option value="">All vendors</option>
+            <option value="hasOutstanding">Has outstanding</option>
+            <option value="fullySettled">Fully settled</option>
+            <option value="activeVendors">Active vendors</option>
+          </FilterSelect>
+        }
         tableColumns={8}
         emptyTitle="No vendor settlement records"
         emptyDescription="Record raw material purchases to start vendor settlement tracking."
         emptyIcon={Receipt}
         onClearFilters={() => {
           clearSearch();
-          setFilters({});
+          clearFilters();
+          setStatusFilter("");
         }}
         currentPage={meta.page}
         totalPages={meta.totalPages}

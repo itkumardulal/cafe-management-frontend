@@ -3,12 +3,12 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { HandCoins } from "lucide-react";
+import { FilterSelect } from "@/src/components/shared/filter-select";
 import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
 import { MobileSortSelect } from "@/src/components/shared/mobile-sort-select";
 import { PageHeader } from "@/src/components/shared/page-header";
 import { PaginatedListSection } from "@/src/components/shared/paginated-list-section";
 import { TableSkeleton } from "@/src/components/skeletons/table-skeleton";
-import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import {
   ResponsiveTable,
@@ -24,6 +24,7 @@ import { formatDateOnly, formatMoney } from "@/src/lib/format-display";
 import { operationsApi } from "@/src/services/operations-api";
 
 const FILTER_KEYS = ["hasOutstanding", "fullySettled", "activeCustomers"] as const;
+type CustomerStatusFilter = "" | (typeof FILTER_KEYS)[number];
 
 const actionLinkClass =
   "inline-flex shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm font-medium text-[var(--color-foreground)] transition-colors hover:bg-[var(--color-cream-100)] hover:border-[var(--color-input)]";
@@ -39,6 +40,7 @@ export default function CustomerReceivablesPage() {
 }
 
 function CustomerReceivablesContent() {
+  const [statusFilter, setStatusFilter] = useState<CustomerStatusFilter>("");
   const [aging, setAging] = useState<{
     totals: {
       current: number;
@@ -72,7 +74,6 @@ function CustomerReceivablesContent() {
     toggleSort,
     setSort,
     params,
-    setFilters,
     clearFilters,
   } = usePaginatedList<CustomerReceivableListRow>({
     queryKey: "customer-receivables",
@@ -83,23 +84,19 @@ function CustomerReceivablesContent() {
         search: p.search,
         sortBy: (p.sortBy as "outstandingAmount" | "lastVisitAt" | "name") ?? "outstandingAmount",
         sortOrder: (p.sortOrder as "asc" | "desc") ?? "desc",
-        hasOutstanding: p.hasOutstanding === "true" ? true : undefined,
-        fullySettled: p.fullySettled === "true" ? true : undefined,
-        activeCustomers: p.activeCustomers === "true" ? true : undefined,
+        hasOutstanding: statusFilter === "hasOutstanding" ? true : undefined,
+        fullySettled: statusFilter === "fullySettled" ? true : undefined,
+        activeCustomers: statusFilter === "activeCustomers" ? true : undefined,
       }),
     defaultSort,
-    filterKeys: [...FILTER_KEYS],
     errorMessage: "Failed to load customer receivables",
     searchPlaceholder: "Search customer name or phone…",
+    extraCacheKey: statusFilter,
   });
 
   useEffect(() => {
     void operationsApi.customerReceivables.agingSummary().then(setAging).catch(() => {});
   }, []);
-
-  const setFilter = (key: string, value: boolean) => {
-    setFilters({ [key]: value ? "true" : "" });
-  };
 
   const sortOptions = [
     { label: "Outstanding (high)", sortBy: "outstandingAmount", sortOrder: "desc" as const },
@@ -135,63 +132,42 @@ function CustomerReceivablesContent() {
         </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant={params.filters.hasOutstanding === "true" ? "primary" : "secondary"}
-          onClick={() =>
-            setFilter("hasOutstanding", params.filters.hasOutstanding !== "true")
-          }
-        >
-          Has outstanding
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant={params.filters.fullySettled === "true" ? "primary" : "secondary"}
-          onClick={() =>
-            setFilter("fullySettled", params.filters.fullySettled !== "true")
-          }
-        >
-          Fully settled
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant={params.filters.activeCustomers === "true" ? "primary" : "secondary"}
-          onClick={() =>
-            setFilter("activeCustomers", params.filters.activeCustomers !== "true")
-          }
-        >
-          Active customers
-        </Button>
-        {hasActiveFilters ? (
-          <Button type="button" size="sm" variant="ghost" onClick={clearFilters}>
-            Clear filters
-          </Button>
-        ) : null}
-      </div>
-
-      <MobileSortSelect
-        options={[...sortOptions]}
-        currentSortBy={params.sortBy}
-        currentSortOrder={params.sortOrder}
-        onSort={(sortBy, sortOrder) => setSort(sortBy, sortOrder)}
-      />
-
       <PaginatedListSection
         loading={loading}
         isFetching={isFetching}
         itemsCount={items.length}
-        hasActiveFilters={hasActiveFilters}
+        hasActiveFilters={hasActiveFilters || Boolean(statusFilter)}
         searchValue={searchInput}
         onSearchChange={setSearch}
         onSearchClear={clearSearch}
         isSearching={isSearching}
         searchPlaceholder={searchPlaceholder}
         searchResultSummary={searchResultSummary}
-        onClearFilters={clearFilters}
+        filters={
+          <FilterSelect
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as CustomerStatusFilter)}
+            className="min-w-[10rem]"
+          >
+            <option value="">All customers</option>
+            <option value="hasOutstanding">Has outstanding</option>
+            <option value="fullySettled">Fully settled</option>
+            <option value="activeCustomers">Active customers</option>
+          </FilterSelect>
+        }
+        mobileSort={
+          <MobileSortSelect
+            options={[...sortOptions]}
+            currentSortBy={params.sortBy}
+            currentSortOrder={params.sortOrder}
+            onSort={(sortBy, sortOrder) => setSort(sortBy, sortOrder)}
+          />
+        }
+        onClearFilters={() => {
+          clearSearch();
+          clearFilters();
+          setStatusFilter("");
+        }}
         currentPage={meta.page}
         totalPages={meta.totalPages}
         totalRecords={meta.total}

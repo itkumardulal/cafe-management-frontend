@@ -153,7 +153,7 @@ export const operationsApi = {
     remove: (id: string) => mutate("delete", `/menu-categories/${id}`),
   },
   menuItems: {
-    list: (params?: ListQueryParams) =>
+    list: (params?: ListQueryParams & { menuCategoryId?: string }) =>
       getData<
         Paginated<{
           id: string;
@@ -434,7 +434,7 @@ export const operationsApi = {
       }),
   },
   rmPurchases: {
-    list: (params?: DateRangeQueryParams) =>
+    list: (params?: DateRangeQueryParams & { supplierId?: string; rawMaterialItemId?: string }) =>
       getData<Paginated<import("@/src/lib/ap-types").ApBillSummary>>(
         "/raw-material-purchases",
         params,
@@ -492,7 +492,7 @@ export const operationsApi = {
     ) => mutate("post", `/raw-material-purchases/${id}/payments`, data),
   },
   directPurchases: {
-    list: (params?: DateRangeQueryParams) =>
+    list: (params?: DateRangeQueryParams & { supplierId?: string }) =>
       getData<Paginated<import("@/src/lib/ap-types").ApBillSummary>>(
         "/direct-purchases",
         params,
@@ -696,6 +696,13 @@ export const operationsApi = {
         "/reports/expenses",
         buildReportApiParams(params),
       ),
+    profitVsExpense: (
+      params?: import("@/src/features/reports/types/reports.types").ReportPeriodParams,
+    ) =>
+      getData<import("@/src/features/reports/types/reports.types").ProfitVsExpenseReport>(
+        "/reports/profit-vs-expense",
+        buildReportApiParams(params),
+      ),
     inventory: (
       params?: import("@/src/features/reports/types/reports.types").ReportPeriodParams &
         ListQueryParams,
@@ -790,7 +797,7 @@ export const operationsApi = {
     remove: (id: string) => mutate("delete", `/expense-items/${id}`),
   },
   expenseEntries: {
-    list: (params?: DateRangeQueryParams) =>
+    list: (params?: DateRangeQueryParams & { expenseItemId?: string }) =>
       getData<
         Paginated<{
           id: string;
@@ -928,7 +935,11 @@ export const operationsApi = {
     remove: (id: string) => mutate("delete", `/bank-transactions/${id}`),
   },
   stockRemovals: {
-    list: (params?: DateRangeQueryParams) =>
+    list: (params?: DateRangeQueryParams & {
+      reason?: "DAMAGE" | "STAFF_USE";
+      menuItemId?: string;
+      stockItemId?: string;
+    }) =>
       getData<
         Paginated<{
           id: string;
@@ -940,6 +951,7 @@ export const operationsApi = {
           staffName: string | null;
           createdByName: string | null;
           lineCount: number;
+          itemNameSummary?: string | null;
         }>
       >("/stock-removals", params),
     getOne: (id: string) =>
@@ -1036,7 +1048,7 @@ export const operationsApi = {
   },
   users: {
     staff: {
-      list: (params?: ListQueryParams) =>
+      list: (params?: ListQueryParams & { staffRoleId?: string }) =>
         getData<
           Paginated<{
             id: string;
@@ -1094,6 +1106,7 @@ export const operationsApi = {
       paymentStatus?: "PAID" | "PARTIAL" | "UNPAID";
       billStatus?: "OPEN" | "OVERDUE" | "CLOSED";
       hasBalance?: boolean | string;
+      paymentChannel?: "CASH" | "BANK";
     }) =>
       getData<
         Paginated<{
@@ -1140,7 +1153,7 @@ export const operationsApi = {
       checkoutPaymentType: "FULLY_PAID" | "PARTIALLY_PAID" | "CREDIT";
       initialPayments?: Array<{
         amount: number;
-        paymentMethod: "CASH" | "BANK_TRANSFER" | "ESEWA" | "KHALTI" | "CHEQUE";
+        paymentMethod: import("@/src/lib/ar-types").SalePaymentMethod;
         bankAccountId?: string;
         referenceNumber?: string;
         chequeBankName?: string;
@@ -1166,7 +1179,7 @@ export const operationsApi = {
       saleId: string,
       data: {
         amount: number;
-        paymentMethod: "CASH" | "BANK_TRANSFER" | "ESEWA" | "KHALTI" | "CHEQUE";
+        paymentMethod: import("@/src/lib/ar-types").SalePaymentMethod;
         referenceNumber?: string;
         chequeBankName?: string;
         remarks?: string;
@@ -1331,8 +1344,18 @@ export const operationsApi = {
     remove: (id: string) => mutate("delete", `/asset-categories/${id}`),
   },
   assets: {
-    list: (params?: ListQueryParams & { assetCategoryId?: string; status?: string }) =>
-      getData<Paginated<import("@/src/lib/asset-types").AssetRow>>("/assets", params),
+    list: (params?: ListQueryParams & {
+      assetCategoryId?: string;
+      status?: string;
+      warrantyExpiringWithinDays?: number;
+      hasWarranty?: boolean;
+    }) => {
+      const { hasWarranty, ...rest } = params ?? {};
+      return getData<Paginated<import("@/src/lib/asset-types").AssetRow>>("/assets", {
+        ...rest,
+        ...(hasWarranty != null ? { hasWarranty: hasWarranty ? "true" : "false" } : {}),
+      });
+    },
     options: () =>
       getData<import("@/src/lib/asset-types").AssetOption[]>("/assets/options"),
     get: (id: string) => getData<import("@/src/lib/asset-types").AssetDetail>(`/assets/${id}`),
@@ -1353,44 +1376,5 @@ export const operationsApi = {
     update: (id: string, data: Record<string, unknown>) =>
       mutate("patch", `/asset-maintenance/${id}`, data),
     remove: (id: string) => mutate("delete", `/asset-maintenance/${id}`),
-  },
-  assetReports: {
-    register: (params?: Record<string, string | undefined>) =>
-      getData<{
-        rows: Array<{
-          assetCode: string;
-          assetName: string;
-          category: string;
-          purchaseDate: string;
-          purchaseCost: string;
-          status: string;
-        }>;
-        meta: { total: number; capped: boolean };
-      }>("/asset-reports/register", params),
-    maintenance: (params?: Record<string, string | undefined>) =>
-      getData<{
-        rows: Array<{
-          asset: string;
-          assetCode: string;
-          assetName: string;
-          maintenanceDate: string;
-          cost: string;
-          description?: string | null;
-        }>;
-        meta: { total: number; capped: boolean };
-      }>("/asset-reports/maintenance", params),
-    warranty: (params?: Record<string, string | undefined>) =>
-      getData<{
-        rows: Array<{
-          asset: string;
-          assetCode: string;
-          assetName: string;
-          warrantyExpiryDate: string;
-          daysRemaining: number;
-          status: string;
-          category: string;
-        }>;
-        meta: { total: number; capped: boolean };
-      }>("/asset-reports/warranty", params),
   },
 };

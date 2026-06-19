@@ -23,6 +23,7 @@ import { Card } from "@/src/components/ui/card";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import { Select } from "@/src/components/ui/select";
+import { PAYMENT_METHOD_OPTIONS } from "@/src/lib/ap-display";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { formatDateOnly, formatDateTime, formatMoney } from "@/src/lib/format-display";
 import { parseMoneyInput } from "@/src/lib/money-input";
@@ -375,11 +376,11 @@ export default function SupplierBillDetailPage() {
 
               <Field id="bsp-payment-method" label="Payment method" required>
                 <Select searchable={false} value={payMethod} onChange={(e) => setPayMethod(e.target.value as PurchasePaymentMethod)}>
-                  <option value="CASH">Cash</option>
-                  <option value="BANK_TRANSFER">Bank transfer</option>
-                  <option value="ESEWA">eSewa</option>
-                  <option value="KHALTI">Khalti</option>
-                  <option value="CHEQUE">Cheque</option>
+                  {PAYMENT_METHOD_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
                 </Select>
               </Field>
               <Field id="bsp-payment-remarks" label="Remarks">

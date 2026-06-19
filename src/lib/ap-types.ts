@@ -1,11 +1,6 @@
 export type PurchasePaymentStatus = "PAID" | "PARTIAL" | "UNPAID";
 export type SupplierBillStatus = "OPEN" | "OVERDUE" | "CLOSED";
-export type PurchasePaymentMethod =
-  | "CASH"
-  | "BANK_TRANSFER"
-  | "ESEWA"
-  | "KHALTI"
-  | "CHEQUE";
+export type PurchasePaymentMethod = "CASH" | "BANK_TRANSFER" | "CHEQUE";
 export type PaymentTermsPreset =
   | "IMMEDIATE"
   | "NET_7"

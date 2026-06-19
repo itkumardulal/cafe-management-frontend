@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { AlertCircle, Banknote, Building2, CheckCircle2, QrCode, Split } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import { Select } from "@/src/components/ui/select";
@@ -152,25 +152,45 @@ export function PosCheckoutPaymentSection({
   const creditPreview = Math.max(0, Math.round((grandTotal - paidNow) * 100) / 100);
   const hasCredit = creditPreview > 0.005;
 
+  const prevGrandTotalRef = useRef(grandTotal);
+
+  /** Keep tender amounts in sync with cart total without fighting manual edits. */
+  function shouldAutoSyncTenderAmount(currentAmount: number, prevTotal: number): boolean {
+    if (grandTotal <= 0.005) return false;
+    if (currentAmount < 0.005) return true;
+    if (currentAmount >= grandTotal - 0.005) return false;
+    return Math.abs(currentAmount - prevTotal) < 0.005;
+  }
+
   useEffect(() => {
+    const prevTotal = prevGrandTotalRef.current;
+
     if (checkoutPaymentType === "FULLY_PAID") {
       onPaidAmountStrChange(roundMoneyStr(grandTotal));
       if (tenderMode === "CASH") {
         const currentCash = parseMoneyInput(cashPaidStr);
         const currentCashAmount = currentCash.invalid ? 0 : currentCash.amount;
-        if (currentCashAmount < 0.005 && grandTotal > 0.005) {
+        if (shouldAutoSyncTenderAmount(currentCashAmount, prevTotal)) {
           onCashPaidStrChange(roundMoneyStr(grandTotal));
         }
         onBankPaidStrChange("0");
       } else if (tenderMode === "BANK") {
         onCashPaidStrChange("0");
-        onBankPaidStrChange(roundMoneyStr(grandTotal));
+        const currentBank = parseMoneyInput(bankPaidStr);
+        const currentBankAmount = currentBank.invalid ? 0 : currentBank.amount;
+        if (shouldAutoSyncTenderAmount(currentBankAmount, prevTotal)) {
+          onBankPaidStrChange(roundMoneyStr(grandTotal));
+        }
       }
     } else if (checkoutPaymentType === "CREDIT") {
       onPaidAmountStrChange("0");
       onCashPaidStrChange("0");
       onBankPaidStrChange("0");
     }
+
+    prevGrandTotalRef.current = grandTotal;
+    // cashPaidStr / bankPaidStr intentionally omitted — re-running on every keystroke
+    // resets cleared inputs and blocks manual entry.
   }, [
     checkoutPaymentType,
     grandTotal,
@@ -178,7 +198,6 @@ export function PosCheckoutPaymentSection({
     onPaidAmountStrChange,
     onCashPaidStrChange,
     onBankPaidStrChange,
-    cashPaidStr,
   ]);
 
   const splitSum =

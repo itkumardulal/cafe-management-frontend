@@ -21,6 +21,48 @@ export type ReportPeriod = {
   label: string;
 };
 
+export type ProfitVsExpenseBreakdown = {
+  grossSalesBeforeDiscount: string;
+  totalDiscountGiven: string;
+  netRevenue: string;
+  costOfGoodsSold: string;
+  grossProfit: string;
+  operatingExpenses: string;
+  netProfit: string;
+  costPriceNote: string;
+};
+
+export type ExpenseCategoryRow = {
+  category: string;
+  label: string;
+  amount: string;
+  percentOfTotal: string;
+};
+
+export type ProfitVsExpenseReport = {
+  period: ReportPeriod;
+  breakdown: ProfitVsExpenseBreakdown;
+  expenseByCategory: ExpenseCategoryRow[];
+  profitExpenseChart: {
+    granularity: "day" | "week" | "month";
+    buckets: Array<{ date: string; revenue: string; expenses: string; netProfit: string }>;
+  };
+  topProfitableItems: Array<{
+    menuItemId: string;
+    name: string;
+    quantitySold: string;
+    revenue: string;
+    cost: string;
+    profit: string;
+    marginPercent: string;
+  }>;
+  discountTransactions: {
+    items: DiscountReport["items"];
+    meta: DiscountReport["meta"];
+  };
+  costPriceNote: string;
+};
+
 export type ReportsSummary = {
   period: ReportPeriod;
   generatedAt: string;
@@ -29,6 +71,7 @@ export type ReportsSummary = {
     totalProfit: string;
     totalExpenses: string;
   };
+  profitVsExpense: ProfitVsExpenseBreakdown;
   snapshotMetrics: {
     outstandingCustomerReceivables: string;
     outstandingSupplierPayables: string;
@@ -102,12 +145,7 @@ export type DiscountReport = {
 export type ExpenseReport = {
   period: ReportPeriod;
   totalExpenses: string;
-  byCategory: Array<{
-    category: string;
-    label: string;
-    amount: string;
-    percentOfTotal: string;
-  }>;
+  byCategory: ExpenseCategoryRow[];
   comparison: {
     periodSales: string;
     periodGrossProfit: string;

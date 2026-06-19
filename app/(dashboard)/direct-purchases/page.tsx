@@ -36,6 +36,7 @@ import { Input } from "@/src/components/ui/input";
 import { NumberInput } from "@/src/components/ui/number-input";
 import { Modal } from "@/src/components/ui/modal";
 import { ResponsiveTable, tableActionsCellClass, tableActionsColumnClass, tableCenterCellClass, tableCenterColumnClass } from "@/src/components/ui/table";
+import { FilterSelect } from "@/src/components/shared/filter-select";
 import { Select } from "@/src/components/ui/select";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { cn } from "@/src/lib/cn";
@@ -121,6 +122,7 @@ export default function DirectPurchasesPage() {
 
 function DirectPurchasesContent() {
   const authUser = useAppSelector((state) => state.auth.user);
+  const [supplierFilter, setSupplierFilter] = useState("");
   const {
     items: purchases,
     meta,
@@ -143,10 +145,15 @@ function DirectPurchasesContent() {
     refetch,
   } = usePaginatedList<PurchaseRow>({
     queryKey: "direct-purchases",
-    fetchFn: (p) => operationsApi.directPurchases.list(p),
+    fetchFn: (p) =>
+      operationsApi.directPurchases.list({
+        ...p,
+        ...(supplierFilter ? { supplierId: supplierFilter } : {}),
+      }),
     defaultSort: { sortBy: "purchaseDate", sortOrder: "desc" },
     filterKeys: ["fromDate", "toDate"],
     errorMessage: "Failed to load purchases",
+    extraCacheKey: supplierFilter,
   });
 
   const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
@@ -499,7 +506,7 @@ function DirectPurchasesContent() {
         loading={loading}
         isFetching={isFetching}
         itemsCount={purchases.length}
-        hasActiveFilters={hasActiveFilters}
+        hasActiveFilters={hasActiveFilters || Boolean(supplierFilter)}
         searchValue={searchInput}
         onSearchChange={setSearch}
         onSearchClear={clearSearch}
@@ -516,6 +523,7 @@ function DirectPurchasesContent() {
           setDraftFromDate("");
           setDraftToDate("");
           clearFilters();
+          setSupplierFilter("");
         }}
         currentPage={meta.page}
         totalPages={meta.totalPages}
@@ -524,26 +532,40 @@ function DirectPurchasesContent() {
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
         filters={
-          <FilterDrawer
-            open={filterDrawerOpen}
-            onOpenChange={setFilterDrawerOpen}
-            hasActiveFilters={Boolean(params.filters.fromDate || params.filters.toDate)}
-            onApply={applyDateFilter}
-            onReset={() => {
-              setDraftFromDate("");
-              setDraftToDate("");
-              clearFilters();
-            }}
-          >
-            <DateRangeFilter
-              compact
-              fromDate={draftFromDate}
-              toDate={draftToDate}
-              onFromDateChange={setDraftFromDate}
-              onToDateChange={setDraftToDate}
+          <>
+            <FilterSelect
+              value={supplierFilter}
+              onChange={(e) => setSupplierFilter(e.target.value)}
+              className="min-w-[10rem]"
+            >
+              <option value="">All suppliers</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </FilterSelect>
+            <FilterDrawer
+              open={filterDrawerOpen}
+              onOpenChange={setFilterDrawerOpen}
+              hasActiveFilters={Boolean(params.filters.fromDate || params.filters.toDate)}
               onApply={applyDateFilter}
-            />
-          </FilterDrawer>
+              onReset={() => {
+                setDraftFromDate("");
+                setDraftToDate("");
+                clearFilters();
+              }}
+            >
+              <DateRangeFilter
+                compact
+                fromDate={draftFromDate}
+                toDate={draftToDate}
+                onFromDateChange={setDraftFromDate}
+                onToDateChange={setDraftToDate}
+                onApply={applyDateFilter}
+              />
+            </FilterDrawer>
+          </>
         }
         mobileSort={
           <MobileSortSelect

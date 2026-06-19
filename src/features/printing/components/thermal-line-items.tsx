@@ -38,26 +38,37 @@ export function ThermalLineItems(props: ThermalLineItemsProps) {
   const paperProfile = props.paperProfile ?? DEFAULT_PAPER_PROFILE;
 
   if (props.variant === "sale") {
+    const itemMaxChars = Math.max(12, paperProfile.maxChars - 22);
+
     return (
-      <table className="w-full border-collapse text-[10px]">
+      <table className="w-full table-fixed border-collapse text-[10px]">
+        <colgroup>
+          <col />
+          <col className="w-[12%]" />
+          <col className="w-[26%]" />
+          <col className="w-[26%]" />
+        </colgroup>
         <thead>
-          <tr className="border-b border-black text-[9px] uppercase">
+          <tr className="border-b border-black text-[8px] uppercase">
             <th className="pb-1 text-left font-semibold">Item</th>
-            <th className="pb-1 text-right font-semibold">Amt</th>
+            <th className="pb-1 pr-0.5 text-right font-semibold">Qty</th>
+            <th className="pb-1 pr-0.5 text-right font-semibold">Rate</th>
+            <th className="pb-1 text-right font-semibold">Total</th>
           </tr>
         </thead>
         <tbody>
           {props.lines.map((line, idx) => (
             <tr key={idx} className="align-top">
-              <td className="py-1 pr-1">
-                <p className="font-medium leading-snug">
-                  {truncateThermalText(line.name, paperProfile.maxChars - 8)}
-                </p>
-                <p className="mt-0.5 font-mono text-[9px]">
-                  {formatMoneyCompact(line.quantity)} x {formatMoneyCompact(line.unitPrice)}
-                </p>
+              <td className="py-1 pr-1 font-medium leading-snug break-words">
+                {truncateThermalText(line.name, itemMaxChars)}
               </td>
-              <td className="py-1 text-right font-mono font-semibold tabular-nums">
+              <td className="py-1 pr-0.5 text-right font-mono tabular-nums whitespace-nowrap">
+                {formatMoneyCompact(line.quantity)}
+              </td>
+              <td className="py-1 pr-0.5 text-right font-mono tabular-nums whitespace-nowrap">
+                {formatMoneyCompact(line.unitPrice)}
+              </td>
+              <td className="py-1 text-right font-mono font-semibold tabular-nums whitespace-nowrap">
                 {formatMoneyCompact(line.lineTotal)}
               </td>
             </tr>

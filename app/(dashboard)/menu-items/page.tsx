@@ -16,6 +16,7 @@ import { Input } from "@/src/components/ui/input";
 import { NumberInput } from "@/src/components/ui/number-input";
 import { Modal } from "@/src/components/ui/modal";
 import { Select } from "@/src/components/ui/select";
+import { FilterSelect } from "@/src/components/shared/filter-select";
 import { FormFooter } from "@/src/components/shared/form-footer";
 import { ImageUploadField } from "@/src/components/shared/image-upload-field";
 import { RowActions } from "@/src/components/shared/row-actions";
@@ -93,6 +94,8 @@ function MenuItemsContent() {
     (state) => state.referenceData.menuCategoryOptionsStatus,
   );
 
+  const [categoryFilter, setCategoryFilter] = useState("");
+
   const {
     items,
     meta,
@@ -113,9 +116,14 @@ function MenuItemsContent() {
     refetch,
   } = usePaginatedList<MenuItemRow>({
     queryKey: "menu-items",
-    fetchFn: (p) => operationsApi.menuItems.list(p),
+    fetchFn: (p) =>
+      operationsApi.menuItems.list({
+        ...p,
+        ...(categoryFilter ? { menuCategoryId: categoryFilter } : {}),
+      }),
     defaultSort: { sortBy: "name", sortOrder: "asc" },
     errorMessage: "Failed to load menu items",
+    extraCacheKey: categoryFilter,
   });
 
   const [open, setOpen] = useState(false);
@@ -394,13 +402,27 @@ function MenuItemsContent() {
           loading={loading}
           isFetching={isFetching}
           itemsCount={items.length}
-          hasActiveFilters={hasActiveFilters}
+          hasActiveFilters={hasActiveFilters || Boolean(categoryFilter)}
           searchValue={searchInput}
           onSearchChange={setSearch}
           onSearchClear={clearSearch}
           searchPlaceholder={searchPlaceholder}
           isSearching={isSearching}
           searchResultSummary={searchResultSummary}
+          filters={
+            <FilterSelect
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="min-w-[10rem]"
+            >
+              <option value="">All categories</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </FilterSelect>
+          }
           tableColumns={7}
           emptyTitle="No Menu Items Found"
           emptyDescription="Add your first item to a category."
@@ -409,6 +431,7 @@ function MenuItemsContent() {
           onClearFilters={() => {
             clearSearch();
             clearFilters();
+            setCategoryFilter("");
           }}
           currentPage={meta.page}
           totalPages={meta.totalPages}

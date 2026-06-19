@@ -50,16 +50,21 @@ type SaleRow = {
 
 type ServiceFilter = "" | "DINE_IN" | "DELIVERY";
 type BillingFilter = "" | "PAID" | "CREDIT";
+type PaymentChannelFilter = "" | "CASH" | "BANK";
 
-const DEFAULT_PERIOD: ReportPeriodKey = "this_month";
+const DEFAULT_PERIOD_BY_VARIANT: Record<"default" | "invoices", ReportPeriodKey> = {
+  default: "this_month",
+  invoices: "today",
+};
 
 function periodToFilters(
   existing: Record<string, string>,
   next: ReportPeriodParams,
+  defaultPeriod: ReportPeriodKey,
 ): Record<string, string> {
   const filters: Record<string, string> = {
     ...existing,
-    period: next.period ?? DEFAULT_PERIOD,
+    period: next.period ?? defaultPeriod,
   };
   if (next.period === "custom") {
     if (next.fromDate) {
@@ -136,9 +141,12 @@ function PosRecentSalesContent({
   emptyDescription?: string;
 }) {
   const isInvoicesLayout = variant === "invoices";
+  const defaultPeriod = DEFAULT_PERIOD_BY_VARIANT[variant];
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [draftServiceFilter, setDraftServiceFilter] = useState<ServiceFilter>("");
   const [draftBillingFilter, setDraftBillingFilter] = useState<BillingFilter>("");
+  const [draftPaymentChannelFilter, setDraftPaymentChannelFilter] =
+    useState<PaymentChannelFilter>("");
   const [draftOpenBalance, setDraftOpenBalance] = useState(false);
 
   const {
@@ -166,6 +174,7 @@ function PosRecentSalesContent({
       const {
         salesServiceType,
         salesBillingType,
+        salesPaymentChannel,
         salesHasBalance,
         period,
         fromDate,
@@ -173,15 +182,17 @@ function PosRecentSalesContent({
         ...rest
       } = p;
       const periodQuery = buildReportQueryParams({
-        period: (period as ReportPeriodKey | undefined) || DEFAULT_PERIOD,
+        period: (period as ReportPeriodKey | undefined) || defaultPeriod,
         fromDate: typeof fromDate === "string" ? fromDate : undefined,
         toDate: typeof toDate === "string" ? toDate : undefined,
       });
+      const paymentChannel = salesPaymentChannel as PaymentChannelFilter | undefined;
       return operationsApi.sales.list({
         ...rest,
         ...periodQuery,
         serviceType: (salesServiceType as ServiceFilter | undefined) || undefined,
         billingType: (salesBillingType as BillingFilter | undefined) || undefined,
+        paymentChannel: paymentChannel === "CASH" || paymentChannel === "BANK" ? paymentChannel : undefined,
         hasBalance: salesHasBalance === "true" ? true : undefined,
       });
     },
@@ -192,6 +203,7 @@ function PosRecentSalesContent({
       "toDate",
       "salesServiceType",
       "salesBillingType",
+      "salesPaymentChannel",
       "salesHasBalance",
     ],
     urlConfig: {
@@ -206,6 +218,7 @@ function PosRecentSalesContent({
         "toDate",
         "salesServiceType",
         "salesBillingType",
+        "salesPaymentChannel",
         "salesHasBalance",
       ],
     },
@@ -214,48 +227,55 @@ function PosRecentSalesContent({
 
   const serviceFilter = (params.filters.salesServiceType ?? "") as ServiceFilter;
   const billingFilter = (params.filters.salesBillingType ?? "") as BillingFilter;
+  const paymentChannelFilter = (params.filters.salesPaymentChannel ?? "") as PaymentChannelFilter;
   const openBalanceFilter = params.filters.salesHasBalance === "true";
 
   const periodParams = useMemo<ReportPeriodParams>(
     () => ({
-      period: (params.filters.period as ReportPeriodKey | undefined) ?? DEFAULT_PERIOD,
+      period: (params.filters.period as ReportPeriodKey | undefined) ?? defaultPeriod,
       fromDate: params.filters.fromDate,
       toDate: params.filters.toDate,
     }),
-    [params.filters.period, params.filters.fromDate, params.filters.toDate],
+    [defaultPeriod, params.filters.period, params.filters.fromDate, params.filters.toDate],
   );
 
   const handlePeriodChange = useCallback(
     (next: ReportPeriodParams) => {
-      setFilters(periodToFilters(params.filters, next));
+      setFilters(periodToFilters(params.filters, next, defaultPeriod));
     },
-    [params.filters, setFilters],
+    [defaultPeriod, params.filters, setFilters],
   );
 
   const resetListFilters = useCallback(() => {
     setFilters({
-      period: DEFAULT_PERIOD,
+      period: defaultPeriod,
       salesServiceType: "",
       salesBillingType: "",
+      salesPaymentChannel: "",
       salesHasBalance: "",
     });
-  }, [setFilters]);
+  }, [defaultPeriod, setFilters]);
 
   const applyFilters = () => {
     setFilters({
       ...params.filters,
       salesServiceType: draftServiceFilter,
       salesBillingType: draftBillingFilter,
+      salesPaymentChannel: draftPaymentChannelFilter,
       salesHasBalance: draftOpenBalance ? "true" : "",
     });
   };
 
   const hasPeriodFilter = Boolean(
-    params.filters.period && params.filters.period !== DEFAULT_PERIOD,
+    params.filters.period && params.filters.period !== defaultPeriod,
   );
   const hasListActiveFilters = hasActiveFilters || hasPeriodFilter;
   const hasDrawerFilters = Boolean(
-    serviceFilter || billingFilter || openBalanceFilter || hasPeriodFilter,
+    serviceFilter ||
+      billingFilter ||
+      paymentChannelFilter ||
+      openBalanceFilter ||
+      hasPeriodFilter,
   );
 
   const pageRevenue = useMemo(
@@ -285,9 +305,11 @@ function PosRecentSalesContent({
     <InvoicesQuickFilters
       serviceFilter={serviceFilter}
       billingFilter={billingFilter}
+      paymentChannelFilter={paymentChannelFilter}
       openBalanceFilter={openBalanceFilter}
       onServiceChange={(value) => setFilter("salesServiceType", value)}
       onBillingChange={(value) => setFilter("salesBillingType", value)}
+      onPaymentChannelChange={(value) => setFilter("salesPaymentChannel", value)}
       onOpenBalanceToggle={() =>
         setFilter("salesHasBalance", openBalanceFilter ? "" : "true")
       }
@@ -338,6 +360,7 @@ function PosRecentSalesContent({
             if (open) {
               setDraftServiceFilter(serviceFilter);
               setDraftBillingFilter(billingFilter);
+              setDraftPaymentChannelFilter(paymentChannelFilter);
               setDraftOpenBalance(openBalanceFilter);
             }
           }}
@@ -346,6 +369,7 @@ function PosRecentSalesContent({
           onReset={() => {
             setDraftServiceFilter("");
             setDraftBillingFilter("");
+            setDraftPaymentChannelFilter("");
             setDraftOpenBalance(false);
             resetListFilters();
           }}
@@ -369,7 +393,20 @@ function PosRecentSalesContent({
               </button>
             ))}
           </div>
-          <p className="mb-2 text-sm font-medium text-[var(--color-foreground)]">Payment type</p>
+          <p className="mb-2 text-sm font-medium text-[var(--color-foreground)]">Tender</p>
+          <div className="mb-4 flex flex-wrap gap-2">
+            {(["", "CASH", "BANK"] as const).map((f) => (
+              <button
+                key={f || "all-tender"}
+                type="button"
+                onClick={() => setDraftPaymentChannelFilter(f)}
+                className={chipClass(draftPaymentChannelFilter === f)}
+              >
+                {f === "" ? "All" : f === "CASH" ? "Cash" : "Bank"}
+              </button>
+            ))}
+          </div>
+          <p className="mb-2 text-sm font-medium text-[var(--color-foreground)]">Billing</p>
           <div className="flex flex-wrap gap-2">
             {(["", "PAID", "CREDIT"] as const).map((f) => (
               <button

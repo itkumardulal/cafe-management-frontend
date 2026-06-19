@@ -25,6 +25,7 @@ import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import { NumberInput } from "@/src/components/ui/number-input";
 import { Modal } from "@/src/components/ui/modal";
+import { FilterSelect } from "@/src/components/shared/filter-select";
 import { Select } from "@/src/components/ui/select";
 import { SortableTableHeader } from "@/src/components/ui/sortable-table-header";
 import {
@@ -98,6 +99,8 @@ export default function BankTransactionsPage() {
 }
 
 function BankTransactionsContent() {
+  const [accountFilter, setAccountFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
   const {
     items,
     meta,
@@ -121,10 +124,15 @@ function BankTransactionsContent() {
   } = usePaginatedList<TransactionRow>({
     queryKey: "bank-transactions",
     fetchFn: (p) =>
-      operationsApi.bankTransactions.list(p) as Promise<{ items: TransactionRow[]; meta: TransactionsMeta }>,
+      operationsApi.bankTransactions.list({
+        ...p,
+        ...(accountFilter ? { bankAccountId: accountFilter } : {}),
+        ...(typeFilter ? { type: typeFilter } : {}),
+      }) as Promise<{ items: TransactionRow[]; meta: TransactionsMeta }>,
     defaultSort: { sortBy: "transactionDate", sortOrder: "desc" },
-    filterKeys: ["fromDate", "toDate", "bankAccountId", "type"],
+    filterKeys: ["fromDate", "toDate"],
     errorMessage: "Failed to load bank transactions",
+    extraCacheKey: `${accountFilter}\0${typeFilter}`,
   });
 
   const extendedMeta = meta as TransactionsMeta;
@@ -132,8 +140,6 @@ function BankTransactionsContent() {
   const [filterBankAccounts, setFilterBankAccounts] = useState<BankAccountOption[]>([]);
   const [draftFromDate, setDraftFromDate] = useState(params.filters.fromDate ?? "");
   const [draftToDate, setDraftToDate] = useState(params.filters.toDate ?? "");
-  const [draftBankAccountId, setDraftBankAccountId] = useState(params.filters.bankAccountId ?? "");
-  const [draftType, setDraftType] = useState(params.filters.type ?? "");
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -176,16 +182,12 @@ function BankTransactionsContent() {
   useEffect(() => {
     setDraftFromDate(params.filters.fromDate ?? "");
     setDraftToDate(params.filters.toDate ?? "");
-    setDraftBankAccountId(params.filters.bankAccountId ?? "");
-    setDraftType(params.filters.type ?? "");
-  }, [params.filters.fromDate, params.filters.toDate, params.filters.bankAccountId, params.filters.type]);
+  }, [params.filters.fromDate, params.filters.toDate]);
 
-  const applyFilters = () => {
+  const applyDateFilter = () => {
     setFilters({
       fromDate: draftFromDate,
       toDate: draftToDate,
-      bankAccountId: draftBankAccountId,
-      type: draftType,
     });
   };
 
@@ -330,68 +332,21 @@ function BankTransactionsContent() {
       ) : null}
 
       <FilterDrawerDesktop>
-        <section
-          aria-label="Transaction filters"
-          className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)]/50 p-3 sm:p-3.5"
-        >
-          <div className="flex w-full items-start gap-3">
-            <Field id="filterFrom" label="From" reserveErrorSpace={false} className="min-w-0 flex-1">
-              <DatePicker
-                value={draftFromDate}
-                onChange={setDraftFromDate}
-                max={draftToDate || undefined}
-                placeholder="Start date"
-                aria-label="From date"
-              />
-            </Field>
-            <Field id="filterTo" label="To" reserveErrorSpace={false} className="min-w-0 flex-1">
-              <DatePicker
-                value={draftToDate}
-                onChange={setDraftToDate}
-                min={draftFromDate || undefined}
-                placeholder="End date"
-                aria-label="To date"
-              />
-            </Field>
-            <Field
-              id="filterAccount"
-              label="Bank account"
-              reserveErrorSpace={false}
-              className="min-w-0 flex-[1.35]"
-            >
-              <Select value={draftBankAccountId} onChange={(e) => setDraftBankAccountId(e.target.value)}>
-                <option value="">All accounts</option>
-                {filterBankAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field id="filterType" label="Type" reserveErrorSpace={false} className="min-w-0 flex-1">
-              <Select value={draftType} onChange={(e) => setDraftType(e.target.value)}>
-                <option value="">All types</option>
-                <option value="DEPOSIT">Deposit</option>
-                <option value="WITHDRAWAL">Withdrawal</option>
-              </Select>
-            </Field>
-            <div className="shrink-0 space-y-1">
-              <span className="block text-sm font-medium text-transparent select-none" aria-hidden="true">
-                Apply
-              </span>
-              <Button type="button" size="sm" variant="brand" onClick={applyFilters}>
-                Apply filters
-              </Button>
-            </div>
-          </div>
-        </section>
+        <DateRangeFilter
+          fromDate={draftFromDate}
+          toDate={draftToDate}
+          onFromDateChange={setDraftFromDate}
+          onToDateChange={setDraftToDate}
+          onApply={applyDateFilter}
+          description="Filter by transaction date."
+        />
       </FilterDrawerDesktop>
 
       <PaginatedListSection
         loading={loading}
         isFetching={isFetching}
         itemsCount={items.length}
-        hasActiveFilters={hasActiveFilters}
+        hasActiveFilters={hasActiveFilters || Boolean(accountFilter || typeFilter)}
         searchValue={searchInput}
         onSearchChange={setSearch}
         onSearchClear={clearSearch}
@@ -407,9 +362,9 @@ function BankTransactionsContent() {
           clearSearch();
           setDraftFromDate("");
           setDraftToDate("");
-          setDraftBankAccountId("");
-          setDraftType("");
           clearFilters();
+          setAccountFilter("");
+          setTypeFilter("");
         }}
         currentPage={meta.page}
         totalPages={meta.totalPages}
@@ -418,52 +373,49 @@ function BankTransactionsContent() {
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
         filters={
-          <FilterDrawer
-            open={filterDrawerOpen}
-            onOpenChange={setFilterDrawerOpen}
-            hasActiveFilters={Boolean(
-              params.filters.fromDate ||
-                params.filters.toDate ||
-                params.filters.bankAccountId ||
-                params.filters.type,
-            )}
-            onApply={applyFilters}
-            onReset={() => {
-              setDraftFromDate("");
-              setDraftToDate("");
-              setDraftBankAccountId("");
-              setDraftType("");
-              clearFilters();
-            }}
-          >
-            <div className="space-y-4">
+          <>
+            <FilterSelect
+              value={accountFilter}
+              onChange={(e) => setAccountFilter(e.target.value)}
+              className="min-w-[10rem]"
+            >
+              <option value="">All accounts</option>
+              {filterBankAccounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.label}
+                </option>
+              ))}
+            </FilterSelect>
+            <FilterSelect
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="min-w-[10rem]"
+            >
+              <option value="">All types</option>
+              <option value="DEPOSIT">Deposit</option>
+              <option value="WITHDRAWAL">Withdrawal</option>
+            </FilterSelect>
+            <FilterDrawer
+              open={filterDrawerOpen}
+              onOpenChange={setFilterDrawerOpen}
+              hasActiveFilters={Boolean(params.filters.fromDate || params.filters.toDate)}
+              onApply={applyDateFilter}
+              onReset={() => {
+                setDraftFromDate("");
+                setDraftToDate("");
+                clearFilters();
+              }}
+            >
               <DateRangeFilter
                 compact
                 fromDate={draftFromDate}
                 toDate={draftToDate}
                 onFromDateChange={setDraftFromDate}
                 onToDateChange={setDraftToDate}
-                onApply={applyFilters}
+                onApply={applyDateFilter}
               />
-              <Field id="filterAccountMobile" label="Bank account">
-                <Select value={draftBankAccountId} onChange={(e) => setDraftBankAccountId(e.target.value)}>
-                  <option value="">All accounts</option>
-                  {filterBankAccounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field id="filterTypeMobile" label="Type">
-                <Select value={draftType} onChange={(e) => setDraftType(e.target.value)}>
-                  <option value="">All types</option>
-                  <option value="DEPOSIT">Deposit</option>
-                  <option value="WITHDRAWAL">Withdrawal</option>
-                </Select>
-              </Field>
-            </div>
-          </FilterDrawer>
+            </FilterDrawer>
+          </>
         }
         mobileSort={
           <MobileSortSelect

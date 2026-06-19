@@ -51,14 +51,19 @@ export function billStatusVariant(
 export const PAYMENT_METHOD_OPTIONS = [
   { value: "CASH", label: "Cash" },
   { value: "BANK_TRANSFER", label: "Bank transfer" },
-  { value: "ESEWA", label: "eSewa" },
-  { value: "KHALTI", label: "Khalti" },
   { value: "CHEQUE", label: "Cheque" },
 ] as const;
 
+const LEGACY_PURCHASE_PAYMENT_METHOD_LABELS: Record<string, string> = {
+  ESEWA: "eSewa",
+  KHALTI: "Khalti",
+};
+
 export function formatPaymentMethod(method: string): string {
   const found = PAYMENT_METHOD_OPTIONS.find((o) => o.value === method);
-  return found?.label ?? method.replace(/_/g, " ");
+  return (
+    found?.label ?? LEGACY_PURCHASE_PAYMENT_METHOD_LABELS[method] ?? method.replace(/_/g, " ")
+  );
 }
 
 export const PAYMENT_TERMS_OPTIONS = [

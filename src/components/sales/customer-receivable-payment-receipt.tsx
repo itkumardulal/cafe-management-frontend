@@ -1,6 +1,7 @@
 "use client";
 
 import { formatSalePaymentMethod } from "@/src/lib/ar-display";
+import { ThermalCustomerBlock } from "@/src/features/printing/components/thermal-customer-block";
 import { ThermalDivider } from "@/src/features/printing/components/thermal-divider";
 import { ThermalLineItems } from "@/src/features/printing/components/thermal-line-items";
 import { ThermalPaymentBlock } from "@/src/features/printing/components/thermal-payment-block";
@@ -9,8 +10,7 @@ import { ThermalReceiptMeta } from "@/src/features/printing/components/thermal-r
 import { ThermalReceiptShell } from "@/src/features/printing/components/thermal-receipt-shell";
 import { ThermalRow } from "@/src/features/printing/components/thermal-row";
 import { formatMoneyCompact } from "@/src/features/printing/lib/thermal-money";
-import { formatCompactDateTime, wrapThermalText } from "@/src/features/printing/lib/thermal-text";
-import { DEFAULT_PAPER_PROFILE } from "@/src/features/printing/constants/paper-profiles";
+import { formatCompactDateTime } from "@/src/features/printing/lib/thermal-text";
 import type { CustomerReceivablePaymentReceiptData } from "@/src/lib/ar-types";
 import { cn } from "@/src/lib/cn";
 
@@ -47,6 +47,10 @@ export function CustomerReceivablePaymentReceipt({
       value: `Rs ${formatMoneyCompact(payment.amount)}`,
       bold: true,
     },
+    {
+      label: "Amount remaining",
+      value: `Rs ${formatMoneyCompact(payment.remainingOutstanding ?? 0)}`,
+    },
     changeAmount > 0.005
       ? {
           label: "Change returned",
@@ -56,9 +60,11 @@ export function CustomerReceivablePaymentReceipt({
       : null,
   ].filter((row): row is { label: string; value: string; bold?: boolean } => row !== null);
 
-  const addressLines = payment.customer.address
-    ? wrapThermalText(payment.customer.address, DEFAULT_PAPER_PROFILE.maxChars)
-    : [];
+  const hasCustomer =
+    payment.customer.name?.trim() ||
+    payment.customer.phoneNumber?.trim() ||
+    payment.customer.address?.trim() ||
+    payment.customer.email?.trim();
 
   return (
     <ThermalReceiptShell id={id} className={cn(className)}>
@@ -81,21 +87,17 @@ export function CustomerReceivablePaymentReceipt({
         ]}
       />
 
-      <ThermalDivider />
-
-      <div className="text-[10px]">
-        <p className="font-semibold uppercase tracking-wide">Customer</p>
-        <p className="mt-0.5 font-medium">{payment.customer.name}</p>
-        <p className="mt-0.5 font-mono">{payment.customer.phoneNumber}</p>
-        {addressLines.map((line, idx) => (
-          <p key={idx} className="mt-0.5 leading-snug">
-            {line}
-          </p>
-        ))}
-        {payment.customer.email ? (
-          <p className="mt-0.5">{payment.customer.email}</p>
-        ) : null}
-      </div>
+      {hasCustomer ? (
+        <>
+          <ThermalDivider />
+          <ThermalCustomerBlock
+            name={payment.customer.name}
+            phone={payment.customer.phoneNumber}
+            address={payment.customer.address}
+            email={payment.customer.email}
+          />
+        </>
+      ) : null}
 
       {payment.allocations.length > 0 ? (
         <>
@@ -119,6 +121,10 @@ export function CustomerReceivablePaymentReceipt({
           value={`Rs ${formatMoneyCompact(payment.amount)}`}
           bold
           className="pt-0.5 text-[12px]"
+        />
+        <ThermalRow
+          label="Amount remaining"
+          value={`Rs ${formatMoneyCompact(payment.remainingOutstanding ?? 0)}`}
         />
         {changeAmount > 0.005 ? (
           <ThermalRow

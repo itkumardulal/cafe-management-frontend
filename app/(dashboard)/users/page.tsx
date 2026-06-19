@@ -6,6 +6,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Eye, EyeOff, Users } from "lucide-react";
 import { FormFooter } from "@/src/components/shared/form-footer";
+import { FilterSelect } from "@/src/components/shared/filter-select";
 import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
 import { MobileSortSelect } from "@/src/components/shared/mobile-sort-select";
 import { PageHeader } from "@/src/components/shared/page-header";
@@ -212,6 +213,7 @@ export default function UsersPage() {
       <Suspense fallback={<TableSkeleton />}>
         <UsersStaffList
           key={staffRefresh}
+          roleOptions={roleOptions}
           onEdit={openEdit}
           onAddUser={openAddModal}
           canAddUser={hasRoles && !rolesLoading}
@@ -377,16 +379,20 @@ function StaffLifecycleActions({
 }
 
 function UsersStaffList({
+  roleOptions,
   onEdit,
   onAddUser,
   canAddUser,
   onLifecycleChange,
 }: {
+  roleOptions: RoleOption[];
   onEdit: (member: StaffRecord) => void;
   onAddUser: () => void;
   canAddUser: boolean;
   onLifecycleChange: () => void;
 }) {
+  const [roleFilter, setRoleFilter] = useState("");
+
   const {
     items: staff,
     meta,
@@ -408,10 +414,14 @@ function UsersStaffList({
   } = usePaginatedList({
     queryKey: "users",
     fetchFn: (p) =>
-      operationsApi.users.staff.list(p) as Promise<
+      operationsApi.users.staff.list({
+        ...p,
+        staffRoleId: roleFilter || undefined,
+      }) as Promise<
         import("@/src/hooks/use-paginated-list").PaginatedResult<StaffRecord>
       >,
     defaultSort: { sortBy: "createdAt", sortOrder: "desc" },
+    extraCacheKey: roleFilter,
     errorMessage: "Failed to load staff",
   });
 
@@ -420,13 +430,28 @@ function UsersStaffList({
       loading={loading}
       isFetching={isFetching}
       itemsCount={staff.length}
-      hasActiveFilters={hasActiveFilters}
+      hasActiveFilters={hasActiveFilters || Boolean(roleFilter)}
       searchValue={searchInput}
       onSearchChange={setSearch}
       onSearchClear={clearSearch}
       searchPlaceholder={searchPlaceholder}
       isSearching={isSearching}
       searchResultSummary={searchResultSummary}
+      filters={
+        <FilterSelect
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value)}
+          className="min-w-[10rem]"
+          aria-label="Filter by role"
+        >
+          <option value="">All roles</option>
+          {roleOptions.map((role) => (
+            <option key={role.id} value={role.id}>
+              {role.name}
+            </option>
+          ))}
+        </FilterSelect>
+      }
       tableColumns={6}
       emptyTitle="No Users Found"
       emptyDescription="Add your first staff member to get started."
@@ -434,6 +459,7 @@ function UsersStaffList({
       emptyAction={canAddUser ? { label: "Add user", onClick: onAddUser } : undefined}
       onClearFilters={() => {
         clearSearch();
+        setRoleFilter("");
         clearFilters();
       }}
       currentPage={meta.page}

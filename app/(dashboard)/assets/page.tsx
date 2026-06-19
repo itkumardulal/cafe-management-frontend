@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Armchair } from "lucide-react";
 import { AssetStatusBadge } from "@/src/components/assets/asset-status-badge";
 import { FormFooter } from "@/src/components/shared/form-footer";
@@ -21,6 +21,7 @@ import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import { Modal } from "@/src/components/ui/modal";
 import { NumberInput } from "@/src/components/ui/number-input";
+import { FilterSelect } from "@/src/components/shared/filter-select";
 import { Select } from "@/src/components/ui/select";
 import { SortableTableHeader } from "@/src/components/ui/sortable-table-header";
 import {
@@ -31,8 +32,11 @@ import {
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
 import {
   ASSET_STATUS_OPTIONS,
+  ASSET_WARRANTY_EXPIRING_DAYS,
   type AssetRow,
   type AssetStatus,
+  type AssetWarrantyFilter,
+  formatWarrantyRemaining,
 } from "@/src/lib/asset-types";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { formatDateOnly, formatMoney } from "@/src/lib/format-display";
@@ -63,7 +67,7 @@ export default function AssetsPage() {
         fallback={
           <div className="space-y-4">
             <CardListSkeleton />
-            <TableSkeleton columns={7} className="hidden md:block" />
+            <TableSkeleton columns={8} className="hidden md:block" />
             <PaginationSkeleton />
           </div>
         }
@@ -76,17 +80,36 @@ export default function AssetsPage() {
 
 function AssetsContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const dispatch = useAppDispatch();
   const categories = useAppSelector((s) => s.referenceData.assetCategoryOptions);
 
+  const initialWarrantyExpiring = Boolean(searchParams.get("warrantyExpiringWithinDays"));
   const [categoryFilter, setCategoryFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") ?? "");
+  const [warrantyFilter, setWarrantyFilter] = useState<AssetWarrantyFilter>(() => {
+    if (searchParams.get("warrantyExpiringWithinDays")) return "expiring";
+    if (searchParams.get("hasWarranty") === "true") return "has";
+    return "";
+  });
 
   useEffect(() => {
     void dispatch(fetchAssetCategoryOptionsThunk({}));
   }, [dispatch]);
 
-  const extraCacheKey = `${categoryFilter}\0${statusFilter}`;
+  useEffect(() => {
+    const status = searchParams.get("status");
+    if (status) {
+      setStatusFilter(status);
+    }
+    if (searchParams.get("warrantyExpiringWithinDays")) {
+      setWarrantyFilter("expiring");
+    } else if (searchParams.get("hasWarranty") === "true") {
+      setWarrantyFilter("has");
+    }
+  }, [searchParams]);
+
+  const extraCacheKey = `${categoryFilter}\0${statusFilter}\0${warrantyFilter}`;
 
   const {
     items,
@@ -114,8 +137,13 @@ function AssetsContent() {
         ...p,
         assetCategoryId: categoryFilter || undefined,
         status: statusFilter || undefined,
+        warrantyExpiringWithinDays:
+          warrantyFilter === "expiring" ? ASSET_WARRANTY_EXPIRING_DAYS : undefined,
+        hasWarranty: warrantyFilter === "has" ? true : undefined,
       }),
-    defaultSort: { sortBy: "assetCode", sortOrder: "asc" },
+    defaultSort: initialWarrantyExpiring
+      ? { sortBy: "warrantyExpiryDate", sortOrder: "asc" }
+      : { sortBy: "assetCode", sortOrder: "asc" },
     extraCacheKey,
     errorMessage: "Failed to load assets",
   });
@@ -214,10 +242,17 @@ function AssetsContent() {
     }
   };
 
+  const handleWarrantyFilterChange = (value: AssetWarrantyFilter) => {
+    setWarrantyFilter(value);
+    if (value === "expiring") {
+      setSort("warrantyExpiryDate", "asc");
+    }
+  };
+
   const filterControls = useMemo(
     () => (
       <>
-        <Select
+        <FilterSelect
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
           className="min-w-[10rem]"
@@ -229,8 +264,8 @@ function AssetsContent() {
               {c.name}
             </option>
           ))}
-        </Select>
-        <Select
+        </FilterSelect>
+        <FilterSelect
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
           className="min-w-[10rem]"
@@ -242,10 +277,20 @@ function AssetsContent() {
               {s.label}
             </option>
           ))}
-        </Select>
+        </FilterSelect>
+        <FilterSelect
+          value={warrantyFilter}
+          onChange={(e) => handleWarrantyFilterChange(e.target.value as AssetWarrantyFilter)}
+          className="min-w-[11rem]"
+          aria-label="Filter by warranty"
+        >
+          <option value="">All warranties</option>
+          <option value="expiring">Expiring within {ASSET_WARRANTY_EXPIRING_DAYS} days</option>
+          <option value="has">Has warranty</option>
+        </FilterSelect>
       </>
     ),
-    [categories, categoryFilter, statusFilter],
+    [categories, categoryFilter, statusFilter, warrantyFilter],
   );
 
   return (
@@ -274,7 +319,7 @@ function AssetsContent() {
         loading={loading}
         isFetching={isFetching}
         itemsCount={items.length}
-        hasActiveFilters={hasActiveFilters || Boolean(categoryFilter || statusFilter)}
+        hasActiveFilters={hasActiveFilters || Boolean(categoryFilter || statusFilter || warrantyFilter)}
         searchValue={searchInput}
         onSearchChange={setSearch}
         onSearchClear={clearSearch}
@@ -282,7 +327,7 @@ function AssetsContent() {
         isSearching={isSearching}
         searchResultSummary={searchResultSummary}
         filters={filterControls}
-        tableColumns={7}
+        tableColumns={8}
         emptyTitle="No assets yet"
         emptyDescription="Register equipment and other long-term items used in your operations."
         emptyIcon={Armchair}
@@ -291,6 +336,7 @@ function AssetsContent() {
           clearFilters();
           setCategoryFilter("");
           setStatusFilter("");
+          setWarrantyFilter("");
         }}
         currentPage={meta.page}
         totalPages={meta.totalPages}
@@ -303,6 +349,7 @@ function AssetsContent() {
             options={[
               { label: "Code (A–Z)", sortBy: "assetCode", sortOrder: "asc" },
               { label: "Name (A–Z)", sortBy: "assetName", sortOrder: "asc" },
+              { label: "Warranty (soonest)", sortBy: "warrantyExpiryDate", sortOrder: "asc" },
             ]}
             currentSortBy={params.sortBy}
             currentSortOrder={params.sortOrder}
@@ -319,6 +366,12 @@ function AssetsContent() {
                 badge={<AssetStatusBadge status={item.status} />}
                 fields={[
                   { label: "Cost", value: formatMoney(item.purchaseCost) },
+                  {
+                    label: "Warranty",
+                    value: item.warrantyExpiryDate
+                      ? `${formatDateOnly(item.warrantyExpiryDate)} · ${formatWarrantyRemaining(item.warrantyExpiryDate)}`
+                      : "—",
+                  },
                 ]}
                 actions={
                   <RowActions
@@ -385,6 +438,18 @@ function AssetsContent() {
                   />
                 ),
               },
+              {
+                label: "Warranty",
+                headerContent: (
+                  <SortableTableHeader
+                    label="Warranty"
+                    sortKey="warrantyExpiryDate"
+                    currentSortBy={params.sortBy}
+                    currentSortOrder={params.sortOrder}
+                    onSort={toggleSort}
+                  />
+                ),
+              },
               "Status",
               { label: "Actions", thClassName: tableActionsColumnClass },
             ]}
@@ -399,6 +464,18 @@ function AssetsContent() {
                 <td className="px-4 py-3.5 text-sm">{item.categoryName ?? "—"}</td>
                 <td className="px-4 py-3.5 text-sm">{formatDateOnly(item.purchaseDate)}</td>
                 <td className="px-4 py-3.5 text-sm tabular-nums">{formatMoney(item.purchaseCost)}</td>
+                <td className="px-4 py-3.5 text-sm">
+                  {item.warrantyExpiryDate ? (
+                    <div>
+                      <div>{formatDateOnly(item.warrantyExpiryDate)}</div>
+                      <div className="text-xs text-muted">
+                        {formatWarrantyRemaining(item.warrantyExpiryDate)}
+                      </div>
+                    </div>
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 <td className="px-4 py-3.5">
                   <AssetStatusBadge status={item.status} />
                 </td>

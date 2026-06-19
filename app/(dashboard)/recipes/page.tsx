@@ -20,6 +20,7 @@ import { Modal } from "@/src/components/ui/modal";
 import { NumberInput } from "@/src/components/ui/number-input";
 import { Select } from "@/src/components/ui/select";
 import { SortableTableHeader } from "@/src/components/ui/sortable-table-header";
+import { FilterSelect } from "@/src/components/shared/filter-select";
 import {
   ResponsiveTable,
   tableActionsCellClass,
@@ -298,7 +299,7 @@ function RecipesContent() {
         isSearching={isSearching}
         searchResultSummary={searchResultSummary}
         filters={
-          <Select
+          <FilterSelect
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
             className="min-w-[10rem]"
@@ -309,7 +310,7 @@ function RecipesContent() {
                 {c.name}
               </option>
             ))}
-          </Select>
+          </FilterSelect>
         }
         tableColumns={6}
         emptyTitle="No recipes yet"

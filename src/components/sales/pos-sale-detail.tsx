@@ -23,12 +23,13 @@ import { serviceLabel } from "@/src/features/printing/lib/pos-labels";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import type { SalePaymentMethod } from "@/src/lib/ar-types";
 import {
-  formatSalePaymentMethod,
+  formatSalePaymentMethodDetail,
   saleBillStatusLabel,
   salePaymentStatusLabel,
 } from "@/src/lib/ar-display";
 import { cn } from "@/src/lib/cn";
 import { formatDateOnly, formatDateTime, formatMoney } from "@/src/lib/format-display";
+import { formatMoneyCompact } from "@/src/features/printing/lib/thermal-money";
 import { parseMoneyInput, roundMoneyStr } from "@/src/lib/money-input";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
@@ -38,6 +39,20 @@ type PosSaleDetailProps = {
   onSaleUpdated?: (sale: PosSaleReceiptData) => void;
   onNavigateAway?: () => void;
 };
+
+function formatQuantity(value: number | string | null | undefined) {
+  if (value == null || value === "") return "0";
+  const n = typeof value === "string" ? Number(value) : value;
+  if (typeof n !== "number" || !Number.isFinite(n)) return "0";
+  const rounded = Math.round(n * 1000) / 1000;
+  if (Math.abs(rounded - Math.round(rounded)) < 0.001) {
+    return String(Math.round(rounded));
+  }
+  return rounded.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+}
 
 export function PosSaleDetail({ sale, onSaleUpdated, onNavigateAway }: PosSaleDetailProps) {
   const [payMode, setPayMode] = useState<SalePaymentMode>("FULL");
@@ -135,15 +150,33 @@ export function PosSaleDetail({ sale, onSaleUpdated, onNavigateAway }: PosSaleDe
         </DetailInfoCard>
       </div>
 
-      {(sale.customerName || sale.customerPhone) && (
+      {(sale.customerName ||
+        sale.customerPhone ||
+        sale.customerAddress ||
+        sale.customerEmail) && (
         <DetailInfoCard label="Customer" muted>
-          {sale.customerName ? <p className="font-medium">{sale.customerName}</p> : null}
-          {sale.customerPhone ? (
-            <p className="text-[var(--color-muted)]">{sale.customerPhone}</p>
-          ) : null}
-          {sale.customerAddress ? (
-            <p className="mt-1 text-[var(--color-muted)]">{sale.customerAddress}</p>
-          ) : null}
+          <div className="space-y-2 text-sm">
+            <div className="flex items-baseline justify-between gap-4">
+              <span className="min-w-0 font-medium">
+                {sale.customerName?.trim() || "—"}
+              </span>
+              {sale.customerPhone?.trim() ? (
+                <span className="shrink-0 font-mono tabular-nums text-[var(--color-muted)]">
+                  {sale.customerPhone.trim()}
+                </span>
+              ) : null}
+            </div>
+            {sale.customerAddress?.trim() || sale.customerEmail?.trim() ? (
+              <div className="flex items-baseline justify-between gap-4 text-[var(--color-muted)]">
+                <span className="min-w-0 break-words">
+                  {sale.customerAddress?.trim() || "—"}
+                </span>
+                {sale.customerEmail?.trim() ? (
+                  <span className="shrink-0 text-right">{sale.customerEmail.trim()}</span>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
         </DetailInfoCard>
       )}
 
@@ -151,7 +184,11 @@ export function PosSaleDetail({ sale, onSaleUpdated, onNavigateAway }: PosSaleDe
         subtitle={`${sale.lineCount} ${sale.lineCount === 1 ? "item" : "items"}`}
         headers={[
           "Item",
-          { label: "Qty", thClassName: tableCenterColumnClass },
+          {
+            label: "",
+            thClassName: tableCenterColumnClass,
+            headerContent: <span className="sr-only">Quantity</span>,
+          },
           { label: "Unit price", thClassName: tableCenterColumnClass },
           { label: "Line total", thClassName: tableCenterColumnClass },
         ]}
@@ -163,10 +200,16 @@ export function PosSaleDetail({ sale, onSaleUpdated, onNavigateAway }: PosSaleDe
                 key={line.id}
                 title={line.menuItemName}
                 fields={[
-                  { label: "Qty", value: formatMoney(line.quantity) },
-                  { label: "Unit price", value: formatMoney(line.unitPrice) },
-                  { label: "Line total", value: formatMoney(line.lineTotal) },
+                  { label: "Unit price", value: formatMoneyCompact(line.unitPrice) },
+                  { label: "Line total", value: formatMoneyCompact(line.lineTotal) },
                 ]}
+                footer={
+                  <p className="text-sm text-[var(--color-muted)]">
+                    <span className="font-mono tabular-nums">{formatQuantity(line.quantity)}</span>
+                    <span className="mx-1.5">×</span>
+                    <span className="font-mono tabular-nums">{formatMoneyCompact(line.unitPrice)}</span>
+                  </p>
+                }
               />
             ))}
           </>
@@ -176,13 +219,13 @@ export function PosSaleDetail({ sale, onSaleUpdated, onNavigateAway }: PosSaleDe
           <tr key={line.id} className="border-t border-[var(--color-border)]">
             <td className="px-4 py-3 text-sm font-medium">{line.menuItemName}</td>
             <td className={cn("px-4 py-3 text-sm tabular-nums text-muted", tableCenterCellClass)}>
-              {formatMoney(line.quantity)}
+              {formatQuantity(line.quantity)}
             </td>
             <td className={cn("px-4 py-3 font-mono text-sm tabular-nums text-muted", tableCenterCellClass)}>
-              {formatMoney(line.unitPrice)}
+              {formatMoneyCompact(line.unitPrice)}
             </td>
             <td className={cn("px-4 py-3 font-mono text-sm font-medium tabular-nums", tableCenterCellClass)}>
-              {formatMoney(line.lineTotal)}
+              {formatMoneyCompact(line.lineTotal)}
             </td>
           </tr>
         ))}
@@ -193,24 +236,29 @@ export function PosSaleDetail({ sale, onSaleUpdated, onNavigateAway }: PosSaleDe
           <dl className="mt-2 space-y-1.5 text-sm">
             <div className="flex justify-between gap-2 text-muted">
               <dt>Subtotal</dt>
-              <dd className="font-mono tabular-nums">{formatMoney(sale.subtotal)}</dd>
+              <dd className="font-mono tabular-nums">{formatMoneyCompact(sale.subtotal)}</dd>
+            </div>
+            <div className="flex justify-between gap-2 text-muted">
+              <dt>
+                Discount
+                {sale.discountPercent ? ` (${sale.discountPercent}%)` : ""}
+              </dt>
+              <dd className="font-mono tabular-nums">
+                {Number(sale.discountAmount) > 0
+                  ? `−${formatMoneyCompact(sale.discountAmount)}`
+                  : formatMoneyCompact(0)}
+              </dd>
             </div>
             {otherCharge > 0 ? (
               <div className="flex justify-between gap-2 text-muted">
                 <dt>Extra</dt>
-                <dd className="font-mono tabular-nums">{formatMoney(sale.otherChargeAmount)}</dd>
-              </div>
-            ) : null}
-            {Number(sale.discountAmount) > 0 ? (
-              <div className="flex justify-between gap-2 text-muted">
-                <dt>Discount</dt>
-                <dd className="font-mono tabular-nums">−{formatMoney(sale.discountAmount)}</dd>
+                <dd className="font-mono tabular-nums">{formatMoneyCompact(sale.otherChargeAmount)}</dd>
               </div>
             ) : null}
             <div className="flex justify-between gap-2 border-t border-[var(--color-border)] pt-2 font-semibold">
               <dt>Grand total</dt>
               <dd className="font-mono text-base tabular-nums text-[var(--color-primary)]">
-                {formatMoney(sale.grandTotal)}
+                {formatMoneyCompact(sale.grandTotal)}
               </dd>
             </div>
           </dl>
@@ -229,14 +277,17 @@ export function PosSaleDetail({ sale, onSaleUpdated, onNavigateAway }: PosSaleDe
                 {formatMoney(sale.paidAmount ?? sale.grandTotal)}
               </dd>
             </div>
-            {Number(sale.changeAmount ?? 0) > 0 ? (
-              <div className="flex justify-between gap-2 text-muted">
-                <dt>Change returned</dt>
-                <dd className="font-mono tabular-nums text-sky-700">
-                  {formatMoney(sale.changeAmount)}
-                </dd>
-              </div>
-            ) : null}
+            <div className="flex justify-between gap-2 text-muted">
+              <dt>Change returned</dt>
+              <dd
+                className={cn(
+                  "font-mono tabular-nums",
+                  Number(sale.changeAmount ?? 0) > 0 && "text-sky-700",
+                )}
+              >
+                {formatMoneyCompact(sale.changeAmount ?? 0)}
+              </dd>
+            </div>
             <div className="flex justify-between gap-2 font-medium">
               <dt>On credit</dt>
               <dd className="font-mono tabular-nums tone-warning-text">
@@ -264,11 +315,7 @@ export function PosSaleDetail({ sale, onSaleUpdated, onNavigateAway }: PosSaleDe
               <tr key={p.id} className="border-t border-[var(--color-border)] text-sm">
                 <td className="px-4 py-3">{formatDateOnly(p.paymentDate)}</td>
                 <td className="px-4 py-3 font-mono text-xs">{p.receiptNo}</td>
-                <td className="px-4 py-3">
-                  {formatSalePaymentMethod(p.paymentMethod)}
-                  {p.chequeBankName ? ` · ${p.chequeBankName}` : ""}
-                  {p.referenceNumber ? ` #${p.referenceNumber}` : ""}
-                </td>
+                <td className="px-4 py-3">{formatSalePaymentMethodDetail(p)}</td>
                 <td className="px-4 py-3 text-right font-mono tabular-nums">
                   {formatMoney(p.amount)}
                 </td>

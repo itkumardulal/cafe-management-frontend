@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ChevronDown,
@@ -9,6 +9,7 @@ import {
   CircleCheckBig,
   HandCoins,
   History,
+  Mail,
   MapPin,
   Phone,
   Printer,
@@ -74,6 +75,36 @@ type Props = {
   printingPaymentId?: string | null;
 };
 
+function formatOrderedItemQty(value: number) {
+  if (!Number.isFinite(value)) return "0";
+  const rounded = Math.round(value * 1000) / 1000;
+  if (Math.abs(rounded - Math.round(rounded)) < 0.001) {
+    return String(Math.round(rounded));
+  }
+  return rounded.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+}
+
+function aggregateOrderedItems(
+  purchaseHistory: CustomerReceivableDetail["purchaseHistory"],
+) {
+  const totals = new Map<string, number>();
+
+  for (const bill of purchaseHistory) {
+    for (const line of bill.lines) {
+      const qty = Number(line.quantity);
+      if (!Number.isFinite(qty) || qty <= 0) continue;
+      totals.set(line.name, (totals.get(line.name) ?? 0) + qty);
+    }
+  }
+
+  return [...totals.entries()]
+    .map(([name, totalQuantity]) => ({ name, totalQuantity }))
+    .sort((a, b) => b.totalQuantity - a.totalQuantity || a.name.localeCompare(b.name));
+}
+
 export function CustomerReceivableDetailView({
   detail,
   insights,
@@ -96,6 +127,31 @@ export function CustomerReceivableDetailView({
   const { customer, purchaseHistory, paymentHistory } = detail;
   const outstanding = Number(customer.outstandingAmount);
   const [expandedBill, setExpandedBill] = useState<string | null>(null);
+
+  const orderedItems = useMemo(
+    () => aggregateOrderedItems(purchaseHistory),
+    [purchaseHistory],
+  );
+
+  const insightStats = useMemo(() => {
+    if (insights) {
+      return {
+        totalVisits: insights.totalVisits,
+        averageBillAmount: insights.averageBillAmount,
+        lastPurchaseDate: insights.lastPurchaseDate,
+      };
+    }
+    if (purchaseHistory.length === 0) return null;
+    const total = purchaseHistory.reduce(
+      (sum, bill) => sum + Number(bill.grandTotal || 0),
+      0,
+    );
+    return {
+      totalVisits: purchaseHistory.length,
+      averageBillAmount: String(total / purchaseHistory.length),
+      lastPurchaseDate: purchaseHistory[0]?.saleAt ?? null,
+    };
+  }, [insights, purchaseHistory]);
 
   useEffect(() => {
     if (paymentMethod === "CHEQUE") {
@@ -146,16 +202,24 @@ export function CustomerReceivableDetailView({
             </div>
             <div className="min-w-0">
               <h1 className="truncate text-xl font-semibold">{customer.name}</h1>
-              <p className="mt-0.5 flex items-center gap-1 text-sm text-muted font-mono tabular-nums">
-                <Phone className="h-3.5 w-3.5" />
-                {customer.phoneNumber}
-              </p>
-              {customer.address ? (
-                <p className="mt-1 flex items-start gap-1 text-sm text-muted">
-                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  <span className="line-clamp-2">{customer.address}</span>
-                </p>
-              ) : null}
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
+                <span className="inline-flex items-center gap-1.5">
+                  <Phone className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  <span className="font-mono tabular-nums">{customer.phoneNumber}</span>
+                </span>
+                {customer.address?.trim() ? (
+                  <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    <span className="truncate">{customer.address.trim()}</span>
+                  </span>
+                ) : null}
+                {customer.email?.trim() ? (
+                  <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
+                    <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    <span className="truncate">{customer.email.trim()}</span>
+                  </span>
+                ) : null}
+              </div>
             </div>
           </div>
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-cream-50)] px-4 py-3 text-right">
@@ -176,29 +240,51 @@ export function CustomerReceivableDetailView({
         </div>
       </Card>
 
-      {insights ? (
+      {(insightStats || orderedItems.length > 0) ? (
         <Card density="compact" className="p-4 border-[var(--color-border)]">
           <h2 className="mb-3 text-sm font-semibold">Customer insights</h2>
-          <div className="form-grid form-grid-cols-3">
-            <Stat label="Total visits" value={String(insights.totalVisits)} />
-            <Stat label="Avg bill" value={formatMoney(insights.averageBillAmount)} />
-            <Stat
-              label="Last purchase"
-              value={
-                insights.lastPurchaseDate
-                  ? formatDateOnly(insights.lastPurchaseDate)
-                  : "—"
-              }
-            />
-          </div>
-          {insights.mostPurchasedItems.length > 0 ? (
-            <ul className="mt-3 space-y-1 text-sm text-muted">
-              {insights.mostPurchasedItems.map((item) => (
-                <li key={item.name}>
-                  {item.name} × {item.totalQuantity}
-                </li>
-              ))}
-            </ul>
+          {insightStats ? (
+            <div className="form-grid form-grid-cols-3">
+              <Stat label="Total visits" value={String(insightStats.totalVisits)} />
+              <Stat label="Avg bill" value={formatMoney(insightStats.averageBillAmount)} />
+              <Stat
+                label="Last purchase"
+                value={
+                  insightStats.lastPurchaseDate
+                    ? formatDateOnly(insightStats.lastPurchaseDate)
+                    : "—"
+                }
+              />
+            </div>
+          ) : null}
+          {orderedItems.length > 0 ? (
+            <div className={cn(insightStats ? "mt-4 border-t border-[var(--color-border)] pt-3" : "")}>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                  Items ordered
+                </p>
+                <span className="rounded-full bg-[var(--color-surface-muted)] px-2 py-0.5 text-[11px] font-medium text-muted">
+                  {orderedItems.length} {orderedItems.length === 1 ? "item" : "items"}
+                </span>
+              </div>
+              <div className="max-h-44 overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-muted)]/30">
+                <ul className="divide-y divide-[var(--color-border)]">
+                  {orderedItems.map((item) => (
+                    <li
+                      key={item.name}
+                      className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
+                    >
+                      <span className="min-w-0 truncate font-medium text-foreground" title={item.name}>
+                        {item.name}
+                      </span>
+                      <span className="shrink-0 font-mono text-xs tabular-nums text-muted">
+                        × {formatOrderedItemQty(item.totalQuantity)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           ) : null}
         </Card>
       ) : null}
@@ -226,7 +312,11 @@ export function CustomerReceivableDetailView({
                   "",
                 ]}
               >
-                {purchaseHistory.map((bill) => (
+                {purchaseHistory.map((bill) => {
+                  const dueAmount = Number(bill.remainingAmount);
+                  const hasDue = Number.isFinite(dueAmount) && dueAmount > 0.005;
+
+                  return (
                   <Fragment key={bill.id}>
                     <tr>
                       <td className="font-mono text-sm">{bill.receiptNo}</td>
@@ -237,8 +327,14 @@ export function CustomerReceivableDetailView({
                       <td className={cn(tableCenterCellClass, "font-mono tabular-nums")}>
                         {formatMoney(bill.paidAmount)}
                       </td>
-                      <td className={cn(tableCenterCellClass, "font-mono tabular-nums")}>
-                        {formatMoney(bill.remainingAmount)}
+                      <td className={cn(tableCenterCellClass, "font-mono tabular-nums text-sm")}>
+                        {hasDue ? (
+                          <span className="font-semibold tone-warning-text">
+                            {formatMoney(bill.remainingAmount)}
+                          </span>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
                       </td>
                       <td>
                         <div className="flex flex-wrap gap-1">
@@ -283,7 +379,8 @@ export function CustomerReceivableDetailView({
                       </tr>
                     ) : null}
                   </Fragment>
-                ))}
+                  );
+                })}
               </ResponsiveTable>
             )}
           </section>
@@ -350,6 +447,14 @@ export function CustomerReceivableDetailView({
                           </li>
                         ))}
                       </ul>
+                    ) : null}
+                    {p.kind === "CRP" ? (
+                      <p className="mt-2 border-t border-[var(--color-border)] pt-2 text-xs">
+                        <span className="text-muted">Amount remaining: </span>
+                        <span className="font-mono font-semibold tabular-nums tone-warning-text">
+                          {formatMoney(p.remainingOutstanding ?? 0)}
+                        </span>
+                      </p>
                     ) : null}
                   </li>
                 ))}

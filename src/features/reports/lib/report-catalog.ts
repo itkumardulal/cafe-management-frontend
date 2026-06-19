@@ -5,6 +5,7 @@ import {
   Landmark,
   Package,
   Percent,
+  Scale,
   TrendingUp,
   Truck,
   Wallet,
@@ -43,6 +44,14 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     description: "Discounts given, who applied them, and usage by staff.",
     icon: Percent,
     category: "Performance",
+  },
+  {
+    slug: "profit-vs-expense",
+    title: "Profit vs expense",
+    shortTitle: "Profit vs expense",
+    description: "Net revenue, COGS, operating expenses, and net profit with period trends.",
+    icon: Scale,
+    category: "Finance",
   },
   {
     slug: "expenses",

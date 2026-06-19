@@ -75,11 +75,13 @@ export function ReportProfitItemsTable({
   totalDiscountGiven,
   grossProfit,
   periodLabel,
+  exportSlug = "profit",
 }: {
   items: ProfitItem[];
   totalDiscountGiven: string;
   grossProfit: string;
   periodLabel?: string;
+  exportSlug?: string;
 }) {
   const totals = useMemo(
     () => ({
@@ -104,7 +106,7 @@ export function ReportProfitItemsTable({
     <div className="space-y-3">
       <div className="flex justify-end">
         <ReportExportButton
-          fileName={buildReportExportFileName("profit", "top-items", periodLabel)}
+          fileName={buildReportExportFileName(exportSlug, "top-items", periodLabel)}
           sheetName="Profit items"
           mode="loaded"
           rows={items}

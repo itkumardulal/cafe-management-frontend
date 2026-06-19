@@ -51,10 +51,13 @@ export function saleBillStatusVariant(
 export const SALE_PAYMENT_METHOD_OPTIONS = [
   { value: "CASH" as const, label: "Cash" },
   { value: "BANK_TRANSFER" as const, label: "Bank transfer" },
-  { value: "ESEWA" as const, label: "eSewa" },
-  { value: "KHALTI" as const, label: "Khalti" },
   { value: "CHEQUE" as const, label: "Cheque" },
 ] as const;
+
+const LEGACY_SALE_PAYMENT_METHOD_LABELS: Record<string, string> = {
+  ESEWA: "eSewa",
+  KHALTI: "Khalti",
+};
 
 export const RECEIVABLE_PAYMENT_METHOD_OPTIONS = SALE_PAYMENT_METHOD_OPTIONS.filter(
   (o) => o.value !== "CHEQUE",
@@ -62,7 +65,43 @@ export const RECEIVABLE_PAYMENT_METHOD_OPTIONS = SALE_PAYMENT_METHOD_OPTIONS.fil
 
 export function formatSalePaymentMethod(method: string): string {
   const found = SALE_PAYMENT_METHOD_OPTIONS.find((o) => o.value === method);
-  return found?.label ?? method.replace(/_/g, " ");
+  return found?.label ?? LEGACY_SALE_PAYMENT_METHOD_LABELS[method] ?? method.replace(/_/g, " ");
+}
+
+export function salePaymentBankName(payment: {
+  paymentMethod: string;
+  bankAccountLabel?: string | null;
+  chequeBankName?: string | null;
+}): string | null {
+  if (payment.bankAccountLabel?.trim()) {
+    const bankName = payment.bankAccountLabel.split(" · ")[0]?.trim();
+    if (bankName) return bankName;
+  }
+  if (payment.paymentMethod === "CHEQUE" && payment.chequeBankName?.trim()) {
+    return payment.chequeBankName.trim();
+  }
+  return null;
+}
+
+export function formatSalePaymentMethodDetail(payment: {
+  paymentMethod: string;
+  bankAccountLabel?: string | null;
+  chequeBankName?: string | null;
+  referenceNumber?: string | null;
+}): string {
+  if (payment.paymentMethod === "BANK_TRANSFER") {
+    const bankName = salePaymentBankName(payment);
+    return bankName ? `BankTransfer(${bankName})` : "BankTransfer";
+  }
+
+  let label = formatSalePaymentMethod(payment.paymentMethod);
+  if (payment.paymentMethod === "CHEQUE" && payment.chequeBankName?.trim()) {
+    label += ` · ${payment.chequeBankName.trim()}`;
+  }
+  if (payment.referenceNumber?.trim()) {
+    label += ` #${payment.referenceNumber.trim()}`;
+  }
+  return label;
 }
 
 export const SALE_PAYMENT_TERMS_OPTIONS = [

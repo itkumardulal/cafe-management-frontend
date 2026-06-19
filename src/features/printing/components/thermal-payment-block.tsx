@@ -28,9 +28,9 @@ export function ThermalPaymentBlock({
       <div className="space-y-0.5 text-[10px]">
         <p className="font-semibold uppercase tracking-wide">{title}</p>
         {statusLabel ? <p>{statusLabel}</p> : null}
-        {rows.map((row) => (
+        {rows.map((row, index) => (
           <ThermalRow
-            key={row.label}
+            key={`${row.label}-${index}`}
             label={row.label}
             value={row.value}
             bold={row.bold}

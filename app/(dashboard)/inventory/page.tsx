@@ -18,6 +18,7 @@ import { Field } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import { NumberInput } from "@/src/components/ui/number-input";
 import { Modal } from "@/src/components/ui/modal";
+import { FilterSelect } from "@/src/components/shared/filter-select";
 import { Select } from "@/src/components/ui/select";
 import {
   ResponsiveTable,
@@ -287,8 +288,7 @@ function InventoryContent() {
       />
 
       <div className="flex flex-wrap gap-2">
-        <Select
-          searchable={false}
+        <FilterSelect
           value={stockFilter}
           onChange={(e) => setStockFilter(e.target.value as "" | "low" | "out")}
           className="w-auto min-w-[140px]"
@@ -296,7 +296,7 @@ function InventoryContent() {
           <option value="">All items</option>
           <option value="low">Low stock</option>
           <option value="out">Out of stock</option>
-        </Select>
+        </FilterSelect>
       </div>
       <p className="text-xs text-muted">
         Alerts include inventory items and menu items only when stock tracking is enabled and opening stock is greater than 0.
