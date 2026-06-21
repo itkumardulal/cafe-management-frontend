@@ -933,11 +933,13 @@ function MenuItemsContent() {
                 label="Cost per unit"
                 required
                 hint={
-                  directPurchaseCostLocked
-                    ? "Filled from the latest rate per unit in Direct Purchases"
-                    : !editId && form.trackStock
-                      ? "Record a direct purchase with a rate first, or enter cost manually"
-                      : "Must be less than sell price"
+                  editId
+                    ? "Changing cost affects future sales only. Past bills keep the cost recorded at checkout."
+                    : directPurchaseCostLocked
+                      ? "Filled from the latest rate per unit in Direct Purchases"
+                      : !editId && form.trackStock
+                        ? "Record a direct purchase with a rate first, or enter cost manually"
+                        : "Must be less than sell price"
                 }
               >
                 <NumberInput

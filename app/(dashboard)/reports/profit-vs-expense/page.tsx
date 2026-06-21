@@ -103,6 +103,7 @@ function ProfitVsExpenseReportContent() {
                 grossProfit={report.breakdown.grossProfit}
                 periodLabel={report.period.label}
                 exportSlug="profit-vs-expense"
+                costPriceNote={report.costPriceNote}
               />
             </ReportSection>
           ) : null}

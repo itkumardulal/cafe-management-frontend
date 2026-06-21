@@ -76,12 +76,14 @@ export function ReportProfitItemsTable({
   grossProfit,
   periodLabel,
   exportSlug = "profit",
+  costPriceNote,
 }: {
   items: ProfitItem[];
   totalDiscountGiven: string;
   grossProfit: string;
   periodLabel?: string;
   exportSlug?: string;
+  costPriceNote?: string;
 }) {
   const totals = useMemo(
     () => ({
@@ -100,6 +102,7 @@ export function ReportProfitItemsTable({
     { label: "Profit before discount", value: Number(profitBeforeDiscount) },
     { label: "Discount amount", value: Number(totalDiscountGiven) },
     { label: "Total profit", value: Number(grossProfit) },
+    ...(costPriceNote ? [{ label: "Note", value: costPriceNote }] : []),
   ];
 
   return (

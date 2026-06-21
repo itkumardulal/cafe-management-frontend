@@ -91,6 +91,7 @@ export type SaleDetailResponse = {
     quantity: string;
     unitPrice: string;
     lineTotal: string;
+    costPerUnitAtSale: string;
   }>;
 };
 

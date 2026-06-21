@@ -77,6 +77,7 @@ function ProfitReportContent() {
             totalDiscountGiven={report.totalDiscountGiven}
             grossProfit={report.grossProfit}
             periodLabel={report.period.label}
+            costPriceNote={report.costPriceNote}
           />
         </ReportSection>
       ) : (

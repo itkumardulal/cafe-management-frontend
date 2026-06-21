@@ -240,7 +240,7 @@ export function ProfitExpenseChart({
           options={granularityOptions}
         />
       }
-      footnote="Net profit = revenue − COGS − operating expenses"
+      footnote="Net profit = revenue − COGS − operating expenses. COGS uses cost recorded at sale time."
     >
       <AnalyticsChartViewport>
         <BarChart data={buckets} margin={chartMargin}>
