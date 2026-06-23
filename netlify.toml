@@ -1,6 +1,12 @@
 # Netlify deploy: set "Base directory" to `frontend` in the Netlify UI.
 # Proxies /api/* to Railway so auth cookies are set on the Netlify domain
 # (required for middleware cookie checks on protected routes like /dashboard).
+# Exception: /api/realtime/* is a Next.js route (reads HttpOnly cookie for Socket.io).
+
+[[redirects]]
+  from = "/api/realtime/*"
+  to = "/api/realtime/:splat"
+  status = 200
 
 [[redirects]]
   from = "/api/*"

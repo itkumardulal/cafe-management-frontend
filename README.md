@@ -28,7 +28,7 @@ npm run start
 
 ## Deploy (Netlify + Railway)
 
-Auth cookies must be set on the **Netlify domain** so `middleware.ts` can read them on `/dashboard`. The frontend proxies `/api/*` to Railway via [`netlify.toml`](./netlify.toml). Table-orders realtime uses Socket.io on the Nest host with JWT from [`app/api/realtime/socket-token/route.ts`](./app/api/realtime/socket-token/route.ts) (local dev defaults to `http://localhost:4000`).
+Auth cookies must be set on the **Netlify domain** so `middleware.ts` can read them on `/dashboard`. The frontend proxies `/api/*` to Railway via [`netlify.toml`](./netlify.toml), except `/api/realtime/*` which stays on Next.js (Socket.io JWT from [`app/api/realtime/socket-token/route.ts`](./app/api/realtime/socket-token/route.ts)). Table-orders realtime connects to the Nest host (local dev defaults to `http://localhost:4000`).
 
 ### Netlify
 
