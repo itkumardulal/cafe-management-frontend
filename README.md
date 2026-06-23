@@ -40,7 +40,7 @@ Auth cookies must be set on the **Netlify domain** so `middleware.ts` can read t
    | `API_URL` | `https://cafe-management-backend-production.up.railway.app` |
    | `NEXT_PUBLIC_API_URL` | `https://dinenepal.netlify.app/api` |
    | `NEXT_PUBLIC_APP_URL` | `https://dinenepal.netlify.app` |
-   | `NEXT_PUBLIC_SOCKET_URL` | `https://cafe-management-backend-production.up.railway.app` |
+   | `NEXT_PUBLIC_SOCKET_URL` | Optional — defaults to `API_URL` at build (direct Railway WebSocket) |
    | `NEXT_PUBLIC_AUTH_COOKIE_NAME` | `cms_access_token` |
 
 3. After login, DevTools → Cookies on `dinenepal.netlify.app` should show `cms_access_token`.
