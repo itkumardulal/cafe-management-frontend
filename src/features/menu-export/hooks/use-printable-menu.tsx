@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { PrintableMenuSheet } from "../components/printable-menu-sheet";
 import { exportMenuToPdf } from "../lib/menu-pdf-export";
+import { inlineCrossOriginImages } from "../lib/inline-cross-origin-images";
 import type { PrintableMenuData } from "../types";
 import {
   activatePrintMode,
@@ -35,6 +36,17 @@ function waitForImages(root: HTMLElement, timeoutMs = 3000) {
   ]);
 }
 
+async function waitForSheetMount(getSheet: () => HTMLDivElement | null) {
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+  const sheet = getSheet();
+  if (!sheet) {
+    throw new Error("Print sheet not ready");
+  }
+  return sheet;
+}
+
 export function usePrintableMenu() {
   const [data, setData] = useState<PrintableMenuData | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -45,34 +57,31 @@ export function usePrintableMenu() {
     setMounted(true);
   }, []);
 
+  const mountSheet = useCallback((menuData: PrintableMenuData) => {
+    flushSync(() => {
+      setData(menuData);
+    });
+  }, []);
+
   const downloadPdf = useCallback(async (menuData: PrintableMenuData) => {
     setExporting(true);
-    setData(menuData);
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-    });
-    const root = sheetRef.current;
-    if (!root) {
-      setExporting(false);
-      setData(null);
-      throw new Error("Print sheet not ready");
-    }
-    await waitForImages(root);
+    mountSheet(menuData);
     try {
+      const root = await waitForSheetMount(() => sheetRef.current);
+      await waitForImages(root);
+      await inlineCrossOriginImages(root);
+      await waitForImages(root);
       await exportMenuToPdf(menuData, root);
     } finally {
       setExporting(false);
       setData(null);
     }
-  }, []);
+  }, [mountSheet]);
 
   const printMenu = useCallback(async (menuData: PrintableMenuData) => {
-    setData(menuData);
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-    });
-    const root = sheetRef.current;
-    if (root) await waitForImages(root);
+    mountSheet(menuData);
+    const root = await waitForSheetMount(() => sheetRef.current);
+    await waitForImages(root);
     activatePrintMode("menu");
     window.print();
     const onAfterPrint = () => {
@@ -81,13 +90,13 @@ export function usePrintableMenu() {
       window.removeEventListener("afterprint", onAfterPrint);
     };
     window.addEventListener("afterprint", onAfterPrint);
-  }, []);
+  }, [mountSheet]);
 
   const portal =
     mounted && data
       ? createPortal(
-          <div ref={sheetRef}>
-            <PrintableMenuSheet data={data} />
+          <div className="menu-print-mount">
+            <PrintableMenuSheet ref={sheetRef} data={data} />
           </div>,
           document.body,
         )

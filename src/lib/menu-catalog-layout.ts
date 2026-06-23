@@ -1,4 +1,5 @@
 export const SPECIALS_FILTER_ID = '__specials__';
+export const SPECIALS_SECTION_LABEL = "Today's Special";
 
 export type CatalogCategory = {
   id: string;
@@ -69,7 +70,9 @@ export function buildCatalogSections<T extends CatalogMenuItem>(
 
   if (categoryFilter === SPECIALS_FILTER_ID) {
     const specials = sortItems(items.filter((i) => i.isSpecial));
-    return specials.length > 0 ? [{ id: SPECIALS_FILTER_ID, title: 'Specials', items: specials }] : [];
+    return specials.length > 0
+      ? [{ id: SPECIALS_FILTER_ID, title: SPECIALS_SECTION_LABEL, items: specials }]
+      : [];
   }
 
   if (categoryFilter) {
@@ -83,7 +86,7 @@ export function buildCatalogSections<T extends CatalogMenuItem>(
   const sections: CatalogSection<T>[] = [];
   const specials = sortItems(items.filter((i) => i.isSpecial));
   if (specials.length > 0) {
-    sections.push({ id: SPECIALS_FILTER_ID, title: 'Specials', items: specials });
+    sections.push({ id: SPECIALS_FILTER_ID, title: SPECIALS_SECTION_LABEL, items: specials });
   }
 
   for (const cat of sortCategories(categories)) {
@@ -102,7 +105,7 @@ export function buildCategoryChips(
 ): Array<{ id: string; label: string }> {
   const chips: Array<{ id: string; label: string }> = [];
   if (items.some((i) => i.isSpecial)) {
-    chips.push({ id: SPECIALS_FILTER_ID, label: 'Specials' });
+    chips.push({ id: SPECIALS_FILTER_ID, label: SPECIALS_SECTION_LABEL });
   }
   for (const cat of sortCategories(categories)) {
     if (items.some((i) => i.categoryIds.includes(cat.id))) {

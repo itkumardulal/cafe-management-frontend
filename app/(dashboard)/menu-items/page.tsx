@@ -10,6 +10,7 @@ import { PaginatedListSection } from "@/src/components/shared/paginated-list-sec
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { usePrintableMenu } from "@/src/features/menu-export/hooks/use-printable-menu";
+import { SPECIALS_SECTION_LABEL } from "@/src/lib/menu-catalog-layout";
 import { Card } from "@/src/components/ui/card";
 import { EmptyState } from "@/src/components/ui/empty-state";
 import { ResponsiveTable, tableActionsCellClass, tableActionsColumnClass, tableCenterCellClass, tableCenterColumnClass } from "@/src/components/ui/table";
@@ -1008,7 +1009,7 @@ function MenuItemsContent() {
                 <span>
                   <span className="font-medium">Special</span>
                   <span className="mt-0.5 block text-xs text-muted">
-                    Highlight in the Specials section at the top of the menu.
+                    Highlight in the {SPECIALS_SECTION_LABEL} section at the top of the menu.
                   </span>
                 </span>
               </label>

@@ -24,11 +24,18 @@ export async function exportMenuToPdf(
   const html2canvas = (await import("html2canvas")).default;
   const { jsPDF } = await import("jspdf");
 
+  // Clear any active text selection so html2canvas doesn't bake the
+  // browser ::selection highlight (blue band) into the captured image.
+  if (typeof window !== "undefined") {
+    window.getSelection?.()?.removeAllRanges();
+  }
+
   const canvas = await html2canvas(element, {
     scale: 2,
     useCORS: true,
     backgroundColor: "#f4f0eb",
     logging: false,
+    removeContainer: true,
   });
 
   const imgData = canvas.toDataURL("image/png");

@@ -27,6 +27,7 @@ import { PublicMenuEmptyState } from "./public-menu-empty-state";
 import { PublicMenuFooter } from "./public-menu-footer";
 
 import { categoryCoverImage, itemMatchesSearch } from "./public-menu-utils";
+import { SPECIALS_SECTION_LABEL } from "@/src/lib/menu-catalog-layout";
 
 
 
@@ -549,9 +550,9 @@ export function PublicMenuView({ data }: PublicMenuViewProps) {
             >
 
               {data.specials.length > 0 ? (
-                <section className="mb-6" aria-label="Chef specials">
+                <section className="mb-6" aria-label={SPECIALS_SECTION_LABEL}>
                   <div className="public-menu-ornament public-menu-text-muted mb-3 text-[10px] font-semibold uppercase tracking-[0.18em]">
-                    <span className="shrink-0 px-2">Specials</span>
+                    <span className="shrink-0 px-2">{SPECIALS_SECTION_LABEL}</span>
                   </div>
                   <div className="public-menu-item-list">
                     {data.specials.map((item, i) => (
@@ -560,7 +561,7 @@ export function PublicMenuView({ data }: PublicMenuViewProps) {
                         item={item}
                         index={i}
                         reducedMotion={reducedMotion}
-                        onSelect={(selected) => handleItemSelect(selected, "Specials")}
+                        onSelect={(selected) => handleItemSelect(selected, SPECIALS_SECTION_LABEL)}
                       />
                     ))}
                   </div>

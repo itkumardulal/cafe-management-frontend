@@ -1,10 +1,12 @@
 import "../styles/printable-menu.css";
 
+import { forwardRef } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import { formatPrice, formatSubtitle } from "../lib/menu-pdf-export";
 import type { PrintableMenuData } from "../types";
 import { getPublicMenuUrl } from "@/src/services/public-menu-api";
 import { resolvePublicMenuAssetUrl } from "@/src/services/public-menu-api";
+import { SPECIALS_SECTION_LABEL } from "@/src/lib/menu-catalog-layout";
 
 type PrintableMenuSheetProps = {
   data: PrintableMenuData;
@@ -13,21 +15,42 @@ type PrintableMenuSheetProps = {
 function MenuItemRow({ item }: { item: PrintableMenuData["specials"][number] }) {
   const subtitle = formatSubtitle(item);
   return (
-    <div className="menu-print-item">
-      <div className="menu-print-item-name">
-        <span>
+    <tr className="menu-print-item">
+      <td className="menu-print-item-name">
+        <span className="menu-print-item-title">
           {item.name}
           {item.isSpecial ? <span className="menu-print-star"> ★</span> : null}
         </span>
         {subtitle ? <span className="menu-print-item-sub">{subtitle}</span> : null}
-      </div>
-      <span className="menu-print-item-dots" aria-hidden />
-      <span className="menu-print-item-price">{formatPrice(item.sellPricePerUnit)}</span>
-    </div>
+      </td>
+      <td className="menu-print-item-dots">
+        <span aria-hidden />
+      </td>
+      <td className="menu-print-item-price">{formatPrice(item.sellPricePerUnit)}</td>
+    </tr>
   );
 }
 
-export function PrintableMenuSheet({ data }: PrintableMenuSheetProps) {
+function MenuItemsTable({
+  items,
+  keyPrefix,
+}: {
+  items: PrintableMenuData["specials"];
+  keyPrefix: string;
+}) {
+  return (
+    <table className="menu-print-items">
+      <tbody>
+        {items.map((item) => (
+          <MenuItemRow key={`${keyPrefix}-${item.name}`} item={item} />
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+export const PrintableMenuSheet = forwardRef<HTMLDivElement, PrintableMenuSheetProps>(
+  function PrintableMenuSheet({ data }, ref) {
   const { cafe } = data;
   const initial = cafe.cafeName.trim().charAt(0).toUpperCase() || "C";
   const logoUrl = resolvePublicMenuAssetUrl(cafe.logo);
@@ -39,7 +62,7 @@ export function PrintableMenuSheet({ data }: PrintableMenuSheetProps) {
   });
 
   return (
-    <div className="menu-print-sheet" data-menu-print-sheet>
+    <div ref={ref} className="menu-print-sheet" data-menu-print-sheet>
       <header className="menu-print-header">
         {logoUrl ? (
           <img src={logoUrl} alt="" className="menu-print-logo" />
@@ -52,31 +75,28 @@ export function PrintableMenuSheet({ data }: PrintableMenuSheetProps) {
 
       {data.specials.length > 0 ? (
         <section className="menu-print-section">
-          <h2 className="menu-print-section-title">Chef&apos;s Specials</h2>
-          <div className="menu-print-items">
-            {data.specials.map((item) => (
-              <MenuItemRow key={`special-${item.name}`} item={item} />
-            ))}
-          </div>
+          <h2 className="menu-print-section-title">{SPECIALS_SECTION_LABEL}</h2>
+          <MenuItemsTable items={data.specials} keyPrefix="special" />
         </section>
       ) : null}
 
-      {data.categories.map((category) => (
-        <section key={category.id} className="menu-print-section menu-print-category-block">
-          <h2 className="menu-print-section-title">{category.name}</h2>
-          <div
-            className={
-              category.items.length >= 6
-                ? "menu-print-items menu-print-items-columns"
-                : "menu-print-items"
-            }
-          >
-            {category.items.map((item) => (
-              <MenuItemRow key={`${category.id}-${item.name}`} item={item} />
-            ))}
-          </div>
-        </section>
-      ))}
+      {data.categories.map((category) => {
+        const useColumns = category.items.length >= 6;
+        const mid = Math.ceil(category.items.length / 2);
+        return (
+          <section key={category.id} className="menu-print-section menu-print-category-block">
+            <h2 className="menu-print-section-title">{category.name}</h2>
+            {useColumns ? (
+              <div className="menu-print-columns">
+                <MenuItemsTable items={category.items.slice(0, mid)} keyPrefix={`${category.id}-a`} />
+                <MenuItemsTable items={category.items.slice(mid)} keyPrefix={`${category.id}-b`} />
+              </div>
+            ) : (
+              <MenuItemsTable items={category.items} keyPrefix={category.id} />
+            )}
+          </section>
+        );
+      })}
 
       <footer className="menu-print-footer">
         <div className="menu-print-footer-contact">
@@ -93,4 +113,5 @@ export function PrintableMenuSheet({ data }: PrintableMenuSheetProps) {
       </footer>
     </div>
   );
-}
+},
+);
