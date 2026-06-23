@@ -17,6 +17,7 @@
     "browser-image-compression": "^2.0.2",
     "clsx": "^2.1.1",
     "framer-motion": "^12.40.0",
+    "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "lucide-react": "^1.17.0",
@@ -27,6 +28,7 @@
     "react-hook-form": "^7.76.1",
     "react-redux": "^9.3.0",
     "recharts": "^3.8.1",
+    "socket.io-client": "^4.8.3",
     "sonner": "^2.0.7",
     "xlsx": "^0.18.5",
     "zod": "^4.4.3"

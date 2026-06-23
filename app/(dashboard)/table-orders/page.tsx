@@ -1,7 +1,7 @@
 "use client";
 
 import axios from "axios";
-import { Combine, FileText, RefreshCw, Split } from "lucide-react";
+import { Combine, FileText, Printer, RefreshCw, Split } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -26,6 +26,8 @@ import { Modal } from "@/src/components/ui/modal";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { cn } from "@/src/lib/cn";
 import { appToast } from "@/src/lib/toast";
+import { useTableOrdersSocket } from "@/src/hooks/use-table-orders-socket";
+import { suppressTableOrdersSocketRefetch } from "@/src/lib/table-orders-refetch-guard";
 import {
   isDeletedSessionUpdate,
   operationsApi,
@@ -33,6 +35,7 @@ import {
 } from "@/src/services/operations-api";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
 import { fetchSellableCatalogThunk } from "@/src/store/slices/reference-data.slice";
+import type { SellableCatalogItem } from "@/src/store/types/reference-data.types";
 
 type OrderLine = {
   key: string;
@@ -41,9 +44,8 @@ type OrderLine = {
   unitPrice: number;
   qty: number;
   maxQty: number;
+  notes?: string | null;
 };
-
-const BOARD_POLL_MS = 12_000;
 
 const vacantFloorTable = (table: FloorTable): FloorTable => ({
   ...table,
@@ -70,12 +72,13 @@ function markSessionClearedOnBoard(
 
 function sessionToLines(session: TableOrderSessionDetail): OrderLine[] {
   return session.lines.map((l) => ({
-    key: l.menuItemId,
+    key: l.id,
     menuItemId: l.menuItemId,
     name: l.menuItemName,
     unitPrice: Number(l.unitPrice),
     qty: Number(l.quantity),
     maxQty: 999_999,
+    notes: l.notes ?? null,
   }));
 }
 
@@ -84,7 +87,8 @@ export default function TableOrdersPage() {
   const router = useRouter();
   const catalog = useAppSelector((state) => state.referenceData.sellableCatalog);
   const sellableCatalogStatus = useAppSelector((state) => state.referenceData.sellableCatalogStatus);
-  const catalogLoading = sellableCatalogStatus === "loading" && catalog.length === 0;
+  const catalogLoading =
+    sellableCatalogStatus === "loading" && catalog.items.length === 0;
   const [board, setBoard] = useState<FloorTable[]>([]);
   const [boardLoading, setBoardLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -124,8 +128,6 @@ export default function TableOrdersPage() {
 
   useEffect(() => {
     void loadBoard(false, true);
-    const id = setInterval(() => void loadBoard(true), BOARD_POLL_MS);
-    return () => clearInterval(id);
   }, [loadBoard]);
 
   const selectedTableIds = useMemo(
@@ -195,6 +197,30 @@ export default function TableOrdersPage() {
       throw error;
     }
   }, []);
+
+  const refreshOpenSession = useCallback(async () => {
+    if (!session?.id) return;
+    const fresh = await resolveSession(session.id, true);
+    if (!fresh || fresh.status === "CLOSED" || fresh.status === "CANCELLED") {
+      setSession(null);
+      setOrderLines([]);
+      setLastAddedKey(null);
+      return;
+    }
+    await openSession(fresh);
+  }, [openSession, resolveSession, session?.id]);
+
+  const handleSocketReconnect = useCallback(async () => {
+    await loadBoard(true, true);
+    await refreshOpenSession();
+  }, [loadBoard, refreshOpenSession]);
+
+  const { connectionStatus } = useTableOrdersSocket({
+    sessionId: session?.id ?? null,
+    onBoardChanged: () => void loadBoard(true, true),
+    onSessionChanged: () => void refreshOpenSession(),
+    onReconnect: () => void handleSocketReconnect(),
+  });
 
   const handleRefresh = useCallback(async () => {
     if (refreshing) return;
@@ -279,9 +305,11 @@ export default function TableOrdersPage() {
             menuItemId: l.menuItemId,
             quantity: l.qty,
             unitPrice: l.unitPrice,
+            notes: l.notes ?? undefined,
           })),
         });
         if (isDeletedSessionUpdate(updated)) {
+          suppressTableOrdersSocketRefetch();
           setBoard((prev) => markSessionClearedOnBoard(prev, currentSession));
           setSession(null);
           setOrderLines([]);
@@ -290,6 +318,7 @@ export default function TableOrdersPage() {
           appToast.success("Order cleared — table is vacant");
           return;
         }
+        suppressTableOrdersSocketRefetch();
         setSession(updated);
         setOrderLines(sessionToLines(updated));
         await loadBoard(true, true);
@@ -319,7 +348,7 @@ export default function TableOrdersPage() {
     [persistLines],
   );
 
-  const addItem = (item: (typeof catalog)[number]) => {
+  const addItem = (item: SellableCatalogItem) => {
     if (!session || session.status !== "OPEN") return;
     const maxQty = item.trackStock ? Number(item.quantityOnHand ?? 0) : 999_999;
     const price = Number(item.sellPricePerUnit);
@@ -459,6 +488,7 @@ export default function TableOrdersPage() {
             menuItemId: l.menuItemId,
             quantity: l.qty,
             unitPrice: l.unitPrice,
+            notes: l.notes ?? undefined,
           })),
         });
         if (isDeletedSessionUpdate(saved)) {
@@ -487,9 +517,22 @@ export default function TableOrdersPage() {
     setLastAddedKey(null);
   };
 
+  const canPrintKot =
+    Boolean(session?.id) && session?.status === "OPEN" && orderLines.length > 0;
+
+  const navigateToKot = () => {
+    if (!session?.id || !canPrintKot) return;
+    router.push(`/table-orders/kot/${session.id}`);
+  };
+
   return (
     <section className="page-shell flex min-h-0 flex-col overflow-hidden lg:h-full lg:min-h-0">
       <div className="shrink-0 space-y-1 pb-2">
+      {connectionStatus === "disconnected" ? (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Realtime disconnected — reconnecting…
+        </p>
+      ) : null}
       <PageHeader
         title="Table service"
         action={
@@ -505,6 +548,21 @@ export default function TableOrdersPage() {
             >
               {!refreshing ? <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden /> : null}
               {refreshing ? "Reloading…" : "Reload floor plan"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={!canPrintKot}
+              onClick={navigateToKot}
+              title={
+                canPrintKot
+                  ? "Print kitchen order tickets for this table"
+                  : "Open a table with items to print KOT"
+              }
+            >
+              <Printer className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              Print KOT
             </Button>
             <Link href="/invoices">
               <Button type="button" size="sm" variant="secondary">

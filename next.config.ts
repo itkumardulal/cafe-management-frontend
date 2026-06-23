@@ -6,10 +6,24 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.join(__dirname, ".."),
   },
-  // Explicit App Router proxy at app/api/[...path]/route.ts forwards cookies reliably.
-  // Netlify production uses netlify.toml redirects for the same /api path.
+  // Optional fallback: same-origin /socket.io proxy (Netlify). Dev uses direct backend + auth token.
   async rewrites() {
-    return [];
+    const apiOrigin = (process.env.API_URL ?? "http://localhost:4000").replace(
+      /\/$/,
+      "",
+    );
+    return {
+      beforeFiles: [
+        {
+          source: "/socket.io",
+          destination: `${apiOrigin}/socket.io`,
+        },
+        {
+          source: "/socket.io/:path*",
+          destination: `${apiOrigin}/socket.io/:path*`,
+        },
+      ],
+    };
   },
 };
 

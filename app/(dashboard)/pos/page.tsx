@@ -52,19 +52,14 @@ import { normalizePhone } from "@/src/lib/phone-normalize";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
+import { fetchSellableCatalogThunk } from "@/src/store/slices/reference-data.slice";
 import {
-  fetchSellableCatalogThunk,
-} from "@/src/store/slices/reference-data.slice";
+  buildCatalogSections,
+  buildCategoryChips,
+} from "@/src/lib/menu-catalog-layout";
+import type { SellableCatalogItem } from "@/src/store/types/reference-data.types";
 
-type CatalogItem = {
-  id: string;
-  name: string;
-  categoryName: string;
-  imageUrl?: string | null;
-  trackStock: boolean;
-  quantityOnHand: string | null;
-  sellPricePerUnit: string;
-};
+type CatalogItem = SellableCatalogItem;
 
 type CartLine = {
   key: string;
@@ -273,9 +268,10 @@ function PosPageContent() {
   const diningSessionIdParam = searchParams.get("sessionId");
   const billingFromSession = Boolean(diningSessionIdParam);
 
-  const catalog = useAppSelector((state) => state.referenceData.sellableCatalog) as CatalogItem[];
+  const catalog = useAppSelector((state) => state.referenceData.sellableCatalog);
+  const catalogItems = catalog.items;
   const sellableCatalogStatus = useAppSelector((state) => state.referenceData.sellableCatalogStatus);
-  const catalogLoading = sellableCatalogStatus === "loading" && catalog.length === 0;
+  const catalogLoading = sellableCatalogStatus === "loading" && catalogItems.length === 0;
   const [posTableOptions, setPosTableOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [tablesLoading, setTablesLoading] = useState(false);
   const [tablesError, setTablesError] = useState(false);
@@ -371,22 +367,19 @@ function PosPageContent() {
     });
   };
 
-  const categories = useMemo(() => {
-    const set = new Set(catalog.map((c) => c.categoryName));
-    return [...set].sort();
-  }, [catalog]);
+  const categories = useMemo(
+    () => buildCategoryChips(catalog.categories, catalogItems),
+    [catalog.categories, catalogItems],
+  );
 
-  const filteredCatalog = useMemo(() => {
-    let items = catalog;
-    if (categoryFilter) {
-      items = items.filter((c) => c.categoryName === categoryFilter);
-    }
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      items = items.filter((c) => c.name.toLowerCase().includes(q));
-    }
-    return items;
-  }, [catalog, categoryFilter, search]);
+  const catalogSections = useMemo(
+    () =>
+      buildCatalogSections(catalog.categories, catalogItems, {
+        categoryFilter,
+        search,
+      }),
+    [catalog.categories, catalogItems, categoryFilter, search],
+  );
 
   const cartQtyByItemId = useMemo(() => {
     const map = new Map<string, number>();
@@ -395,21 +388,6 @@ function PosPageContent() {
     }
     return map;
   }, [cart]);
-
-  const showGroupedMenu = !categoryFilter && !search.trim();
-
-  const catalogSections = useMemo(() => {
-    if (!showGroupedMenu) {
-      return [["", filteredCatalog] as const];
-    }
-    const map = new Map<string, CatalogItem[]>();
-    for (const item of filteredCatalog) {
-      const list = map.get(item.categoryName) ?? [];
-      list.push(item);
-      map.set(item.categoryName, list);
-    }
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [filteredCatalog, showGroupedMenu]);
 
   const cartTotal = useMemo(() => {
     let t = 0;
@@ -506,16 +484,20 @@ function PosPageContent() {
     return () => clearInterval(id);
   }, [loadPosTableOptions]);
 
+  const billingHandoffSessionIdRef = useRef<string | null>(null);
+  const billingCompletedSessionIdRef = useRef<string | null>(null);
+
   const hydrateFromBillingHandoff = useCallback(async (sessionId: string) => {
     setBillingLoading(true);
     try {
       const handoff = await operationsApi.tableOrders.billingHandoff(sessionId);
+      if (billingCompletedSessionIdRef.current === sessionId) return;
       setServiceType("DINE_IN");
       setTableId(handoff.primaryTableId);
       setSessionTableNames(handoff.tableNames);
       setCart(
         handoff.lines.map((l) => {
-          const catalogItem = catalog.find((c) => c.id === l.menuItemId);
+          const catalogItem = catalogItems.find((c) => c.id === l.menuItemId);
           const maxQty = catalogItem?.trackStock
             ? Number(catalogItem.quantityOnHand ?? 0)
             : 999_999;
@@ -530,17 +512,19 @@ function PosPageContent() {
         }),
       );
     } catch (error) {
+      if (billingCompletedSessionIdRef.current === sessionId) return;
+      billingHandoffSessionIdRef.current = null;
       appToast.error(getApiErrorMessage(error, "Failed to load table order for billing"));
       router.replace("/table-orders");
     } finally {
       setBillingLoading(false);
     }
-  }, [catalog, router]);
+  }, [catalogItems, router]);
 
-  const billingHandoffLoaded = useRef(false);
   useEffect(() => {
-    if (!diningSessionIdParam || catalogLoading || billingHandoffLoaded.current) return;
-    billingHandoffLoaded.current = true;
+    if (!diningSessionIdParam || catalogLoading) return;
+    if (billingHandoffSessionIdRef.current === diningSessionIdParam) return;
+    billingHandoffSessionIdRef.current = diningSessionIdParam;
     void hydrateFromBillingHandoff(diningSessionIdParam);
   }, [diningSessionIdParam, catalogLoading, hydrateFromBillingHandoff]);
 
@@ -716,10 +700,10 @@ function PosPageContent() {
       const creditMsg =
         creditPreview > 0.005 ? ` · Credit due: ${formatMoney(creditPreview)}` : "";
       appToast.success(`Sale ${result.receiptNo} recorded${creditMsg}`);
-      if (billingFromSession) {
+      if (billingFromSession && diningSessionIdParam) {
+        billingCompletedSessionIdRef.current = diningSessionIdParam;
         invalidateGetCache("/table-orders");
         setSessionTableNames([]);
-        billingHandoffLoaded.current = false;
         router.replace("/pos");
       }
       setSuccessSale({ id: result.id, receiptNo: result.receiptNo });
@@ -879,12 +863,12 @@ function PosPageContent() {
                 </button>
                 {categories.map((c) => (
                   <button
-                    key={c}
+                    key={c.id}
                     type="button"
-                    onClick={() => setCategoryFilter(c)}
-                    className={chipClass(categoryFilter === c)}
+                    onClick={() => setCategoryFilter(c.id)}
+                    className={chipClass(categoryFilter === c.id)}
                   >
-                    {c}
+                    {c.label}
                   </button>
                 ))}
               </div>
@@ -896,17 +880,17 @@ function PosPageContent() {
                 <div className="h-6 w-6 animate-pulse rounded-full bg-[var(--color-cream-200)]" />
                 <p className="text-sm">Loading menu…</p>
               </div>
-            ) : filteredCatalog.length === 0 ? (
+            ) : catalogItems.length === 0 ? (
               <EmptyState title="No items" description="No sellable stock." />
             ) : (
               <div className="space-y-5">
-                {catalogSections.map(([category, items]) => (
-                  <section key={category || "all"}>
-                    {showGroupedMenu && category ? (
-                      <h2 className="mb-2.5 text-xs font-semibold text-foreground">{category}</h2>
+                {catalogSections.map((section) => (
+                  <section key={section.id}>
+                    {section.title ? (
+                      <h2 className="mb-2.5 text-xs font-semibold text-foreground">{section.title}</h2>
                     ) : null}
                     <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                      {items.map((item) => (
+                      {section.items.map((item) => (
                         <MenuItemCard
                           key={item.id}
                           item={item}

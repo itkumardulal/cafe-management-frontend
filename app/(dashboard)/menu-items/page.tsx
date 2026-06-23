@@ -1,13 +1,15 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { UtensilsCrossed } from "lucide-react";
+import { Download, Star, UtensilsCrossed } from "lucide-react";
 import { ListCard, ListCardStack } from "@/src/components/shared/list-card";
 import { MobileSortSelect } from "@/src/components/shared/mobile-sort-select";
 import { DigitalMenuQrCard } from "@/src/components/admin/digital-menu-qr-card";
 import { PageHeader } from "@/src/components/shared/page-header";
 import { PaginatedListSection } from "@/src/components/shared/paginated-list-section";
+import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
+import { usePrintableMenu } from "@/src/features/menu-export/hooks/use-printable-menu";
 import { Card } from "@/src/components/ui/card";
 import { EmptyState } from "@/src/components/ui/empty-state";
 import { ResponsiveTable, tableActionsCellClass, tableActionsColumnClass, tableCenterCellClass, tableCenterColumnClass } from "@/src/components/ui/table";
@@ -37,7 +39,9 @@ type MenuItemRow = {
   id: string;
   name: string;
   menuCategoryId: string;
+  primaryMenuCategoryId?: string;
   categoryName: string;
+  categories?: Array<{ id: string; name: string; sortOrder: number; isPrimary: boolean }>;
   imageUrl?: string | null;
   itemType?: string | null;
   unitType?: string | null;
@@ -46,6 +50,9 @@ type MenuItemRow = {
   sellPricePerUnit: string;
   openingStockDay1: string;
   trackStock: boolean;
+  isActive: boolean;
+  isSpecial: boolean;
+  specialSortOrder: number;
   directPurchaseItemId?: string | null;
   reorderLevel?: string | null;
   quantityOnHand: string | null;
@@ -53,7 +60,8 @@ type MenuItemRow = {
 };
 
 const emptyForm = {
-  menuCategoryId: "",
+  menuCategoryIds: [] as string[],
+  primaryMenuCategoryId: "",
   name: "",
   itemType: "",
   imageUrl: "",
@@ -62,6 +70,9 @@ const emptyForm = {
   costPerUnit: "",
   sellPricePerUnit: "",
   trackStock: false,
+  isActive: true,
+  isSpecial: false,
+  specialSortOrder: "0",
   directPurchaseItemId: "",
   openingStockDay1: "",
   currentStock: "",
@@ -96,6 +107,9 @@ function MenuItemsContent() {
   );
 
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"" | "active" | "inactive" | "special">("");
+  const { downloadPdf, exporting: downloadingMenu, portal: menuPrintPortal } = usePrintableMenu();
+  const [hasActiveMenuItems, setHasActiveMenuItems] = useState(false);
 
   const {
     items,
@@ -121,11 +135,21 @@ function MenuItemsContent() {
       operationsApi.menuItems.list({
         ...p,
         ...(categoryFilter ? { menuCategoryId: categoryFilter } : {}),
+        ...(statusFilter === "active" ? { isActive: true } : {}),
+        ...(statusFilter === "inactive" ? { isActive: false } : {}),
+        ...(statusFilter === "special" ? { isSpecial: true } : {}),
       }),
     defaultSort: { sortBy: "name", sortOrder: "asc" },
     errorMessage: "Failed to load menu items",
-    extraCacheKey: categoryFilter,
+    extraCacheKey: `${categoryFilter}:${statusFilter}`,
   });
+
+  useEffect(() => {
+    void operationsApi.menuItems
+      .list({ limit: 1, page: 1, isActive: true })
+      .then((res) => setHasActiveMenuItems(res.meta.total > 0))
+      .catch(() => setHasActiveMenuItems(false));
+  }, [items.length]);
 
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -216,13 +240,16 @@ function MenuItemsContent() {
   const groupedByCategory = useMemo(() => {
     const map = new Map<string, { id: string; name: string; items: MenuItemRow[] }>();
     for (const item of items) {
-      const group = map.get(item.menuCategoryId) ?? {
-        id: item.menuCategoryId,
-        name: item.categoryName,
+      const groupId = item.primaryMenuCategoryId || item.menuCategoryId;
+      const groupName =
+        item.categories?.find((c) => c.isPrimary)?.name ?? item.categoryName;
+      const group = map.get(groupId) ?? {
+        id: groupId,
+        name: groupName,
         items: [],
       };
       group.items.push(item);
-      map.set(item.menuCategoryId, group);
+      map.set(groupId, group);
     }
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [items]);
@@ -238,8 +265,15 @@ function MenuItemsContent() {
   };
 
   const openEdit = (item: MenuItemRow) => {
+    const categoryIds =
+      item.categories?.map((c) => c.id) ?? (item.menuCategoryId ? [item.menuCategoryId] : []);
+    const primary =
+      item.categories?.find((c) => c.isPrimary)?.id ??
+      item.primaryMenuCategoryId ??
+      item.menuCategoryId;
     const next = {
-      menuCategoryId: item.menuCategoryId,
+      menuCategoryIds: categoryIds,
+      primaryMenuCategoryId: primary,
       name: item.name,
       itemType: item.itemType ?? "",
       imageUrl: item.imageUrl ?? "",
@@ -248,6 +282,9 @@ function MenuItemsContent() {
       costPerUnit: item.costPerUnit,
       sellPricePerUnit: item.sellPricePerUnit,
       trackStock: item.trackStock,
+      isActive: item.isActive ?? true,
+      isSpecial: item.isSpecial ?? false,
+      specialSortOrder: String(item.specialSortOrder ?? 0),
       directPurchaseItemId: "",
       openingStockDay1: item.openingStockDay1 ?? "",
       currentStock: item.trackStock ? (item.quantityOnHand ?? "0") : "",
@@ -262,9 +299,76 @@ function MenuItemsContent() {
     setOpen(true);
   };
 
+  const setMenuCategory = (categoryId: string) => {
+    setForm((f) => {
+      if (!categoryId) {
+        const remaining = f.menuCategoryIds.filter((id) => id !== f.primaryMenuCategoryId);
+        return {
+          ...f,
+          menuCategoryIds: remaining,
+          primaryMenuCategoryId: remaining[0] ?? "",
+        };
+      }
+      const others = f.menuCategoryIds.filter(
+        (id) => id !== f.primaryMenuCategoryId && id !== categoryId,
+      );
+      return {
+        ...f,
+        menuCategoryIds: [categoryId, ...others],
+        primaryMenuCategoryId: categoryId,
+      };
+    });
+  };
+
+  const addAdditionalCategory = (categoryId: string) => {
+    if (!categoryId) return;
+    setForm((f) => {
+      if (f.menuCategoryIds.includes(categoryId)) return f;
+      return { ...f, menuCategoryIds: [...f.menuCategoryIds, categoryId] };
+    });
+  };
+
+  const removeCategory = (categoryId: string) => {
+    setForm((f) => {
+      const nextIds = f.menuCategoryIds.filter((id) => id !== categoryId);
+      const primary =
+        f.primaryMenuCategoryId === categoryId ? (nextIds[0] ?? "") : f.primaryMenuCategoryId;
+      return {
+        ...f,
+        menuCategoryIds: nextIds,
+        primaryMenuCategoryId: primary,
+      };
+    });
+  };
+
+  const additionalCategoryOptions = useMemo(
+    () => categories.filter((c) => !form.menuCategoryIds.includes(c.id)),
+    [categories, form.menuCategoryIds],
+  );
+
+  const handleDownloadMenu = async () => {
+    try {
+      const data = await operationsApi.menuItems.printable();
+      await downloadPdf(data);
+      appToast.success("Menu downloaded");
+    } catch (error) {
+      appToast.error(getApiErrorMessage(error, "Failed to download menu"));
+    }
+  };
+
+  const toggleItemActive = async (item: MenuItemRow) => {
+    try {
+      await operationsApi.menuItems.update(item.id, { isActive: !item.isActive });
+      appToast.success(item.isActive ? "Item marked inactive" : "Item marked active");
+      await refetch();
+    } catch (error) {
+      appToast.error(getApiErrorMessage(error, "Failed to update item status"));
+    }
+  };
+
   const save = async () => {
-    if (!form.menuCategoryId) {
-      appToast.error("Menu category is required");
+    if (form.menuCategoryIds.length === 0) {
+      appToast.error("Select at least one menu category");
       return;
     }
     if (!editId && form.trackStock && !form.directPurchaseItemId) {
@@ -313,13 +417,23 @@ function MenuItemsContent() {
       return;
     }
 
+    const primaryMenuCategoryId =
+      form.primaryMenuCategoryId || form.menuCategoryIds[0]!;
+    const specialSortOrder = form.isSpecial
+      ? Math.max(0, Number.parseInt(form.specialSortOrder, 10) || 0)
+      : 0;
+
     const payload = {
-      menuCategoryId: form.menuCategoryId,
+      menuCategoryIds: form.menuCategoryIds,
+      primaryMenuCategoryId,
       name: form.name.trim(),
       imageUrl: form.imageUrl,
       unitType: form.unitType.trim(),
       unitQuantity: form.unitQuantity.trim(),
       notes: form.notes.trim() || undefined,
+      isActive: form.isActive,
+      isSpecial: form.isSpecial,
+      specialSortOrder,
     };
 
     setSaving(true);
@@ -398,11 +512,31 @@ function MenuItemsContent() {
         title="Menu items"
         description="Add items under menu categories with pricing and stock."
         action={
-          <Button type="button" size="sm" onClick={openCreate} disabled={categories.length === 0}>
-            Add item
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => void handleDownloadMenu()}
+              loading={downloadingMenu}
+              disabled={!hasActiveMenuItems || downloadingMenu}
+              title={
+                hasActiveMenuItems
+                  ? "Download printable A4 menu PDF"
+                  : "Add active menu items to download a menu"
+              }
+            >
+              {!downloadingMenu ? <Download className="h-4 w-4" aria-hidden /> : null}
+              Download menu
+            </Button>
+            <Button type="button" size="sm" onClick={openCreate} disabled={categories.length === 0}>
+              Add item
+            </Button>
+          </div>
         }
       />
+
+      {menuPrintPortal}
 
       <DigitalMenuQrCard />
 
@@ -416,7 +550,7 @@ function MenuItemsContent() {
           loading={loading}
           isFetching={isFetching}
           itemsCount={items.length}
-          hasActiveFilters={hasActiveFilters || Boolean(categoryFilter)}
+          hasActiveFilters={hasActiveFilters || Boolean(categoryFilter) || Boolean(statusFilter)}
           searchValue={searchInput}
           onSearchChange={setSearch}
           onSearchClear={clearSearch}
@@ -424,18 +558,32 @@ function MenuItemsContent() {
           isSearching={isSearching}
           searchResultSummary={searchResultSummary}
           filters={
-            <FilterSelect
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="min-w-[10rem]"
-            >
-              <option value="">All categories</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </FilterSelect>
+            <>
+              <FilterSelect
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                fullWidth={false}
+                className="w-[10.5rem]"
+              >
+                <option value="">All categories</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </FilterSelect>
+              <FilterSelect
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+                fullWidth={false}
+                className="w-[9.5rem]"
+              >
+                <option value="">All items</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="special">Special</option>
+              </FilterSelect>
+            </>
           }
           tableColumns={7}
           emptyTitle="No Menu Items Found"
@@ -446,6 +594,7 @@ function MenuItemsContent() {
             clearSearch();
             clearFilters();
             setCategoryFilter("");
+            setStatusFilter("");
           }}
           currentPage={meta.page}
           totalPages={meta.totalPages}
@@ -507,8 +656,27 @@ function MenuItemsContent() {
                             </div>
                           )
                         }
-                        title={item.name}
-                        subtitle={item.categoryName}
+                        title={
+                          <span className="inline-flex flex-wrap items-center gap-1.5">
+                            {item.name}
+                            {item.isSpecial ? (
+                              <Badge variant="warning" className="gap-0.5 text-[10px]">
+                                <Star className="h-3 w-3" aria-hidden />
+                                Special
+                              </Badge>
+                            ) : null}
+                            {!item.isActive ? (
+                              <Badge className="text-[10px]">
+                                Inactive
+                              </Badge>
+                            ) : null}
+                          </span>
+                        }
+                        subtitle={
+                          item.categories && item.categories.length > 1
+                            ? `${item.categoryName} +${item.categories.length - 1}`
+                            : item.categoryName
+                        }
                         fields={[
                           {
                             label: "Unit",
@@ -530,11 +698,21 @@ function MenuItemsContent() {
                           ...(item.notes ? [{ label: "Notes", value: item.notes }] : []),
                         ]}
                         actions={
-                          <RowActions
-                            showLabels
-                            onEdit={() => openEdit(item)}
-                            onDelete={() => setDeleteTarget(item)}
-                          />
+                          <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => toggleItemActive(item)}
+                            >
+                              {item.isActive ? "Deactivate" : "Activate"}
+                            </Button>
+                            <RowActions
+                              showLabels
+                              onEdit={() => openEdit(item)}
+                              onDelete={() => setDeleteTarget(item)}
+                            />
+                          </div>
                         }
                       />
                     ))}
@@ -577,13 +755,30 @@ function MenuItemsContent() {
                                   —
                                 </div>
                               )}
-                              <span className="truncate text-sm font-medium text-foreground">
-                                {item.name}
-                              </span>
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className="truncate text-sm font-medium text-foreground">
+                                    {item.name}
+                                  </span>
+                                  {item.isSpecial ? (
+                                    <Badge variant="warning" className="gap-0.5 text-[10px]">
+                                      <Star className="h-3 w-3" aria-hidden />
+                                      Special
+                                    </Badge>
+                                  ) : null}
+                                  {!item.isActive ? (
+                                    <Badge className="text-[10px]">
+                                      Inactive
+                                    </Badge>
+                                  ) : null}
+                                </div>
+                              </div>
                             </div>
                           </td>
                           <td className={cn("px-4 py-3.5 text-sm text-muted", tableCenterCellClass)}>
-                            {cellOrDash(item.categoryName)}
+                            {item.categories && item.categories.length > 1
+                              ? `${cellOrDash(item.categoryName)} +${item.categories.length - 1}`
+                              : cellOrDash(item.categoryName)}
                           </td>
                           <td className={cn("px-4 py-3.5 text-sm text-foreground", tableCenterCellClass)}>
                             {cellOrDash(item.unitQuantity)}
@@ -614,11 +809,21 @@ function MenuItemsContent() {
                           </td>
                           <td className="px-4 py-3.5">
                             <div className={tableActionsCellClass}>
-                              <RowActions
-                                showLabels
-                                onEdit={() => openEdit(item)}
-                                onDelete={() => setDeleteTarget(item)}
-                              />
+                              <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => toggleItemActive(item)}
+                                >
+                                  {item.isActive ? "Deactivate" : "Activate"}
+                                </Button>
+                                <RowActions
+                                  showLabels
+                                  onEdit={() => openEdit(item)}
+                                  onDelete={() => setDeleteTarget(item)}
+                                />
+                              </div>
                             </div>
                           </td>
                         </tr>
@@ -713,13 +918,11 @@ function MenuItemsContent() {
             <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-subtle)]">
               Basics
             </h3>
-            <Field id="category" label="Menu category" required>
+            <Field id="categories" label="Menu category" required>
               <Select
                 searchable
-                value={form.menuCategoryId}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, menuCategoryId: e.target.value }))
-                }
+                value={form.primaryMenuCategoryId || form.menuCategoryIds[0] || ""}
+                onChange={(e) => setMenuCategory(e.target.value)}
               >
                 <option value="">Choose a category</option>
                 {categories.map((c) => (
@@ -729,6 +932,99 @@ function MenuItemsContent() {
                 ))}
               </Select>
             </Field>
+
+            {form.menuCategoryIds.length > 0 && additionalCategoryOptions.length > 0 ? (
+              <Field id="additionalCategories" label="Additional categories">
+                <Select
+                  key={form.menuCategoryIds.join(",")}
+                  searchable
+                  value=""
+                  onChange={(e) => addAdditionalCategory(e.target.value)}
+                >
+                  <option value="">Add another category…</option>
+                  {additionalCategoryOptions.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ) : null}
+
+            {form.menuCategoryIds.length > 1 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {form.menuCategoryIds
+                  .filter((id) => id !== form.primaryMenuCategoryId)
+                  .map((id) => {
+                    const cat = categories.find((c) => c.id === id);
+                    return (
+                      <span
+                        key={id}
+                        className="inline-flex items-center gap-1 rounded-md border border-[var(--color-border)] bg-[var(--color-cream-100)] px-2 py-1 text-xs text-[var(--color-foreground)]"
+                      >
+                        {cat?.name ?? id}
+                        <button
+                          type="button"
+                          className="text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+                          aria-label={`Remove ${cat?.name ?? id}`}
+                          onClick={() => removeCategory(id)}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    );
+                  })}
+              </div>
+            ) : null}
+
+            <div className="space-y-3">
+              <label className="flex cursor-pointer items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.isActive}
+                  onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-medium">Active</span>
+                  <span className="mt-0.5 block text-xs text-muted">
+                    Visible on QR menu, POS, table orders, and waiter app.
+                  </span>
+                </span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.isSpecial}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      isSpecial: e.target.checked,
+                      specialSortOrder: e.target.checked ? f.specialSortOrder : "0",
+                    }))
+                  }
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-medium">Special</span>
+                  <span className="mt-0.5 block text-xs text-muted">
+                    Highlight in the Specials section at the top of the menu.
+                  </span>
+                </span>
+              </label>
+              {form.isSpecial ? (
+                <Field id="specialSortOrder" label="Special order">
+                  <NumberInput
+                    value={form.specialSortOrder}
+                    onValueChange={(value) =>
+                      setForm((f) => ({ ...f, specialSortOrder: value }))
+                    }
+                    decimals={0}
+                    min={0}
+                  />
+                </Field>
+              ) : null}
+            </div>
 
             <div className="space-y-3">
               <p className="text-sm font-medium text-[var(--color-foreground)]">Item type</p>

@@ -195,21 +195,19 @@ export function PublicMenuView({ data }: PublicMenuViewProps) {
 
 
   const searchResults = useMemo((): SearchResult[] => {
-
     const q = search.trim();
-
     if (!q) return [];
-
-    return data.categories.flatMap((cat) =>
-
-      cat.items
-
-        .filter((item) => itemMatchesSearch(item, q))
-
-        .map((item) => ({ item, categoryName: cat.name })),
-
-    );
-
+    const seen = new Set<string>();
+    const results: SearchResult[] = [];
+    for (const cat of data.categories) {
+      for (const item of cat.items) {
+        if (!itemMatchesSearch(item, q)) continue;
+        if (seen.has(item.catalogItemId)) continue;
+        seen.add(item.catalogItemId);
+        results.push({ item, categoryName: cat.name });
+      }
+    }
+    return results;
   }, [data.categories, search]);
 
 
@@ -549,6 +547,25 @@ export function PublicMenuView({ data }: PublicMenuViewProps) {
               className="px-4 pt-2"
 
             >
+
+              {data.specials.length > 0 ? (
+                <section className="mb-6" aria-label="Chef specials">
+                  <div className="public-menu-ornament public-menu-text-muted mb-3 text-[10px] font-semibold uppercase tracking-[0.18em]">
+                    <span className="shrink-0 px-2">Specials</span>
+                  </div>
+                  <div className="public-menu-item-list">
+                    {data.specials.map((item, i) => (
+                      <MenuItemRow
+                        key={item.catalogItemId}
+                        item={item}
+                        index={i}
+                        reducedMotion={reducedMotion}
+                        onSelect={(selected) => handleItemSelect(selected, "Specials")}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ) : null}
 
               <div className="public-menu-ornament public-menu-text-muted mb-5 text-[10px] font-semibold uppercase tracking-[0.18em]">
 

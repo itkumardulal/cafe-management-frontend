@@ -43,9 +43,9 @@ export function ListPageToolbar({
 
   return (
     <div className={cn("flex flex-col gap-3", className)}>
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-2">
+      <div className="flex flex-row flex-wrap items-center gap-2">
         {showSearch ? (
-          <div className="w-full md:min-w-0 md:flex-1">
+          <div className="min-w-[12rem] flex-1">
             <div className="relative">
               <Search
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]"
@@ -94,7 +94,7 @@ export function ListPageToolbar({
         ) : null}
 
         {filters || mobileSort ? (
-          <div className="flex flex-wrap items-center gap-2 md:flex-nowrap md:shrink-0">
+          <div className="flex shrink-0 flex-nowrap items-center gap-2">
             {filters}
             {mobileSort ? <div className="shrink-0">{mobileSort}</div> : null}
           </div>

@@ -28,7 +28,7 @@ npm run start
 
 ## Deploy (Netlify + Railway)
 
-Auth cookies must be set on the **Netlify domain** so `middleware.ts` can read them on `/dashboard`. The frontend proxies `/api/*` to Railway via [`netlify.toml`](./netlify.toml).
+Auth cookies must be set on the **Netlify domain** so `middleware.ts` can read them on `/dashboard`. The frontend proxies `/api/*` to Railway via [`netlify.toml`](./netlify.toml). Table-orders realtime uses Socket.io on the Nest host with JWT from [`app/api/realtime/socket-token/route.ts`](./app/api/realtime/socket-token/route.ts) (local dev defaults to `http://localhost:4000`).
 
 ### Netlify
 
@@ -40,6 +40,7 @@ Auth cookies must be set on the **Netlify domain** so `middleware.ts` can read t
    | `API_URL` | `https://cafe-management-backend-production.up.railway.app` |
    | `NEXT_PUBLIC_API_URL` | `https://dinenepal.netlify.app/api` |
    | `NEXT_PUBLIC_APP_URL` | `https://dinenepal.netlify.app` |
+   | `NEXT_PUBLIC_SOCKET_URL` | `https://cafe-management-backend-production.up.railway.app` |
    | `NEXT_PUBLIC_AUTH_COOKIE_NAME` | `cms_access_token` |
 
 3. After login, DevTools → Cookies on `dinenepal.netlify.app` should show `cms_access_token`.

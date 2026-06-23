@@ -32,6 +32,12 @@ const PERMISSION_GROUPS: Array<{
     codes: ["TABLES", "TABLE_ORDERS", "POS", "INVOICES"],
   },
   {
+    id: "waiterApp",
+    label: "Waiter app",
+    description: "Mobile app for floor staff (table orders and kitchen tickets)",
+    codes: ["WAITER_APP"],
+  },
+  {
     id: "inventory",
     label: "Inventory",
     description: "Materials, suppliers, and stock",
@@ -118,6 +124,7 @@ export function buildGroupedMenus<T extends MenuGroupable>(menus: T[]): MenuGrou
 export const SIDEBAR_GROUP_ICONS: Record<string, string> = {
   menuSales: "utensils-crossed",
   pos: "scan-line",
+  waiterApp: "smartphone",
   inventory: "package",
   finance: "landmark",
   expenses: "wallet",

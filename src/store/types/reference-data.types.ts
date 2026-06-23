@@ -3,16 +3,25 @@ import type { LoadStatus } from "./load-status";
 export type MenuCategoryOption = {
   id: string;
   name: string;
+  sortOrder?: number;
 };
 
 export type SellableCatalogItem = {
   id: string;
   name: string;
-  categoryName: string;
   sellPricePerUnit: string;
   quantityOnHand: string | null;
   trackStock: boolean;
   imageUrl?: string | null;
+  isSpecial: boolean;
+  specialSortOrder: number;
+  categoryIds: string[];
+  primaryCategoryId: string;
+};
+
+export type SellableCatalogData = {
+  categories: Array<{ id: string; name: string; sortOrder: number }>;
+  items: SellableCatalogItem[];
 };
 
 export type DiningTableOption = {
@@ -58,7 +67,7 @@ export type AssetOption = {
 export interface ReferenceDataState {
   menuCategoryOptions: MenuCategoryOption[];
   menuCategoryOptionsStatus: LoadStatus;
-  sellableCatalog: SellableCatalogItem[];
+  sellableCatalog: SellableCatalogData;
   sellableCatalogStatus: LoadStatus;
   diningTableOptions: DiningTableOption[];
   diningTableOptionsStatus: LoadStatus;

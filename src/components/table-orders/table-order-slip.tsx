@@ -24,6 +24,7 @@ export type OrderSlipLine = {
   unitPrice: number;
   qty: number;
   maxQty: number;
+  notes?: string | null;
 };
 
 type TableOrderSlipProps = {
@@ -232,6 +233,9 @@ export function TableOrderSlip({
                       <p className="mt-0.5 text-xs text-[var(--color-muted)]">
                         {formatMoney(l.unitPrice)} × {l.qty % 1 === 0 ? l.qty : l.qty.toFixed(2)}
                       </p>
+                      {l.notes ? (
+                        <p className="mt-1 text-xs italic text-[var(--color-subtle)]">{l.notes}</p>
+                      ) : null}
                     </div>
                     <p className="shrink-0 font-mono text-sm font-semibold tabular-nums text-[var(--color-foreground)]">
                       {formatMoney(lineTotal)}
@@ -283,22 +287,24 @@ export function TableOrderSlip({
           </span>
         </div>
         {status === "OPEN" ? (
-          <Button
-            type="button"
-            size="sm"
-            className="mt-2 h-9 w-full text-sm"
-            disabled={generating || lines.length === 0}
-            onClick={onGenerateBill}
-          >
-            {generating ? (
-              <span className="inline-flex items-center gap-1.5">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Opening POS…
-              </span>
-            ) : (
-              "Generate bill"
-            )}
-          </Button>
+          <div className="mt-2">
+            <Button
+              type="button"
+              size="sm"
+              className="h-9 w-full text-sm"
+              disabled={generating || lines.length === 0}
+              onClick={onGenerateBill}
+            >
+              {generating ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Opening POS…
+                </span>
+              ) : (
+                "Generate bill"
+              )}
+            </Button>
+          </div>
         ) : isBilling ? (
           <div className="mt-2 space-y-2">
             {onGoToPos ? (

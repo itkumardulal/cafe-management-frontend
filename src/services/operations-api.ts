@@ -43,6 +43,7 @@ export type TableOrderSessionDetail = {
     quantity: string;
     unitPrice: string;
     lineTotal: string;
+    notes?: string | null;
   }>;
   subtotal: string;
   lineCount: number;
@@ -62,6 +63,30 @@ export function isDeletedSessionUpdate(
 ): result is TableOrderSessionDeleted {
   return "deleted" in result;
 }
+
+export type TableOrderKotLine = {
+  menuItemName: string;
+  quantity: string;
+  notes?: string | null;
+};
+
+export type TableOrderKotBatch = {
+  id: string;
+  batchNo: number;
+  label: string;
+  tableNamesSnapshot: string;
+  createdAt: string;
+  lines: TableOrderKotLine[];
+};
+
+export type TableOrderKotView = {
+  sessionId: string;
+  status: "OPEN" | "IN_BILLING" | "CLOSED" | "CANCELLED";
+  printable: boolean;
+  tableNames: string[];
+  batches: TableOrderKotBatch[];
+  unsealedLines: TableOrderKotLine[];
+};
 
 export type TableOrderBillingHandoff = {
   sessionId: string;
@@ -153,13 +178,16 @@ export const operationsApi = {
     remove: (id: string) => mutate("delete", `/menu-categories/${id}`),
   },
   menuItems: {
-    list: (params?: ListQueryParams & { menuCategoryId?: string }) =>
-      getData<
+    list: (params?: ListQueryParams & { menuCategoryId?: string; isActive?: boolean; isSpecial?: boolean }) => {
+      const { isActive, isSpecial, ...rest } = params ?? {};
+      return getData<
         Paginated<{
           id: string;
           name: string;
           menuCategoryId: string;
+          primaryMenuCategoryId: string;
           categoryName: string;
+          categories: Array<{ id: string; name: string; sortOrder: number; isPrimary: boolean }>;
           imageUrl?: string | null;
           itemType?: string | null;
           unitType?: string | null;
@@ -169,10 +197,22 @@ export const operationsApi = {
           openingStockDay1: string;
           quantityOnHand: string | null;
           trackStock: boolean;
+          isActive: boolean;
+          isSpecial: boolean;
+          specialSortOrder: number;
           reorderLevel?: string | null;
           notes?: string | null;
         }>
-      >("/menu-items", params),
+      >("/menu-items", {
+        ...rest,
+        ...(isActive !== undefined ? { isActive: String(isActive) } : {}),
+        ...(isSpecial !== undefined ? { isSpecial: String(isSpecial) } : {}),
+      });
+    },
+    printable: () =>
+      getData<import("@/src/features/menu-export/types").PrintableMenuData>(
+        "/menu-items/printable",
+      ),
     sellableStock: () =>
       getData<{ id: string; name: string; quantityOnHand: string; unit?: string | null }[]>(
         "/menu-items/sellable-stock",
@@ -192,7 +232,9 @@ export const operationsApi = {
         }>
       >(`/menu-items/${id}/stock-history`, params),
     create: (data: {
-      menuCategoryId: string;
+      menuCategoryIds: string[];
+      primaryMenuCategoryId?: string;
+      menuCategoryId?: string;
       name: string;
       imageUrl?: string;
       itemType?: string;
@@ -202,6 +244,9 @@ export const operationsApi = {
       sellPricePerUnit: number;
       openingStockDay1?: number;
       trackStock?: boolean;
+      isActive?: boolean;
+      isSpecial?: boolean;
+      specialSortOrder?: number;
       directPurchaseItemId?: string;
       reorderLevel?: number;
       notes?: string;
@@ -412,6 +457,10 @@ export const operationsApi = {
       mutate<TableOrderSessionDetail>("post", `/table-orders/sessions/${id}/cancel-billing`, {}),
     billingHandoff: (id: string) =>
       getData<TableOrderBillingHandoff>(`/table-orders/sessions/${id}/billing-handoff`),
+    getKot: (id: string, options?: { force?: boolean }) =>
+      getData<TableOrderKotView>(`/table-orders/sessions/${id}/kot`, undefined, options),
+    sealKot: (id: string, data?: { kind?: "ORDER" | "ADDITIONAL" }) =>
+      mutate<TableOrderKotView>("post", `/table-orders/sessions/${id}/kot/seal`, data ?? {}),
   },
   diningTables: {
     list: (params?: ListQueryParams) =>
@@ -1093,17 +1142,9 @@ export const operationsApi = {
   },
   sales: {
     sellableCatalog: () =>
-      getData<
-        Array<{
-          id: string;
-          name: string;
-          categoryName: string;
-          imageUrl?: string | null;
-          trackStock: boolean;
-          quantityOnHand: string | null;
-          sellPricePerUnit: string;
-        }>
-      >("/sales/sellable-catalog"),
+      getData<import("@/src/store/types/reference-data.types").SellableCatalogData>(
+        "/sales/sellable-catalog",
+      ),
     list: (params?: DateRangeQueryParams & {
       serviceType?: "DINE_IN" | "DELIVERY";
       billingType?: "PAID" | "CREDIT";

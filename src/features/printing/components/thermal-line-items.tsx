@@ -32,10 +32,51 @@ type ThermalLineItemsProps =
       variant: "purchase";
       lines: ThermalPurchaseLineItem[];
       paperProfile?: PaperProfile;
+    }
+  | {
+      variant: "kot";
+      lines: Array<{ name: string; quantity: string; notes?: string | null }>;
+      paperProfile?: PaperProfile;
     };
 
 export function ThermalLineItems(props: ThermalLineItemsProps) {
   const paperProfile = props.paperProfile ?? DEFAULT_PAPER_PROFILE;
+
+  if (props.variant === "kot") {
+    const itemMaxChars = Math.max(12, paperProfile.maxChars - 10);
+
+    return (
+      <table className="w-full table-fixed border-collapse text-[10px]">
+        <colgroup>
+          <col />
+          <col className="w-[18%]" />
+        </colgroup>
+        <thead>
+          <tr className="border-b border-black text-[8px] uppercase">
+            <th className="pb-1 text-left font-semibold">Item</th>
+            <th className="pb-1 text-right font-semibold">Qty</th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.lines.map((line, idx) => (
+            <tr key={idx} className="align-top">
+              <td className="py-1 pr-1 font-medium leading-snug break-words">
+                {truncateThermalText(line.name, itemMaxChars)}
+                {line.notes?.trim() ? (
+                  <p className="mt-0.5 text-[8px] font-normal leading-snug text-black/75">
+                    Note: {truncateThermalText(line.notes.trim(), itemMaxChars)}
+                  </p>
+                ) : null}
+              </td>
+              <td className="py-1 text-right font-mono text-[11px] font-semibold tabular-nums whitespace-nowrap">
+                {formatMoneyCompact(line.quantity)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
 
   if (props.variant === "sale") {
     const itemMaxChars = Math.max(12, paperProfile.maxChars - 22);

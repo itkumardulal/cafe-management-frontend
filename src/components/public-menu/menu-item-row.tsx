@@ -73,6 +73,9 @@ export function MenuItemRow({
           <p className="public-menu-item-price">{formatMoney(item.sellPricePerUnit)}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {item.isSpecial ? (
+            <span className="public-menu-item-type">Special</span>
+          ) : null}
           {item.itemType?.trim() ? (
             <span className="public-menu-item-type">{item.itemType.trim()}</span>
           ) : null}

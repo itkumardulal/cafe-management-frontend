@@ -7,3 +7,9 @@
   to = "https://cafe-management-backend-production.up.railway.app/api/:splat"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/socket.io/*"
+  to = "https://cafe-management-backend-production.up.railway.app/socket.io/:splat"
+  status = 200
+  force = true

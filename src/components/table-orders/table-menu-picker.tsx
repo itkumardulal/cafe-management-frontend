@@ -6,6 +6,12 @@ import { tableOrdersScrollArea } from "@/src/components/table-orders/table-order
 import { MenuSectionSlider } from "@/src/components/table-orders/menu-section-slider";
 import { Input } from "@/src/components/ui/input";
 import { cn } from "@/src/lib/cn";
+import {
+  buildCatalogSections,
+  buildCategoryChips,
+  SPECIALS_FILTER_ID,
+} from "@/src/lib/menu-catalog-layout";
+import type { SellableCatalogData, SellableCatalogItem } from "@/src/store/types/reference-data.types";
 
 const categoryChipClass = (active: boolean) =>
   cn(
@@ -15,18 +21,10 @@ const categoryChipClass = (active: boolean) =>
       : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-nav-idle)] hover:border-[var(--color-input)] hover:bg-[var(--color-cream-100)] hover:text-[var(--color-nav-idle-hover)]",
   );
 
-export type MenuCatalogItem = {
-  id: string;
-  name: string;
-  categoryName: string;
-  imageUrl?: string | null;
-  trackStock: boolean;
-  quantityOnHand: string | null;
-  sellPricePerUnit: string;
-};
+export type MenuCatalogItem = SellableCatalogItem;
 
 type TableMenuPickerProps = {
-  catalog: MenuCatalogItem[];
+  catalog: SellableCatalogData;
   loading: boolean;
   search: string;
   onSearchChange: (value: string) => void;
@@ -48,33 +46,27 @@ export function TableMenuPicker({
   disabled,
   onAddItem,
 }: TableMenuPickerProps) {
-  const categories = useMemo(() => {
-    const set = new Set(catalog.map((c) => c.categoryName));
-    return [...set].sort();
-  }, [catalog]);
+  const items = catalog.items;
+  const categoryChips = useMemo(
+    () => buildCategoryChips(catalog.categories, items),
+    [catalog.categories, items],
+  );
 
-  const filtered = useMemo(() => {
-    let items = catalog;
-    if (categoryFilter) items = items.filter((c) => c.categoryName === categoryFilter);
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      items = items.filter((c) => c.name.toLowerCase().includes(q));
+  const sections = useMemo(
+    () =>
+      buildCatalogSections(catalog.categories, items, {
+        categoryFilter,
+        search,
+      }),
+    [catalog.categories, items, categoryFilter, search],
+  );
+
+  const filteredCount = useMemo(() => {
+    if (search.trim() || categoryFilter) {
+      return sections.reduce((n, s) => n + s.items.length, 0);
     }
-    return items;
-  }, [catalog, categoryFilter, search]);
-
-  const showGrouped = !categoryFilter && !search.trim();
-
-  const sections = useMemo(() => {
-    if (!showGrouped) return [["All items", filtered] as const];
-    const map = new Map<string, MenuCatalogItem[]>();
-    for (const item of filtered) {
-      const list = map.get(item.categoryName) ?? [];
-      list.push(item);
-      map.set(item.categoryName, list);
-    }
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [filtered, showGrouped]);
+    return items.length;
+  }, [sections, items.length, search, categoryFilter]);
 
   return (
     <div className="flex h-full min-h-0 flex-1 basis-0 flex-col overflow-hidden">
@@ -86,7 +78,7 @@ export function TableMenuPicker({
           <div className="min-w-0">
             <p className="text-sm font-semibold text-[var(--color-foreground)]">Menu</p>
             <p className="truncate text-xs text-[var(--color-muted)]">
-              {loading ? "Loading dishes…" : `${filtered.length} available · use Add on each dish`}
+              {loading ? "Loading dishes…" : `${filteredCount} available · use Add on each dish`}
             </p>
           </div>
         </div>
@@ -103,7 +95,7 @@ export function TableMenuPicker({
             disabled={disabled}
           />
         </div>
-        {categories.length > 0 ? (
+        {categoryChips.length > 0 ? (
           <div className="flex min-w-0 flex-wrap gap-1">
             <button
               type="button"
@@ -112,14 +104,14 @@ export function TableMenuPicker({
             >
               All
             </button>
-            {categories.map((c) => (
+            {categoryChips.map((c) => (
               <button
-                key={c}
+                key={c.id}
                 type="button"
-                onClick={() => onCategoryFilterChange(c)}
-                className={categoryChipClass(categoryFilter === c)}
+                onClick={() => onCategoryFilterChange(c.id)}
+                className={categoryChipClass(categoryFilter === c.id)}
               >
-                {c}
+                {c.label}
               </button>
             ))}
           </div>
@@ -133,16 +125,16 @@ export function TableMenuPicker({
               <div key={i} className="h-36 animate-pulse rounded-xl bg-[var(--color-cream-100)]" />
             ))}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : sections.length === 0 ? (
           <p className="py-8 text-center text-sm font-medium text-[var(--color-muted)]">
             No menu items match your search.
           </p>
         ) : (
-          sections.map(([category, items]) => (
+          sections.map((section) => (
             <MenuSectionSlider
-              key={category}
-              title={category}
-              items={items}
+              key={section.id}
+              title={section.title}
+              items={section.items}
               qtyByItemId={qtyByItemId}
               disabled={disabled}
               onAddItem={onAddItem}
@@ -153,3 +145,5 @@ export function TableMenuPicker({
     </div>
   );
 }
+
+export { SPECIALS_FILTER_ID };

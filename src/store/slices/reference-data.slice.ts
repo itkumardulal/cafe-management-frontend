@@ -10,6 +10,7 @@ import type {
   DiningTableOption,
   MenuCategoryOption,
   ReferenceDataState,
+  SellableCatalogData,
   SellableCatalogItem,
   StockRemovalLineOptions,
   StockRemovalStaffOption,
@@ -20,7 +21,7 @@ import type {
 const initialState: ReferenceDataState = {
   menuCategoryOptions: [],
   menuCategoryOptionsStatus: "idle",
-  sellableCatalog: [],
+  sellableCatalog: { categories: [], items: [] },
   sellableCatalogStatus: "idle",
   diningTableOptions: [],
   diningTableOptionsStatus: "idle",
@@ -58,12 +59,12 @@ export const fetchMenuCategoryOptionsThunk = createAsyncThunk<
 });
 
 export const fetchSellableCatalogThunk = createAsyncThunk<
-  SellableCatalogItem[],
+  SellableCatalogData,
   FetchForceArg,
   { rejectValue: string; state: { referenceData: ReferenceDataState } }
 >("referenceData/fetchSellableCatalog", async (_, { rejectWithValue }) => {
   try {
-    return (await operationsApi.sales.sellableCatalog()) as SellableCatalogItem[];
+    return (await operationsApi.sales.sellableCatalog()) as SellableCatalogData;
   } catch {
     return rejectWithValue("Failed to load menu catalog");
   }

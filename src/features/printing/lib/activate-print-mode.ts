@@ -1,8 +1,9 @@
-export type PrintMode = "thermal" | "qr";
+export type PrintMode = "thermal" | "qr" | "menu";
 
 const MODE_CLASS: Record<PrintMode, string> = {
   thermal: "thermal-print-active",
   qr: "qr-print-active",
+  menu: "menu-print-active",
 };
 
 export function activatePrintMode(mode: PrintMode) {
