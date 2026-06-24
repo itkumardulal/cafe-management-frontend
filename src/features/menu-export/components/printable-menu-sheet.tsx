@@ -12,106 +12,100 @@ type PrintableMenuSheetProps = {
   data: PrintableMenuData;
 };
 
-function MenuItemRow({ item }: { item: PrintableMenuData["specials"][number] }) {
+function MenuItem({ item }: { item: PrintableMenuData["specials"][number] }) {
   const subtitle = formatSubtitle(item);
   return (
-    <tr className="menu-print-item">
-      <td className="menu-print-item-name">
-        <span className="menu-print-item-title">
+    <div className="menu-print-item">
+      <div className="menu-print-item-head">
+        <span className="menu-print-item-name">
           {item.name}
           {item.isSpecial ? <span className="menu-print-star"> ★</span> : null}
         </span>
-        {subtitle ? <span className="menu-print-item-sub">{subtitle}</span> : null}
-      </td>
-      <td className="menu-print-item-dots">
-        <span aria-hidden />
-      </td>
-      <td className="menu-print-item-price">{formatPrice(item.sellPricePerUnit)}</td>
-    </tr>
+        <span className="menu-print-item-price">{formatPrice(item.sellPricePerUnit)}</span>
+      </div>
+      {subtitle ? <p className="menu-print-item-desc">{subtitle}</p> : null}
+    </div>
   );
 }
 
-function MenuItemsTable({
+function MenuSection({
+  title,
   items,
   keyPrefix,
 }: {
+  title: string;
   items: PrintableMenuData["specials"];
   keyPrefix: string;
 }) {
   return (
-    <table className="menu-print-items">
-      <tbody>
+    <section className="menu-print-section">
+      <h2 className="menu-print-section-title">{title}</h2>
+      <div className="menu-print-item-list">
         {items.map((item) => (
-          <MenuItemRow key={`${keyPrefix}-${item.name}`} item={item} />
+          <MenuItem key={`${keyPrefix}-${item.name}`} item={item} />
         ))}
-      </tbody>
-    </table>
+      </div>
+    </section>
   );
 }
 
 export const PrintableMenuSheet = forwardRef<HTMLDivElement, PrintableMenuSheetProps>(
   function PrintableMenuSheet({ data }, ref) {
-  const { cafe } = data;
-  const initial = cafe.cafeName.trim().charAt(0).toUpperCase() || "C";
-  const logoUrl = resolvePublicMenuAssetUrl(cafe.logo);
-  const menuUrl = cafe.slug ? getPublicMenuUrl(cafe.slug) : "";
-  const generatedDate = new Date(data.generatedAt).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+    const { cafe } = data;
+    const initial = cafe.cafeName.trim().charAt(0).toUpperCase() || "C";
+    const logoUrl = resolvePublicMenuAssetUrl(cafe.logo);
+    const menuUrl = cafe.slug ? getPublicMenuUrl(cafe.slug) : "";
+    const generatedDate = new Date(data.generatedAt).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
 
-  return (
-    <div ref={ref} className="menu-print-sheet" data-menu-print-sheet>
-      <header className="menu-print-header">
-        {logoUrl ? (
-          <img src={logoUrl} alt="" className="menu-print-logo" />
-        ) : (
-          <div className="menu-print-logo-fallback">{initial}</div>
-        )}
-        <h1 className="menu-print-cafe-name">{cafe.cafeName}</h1>
-        <div className="menu-print-ornament">✦</div>
-      </header>
+    return (
+      <div ref={ref} className="menu-print-sheet" data-menu-print-sheet>
+        <header className="menu-print-header">
+          {logoUrl ? (
+            <img src={logoUrl} alt="" className="menu-print-logo" />
+          ) : (
+            <div className="menu-print-logo-fallback">{initial}</div>
+          )}
+          <h1 className="menu-print-cafe-name">{cafe.cafeName}</h1>
+          <div className="menu-print-rule" />
+        </header>
 
-      {data.specials.length > 0 ? (
-        <section className="menu-print-section">
-          <h2 className="menu-print-section-title">{SPECIALS_SECTION_LABEL}</h2>
-          <MenuItemsTable items={data.specials} keyPrefix="special" />
-        </section>
-      ) : null}
+        <div className="menu-print-body">
+          {data.specials.length > 0 ? (
+            <MenuSection
+              title={SPECIALS_SECTION_LABEL}
+              items={data.specials}
+              keyPrefix="special"
+            />
+          ) : null}
 
-      {data.categories.map((category) => {
-        const useColumns = category.items.length >= 6;
-        const mid = Math.ceil(category.items.length / 2);
-        return (
-          <section key={category.id} className="menu-print-section menu-print-category-block">
-            <h2 className="menu-print-section-title">{category.name}</h2>
-            {useColumns ? (
-              <div className="menu-print-columns">
-                <MenuItemsTable items={category.items.slice(0, mid)} keyPrefix={`${category.id}-a`} />
-                <MenuItemsTable items={category.items.slice(mid)} keyPrefix={`${category.id}-b`} />
-              </div>
-            ) : (
-              <MenuItemsTable items={category.items} keyPrefix={category.id} />
-            )}
-          </section>
-        );
-      })}
-
-      <footer className="menu-print-footer">
-        <div className="menu-print-footer-contact">
-          {cafe.address ? <span>{cafe.address}</span> : null}
-          {cafe.contactNumber ? <span>{cafe.contactNumber}</span> : null}
+          {data.categories.map((category) => (
+            <MenuSection
+              key={category.id}
+              title={category.name}
+              items={category.items}
+              keyPrefix={category.id}
+            />
+          ))}
         </div>
-        {menuUrl ? (
-          <div className="menu-print-qr">
-            <QRCodeCanvas value={menuUrl} size={56} level="H" includeMargin bgColor="#f4f0eb" />
-            <span>Scan for live menu</span>
+
+        <footer className="menu-print-footer">
+          <div className="menu-print-footer-contact">
+            {cafe.address ? <span>{cafe.address}</span> : null}
+            {cafe.contactNumber ? <span>{cafe.contactNumber}</span> : null}
           </div>
-        ) : null}
-        <p className="menu-print-date">Menu as of {generatedDate}</p>
-      </footer>
-    </div>
-  );
-},
+          {menuUrl ? (
+            <div className="menu-print-qr">
+              <QRCodeCanvas value={menuUrl} size={56} level="H" includeMargin bgColor="#ffffff" />
+              <span>Scan for live menu</span>
+            </div>
+          ) : null}
+          <p className="menu-print-date">Menu as of {generatedDate}</p>
+        </footer>
+      </div>
+    );
+  },
 );
