@@ -25,13 +25,17 @@ export type DateRangeQueryParams = ListQueryParams & {
 
 export type TableOrderSessionDetail = {
   id: string;
-  status: "OPEN" | "IN_BILLING" | "CLOSED" | "CANCELLED";
+  status: "OPEN" | "AWAITING_SETTLEMENT" | "IN_BILLING" | "CLOSED" | "CANCELLED";
   version: number;
   openedAt: string;
   inBillingAt: string | null;
   closedAt: string | null;
   notes: string | null;
   checkoutSaleId: string | null;
+  createdByName?: string | null;
+  releasedByName?: string | null;
+  releasedTableNamesSnapshot?: string | null;
+  awaitingSettlementAt?: string | null;
   primaryTableId: string | null;
   primaryTableName: string | null;
   tableNames: string[];
@@ -76,16 +80,30 @@ export type TableOrderKotBatch = {
   label: string;
   tableNamesSnapshot: string;
   createdAt: string;
+  createdByName?: string | null;
   lines: TableOrderKotLine[];
 };
 
 export type TableOrderKotView = {
   sessionId: string;
-  status: "OPEN" | "IN_BILLING" | "CLOSED" | "CANCELLED";
+  status: "OPEN" | "AWAITING_SETTLEMENT" | "IN_BILLING" | "CLOSED" | "CANCELLED";
   printable: boolean;
   tableNames: string[];
+  createdByName?: string | null;
   batches: TableOrderKotBatch[];
   unsealedLines: TableOrderKotLine[];
+};
+
+export type TableOrderAwaitingSettlementItem = {
+  sessionId: string;
+  version: number;
+  tableNames: string[];
+  tableNamesLabel: string;
+  subtotal: string;
+  lineCount: number;
+  releasedByName: string | null;
+  awaitingSettlementAt: string | null;
+  openedAt: string;
 };
 
 export type TableOrderBillingHandoff = {
@@ -93,7 +111,7 @@ export type TableOrderBillingHandoff = {
   status: string;
   version: number;
   serviceType: "DINE_IN";
-  primaryTableId: string;
+  primaryTableId: string | null;
   primaryTableName: string;
   tableNames: string[];
   lines: Array<{
@@ -453,6 +471,14 @@ export const operationsApi = {
       mutate<TableOrderSessionDetail>("post", `/table-orders/sessions/${id}/unmerge`, data),
     generateBill: (id: string) =>
       mutate<TableOrderBillingHandoff>("post", `/table-orders/sessions/${id}/generate-bill`, {}),
+    releaseForSettlement: (id: string, data?: { version?: number }) =>
+      mutate<TableOrderSessionDetail>("post", `/table-orders/sessions/${id}/release`, data ?? {}),
+    awaitingSettlement: (options?: { force?: boolean }) =>
+      getData<{ items: TableOrderAwaitingSettlementItem[] }>(
+        "/table-orders/awaiting-settlement",
+        undefined,
+        options,
+      ),
     cancelBilling: (id: string) =>
       mutate<TableOrderSessionDetail>("post", `/table-orders/sessions/${id}/cancel-billing`, {}),
     billingHandoff: (id: string) =>

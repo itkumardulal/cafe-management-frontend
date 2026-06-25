@@ -29,7 +29,7 @@ export type OrderSlipLine = {
 
 type TableOrderSlipProps = {
   tableNames: string[];
-  status: "OPEN" | "IN_BILLING" | "CLOSED" | "CANCELLED";
+  status: "OPEN" | "AWAITING_SETTLEMENT" | "IN_BILLING" | "CLOSED" | "CANCELLED";
   saving: boolean;
   lines: OrderSlipLine[];
   lastAddedKey: string | null;
@@ -44,10 +44,12 @@ type TableOrderSlipProps = {
   onUpdateQty: (key: string, qty: number) => void;
   onRemove: (key: string) => void;
   onGenerateBill: () => void;
+  onMoveToBill?: () => void;
+  movingToBill?: boolean;
   onCancelBilling?: () => void;
   cancellingBilling?: boolean;
   onGoToPos?: () => void;
-};
+}; 
 
 export function TableOrderSlip({
   tableNames,
@@ -66,6 +68,8 @@ export function TableOrderSlip({
   onUpdateQty,
   onRemove,
   onGenerateBill,
+  onMoveToBill,
+  movingToBill,
   onCancelBilling,
   cancellingBilling,
   onGoToPos,
@@ -287,12 +291,12 @@ export function TableOrderSlip({
           </span>
         </div>
         {status === "OPEN" ? (
-          <div className="mt-2">
+          <div className="mt-2 space-y-2">
             <Button
               type="button"
               size="sm"
               className="h-9 w-full text-sm"
-              disabled={generating || lines.length === 0}
+              disabled={generating || movingToBill || lines.length === 0}
               onClick={onGenerateBill}
             >
               {generating ? (
@@ -304,6 +308,25 @@ export function TableOrderSlip({
                 "Generate bill"
               )}
             </Button>
+            {onMoveToBill ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="h-9 w-full text-sm"
+                disabled={generating || movingToBill || lines.length === 0}
+                onClick={onMoveToBill}
+              >
+                {movingToBill ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Moving…
+                  </span>
+                ) : (
+                  "Move to bill (free table)"
+                )}
+              </Button>
+            ) : null}
           </div>
         ) : isBilling ? (
           <div className="mt-2 space-y-2">

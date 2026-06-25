@@ -1,7 +1,7 @@
 "use client";
 
 import axios from "axios";
-import { Combine, FileText, Printer, RefreshCw, Split } from "lucide-react";
+import { Clock, Combine, FileText, Printer, RefreshCw, Split } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -99,6 +99,8 @@ export default function TableOrdersPage() {
   const [orderLines, setOrderLines] = useState<OrderLine[]>([]);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [movingToBill, setMovingToBill] = useState(false);
+  const [waitingCount, setWaitingCount] = useState(0);
   const [cancellingBilling, setCancellingBilling] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeSelected, setMergeSelected] = useState<string[]>([]);
@@ -120,6 +122,15 @@ export default function TableOrdersPage() {
     }
   }, []);
 
+  const refreshWaitingCount = useCallback(async () => {
+    try {
+      const data = await operationsApi.tableOrders.awaitingSettlement({ force: true });
+      setWaitingCount(data.items.length);
+    } catch {
+      // Non-critical badge — ignore failures.
+    }
+  }, []);
+
   useEffect(() => {
     if (sellableCatalogStatus === "idle") {
       void dispatch(fetchSellableCatalogThunk());
@@ -129,6 +140,10 @@ export default function TableOrdersPage() {
   useEffect(() => {
     void loadBoard(false, true);
   }, [loadBoard]);
+
+  useEffect(() => {
+    void refreshWaitingCount();
+  }, [refreshWaitingCount]);
 
   const selectedTableIds = useMemo(
     () => session?.tables.map((t) => t.tableId) ?? [],
@@ -217,7 +232,10 @@ export default function TableOrdersPage() {
 
   const { connectionStatus } = useTableOrdersSocket({
     sessionId: session?.id ?? null,
-    onBoardChanged: () => void loadBoard(true, true),
+    onBoardChanged: () => {
+      void loadBoard(true, true);
+      void refreshWaitingCount();
+    },
     onSessionChanged: () => void refreshOpenSession(),
     onReconnect: () => void handleSocketReconnect(),
   });
@@ -511,6 +529,51 @@ export default function TableOrdersPage() {
     }
   };
 
+  const handleMoveToBill = async () => {
+    if (!session) return;
+    if (orderLines.length === 0) {
+      appToast.error("Add at least one item before moving the table to bill");
+      return;
+    }
+    setMovingToBill(true);
+    try {
+      let current = session;
+      if (current.status === "OPEN") {
+        const saved = await operationsApi.tableOrders.updateLines(current.id, {
+          version: current.version,
+          lines: orderLines.map((l) => ({
+            menuItemId: l.menuItemId,
+            quantity: l.qty,
+            unitPrice: l.unitPrice,
+            notes: l.notes ?? undefined,
+          })),
+        });
+        if (isDeletedSessionUpdate(saved)) {
+          setBoard((prev) => markSessionClearedOnBoard(prev, current));
+          setSession(null);
+          setOrderLines([]);
+          setLastAddedKey(null);
+          await loadBoard(true, true);
+          appToast.error("Add at least one item before moving the table to bill");
+          return;
+        }
+        current = saved;
+      }
+      await operationsApi.tableOrders.releaseForSettlement(current.id, {
+        version: current.version,
+      });
+      closeWorkspace();
+      await loadBoard(true, true);
+      void refreshWaitingCount();
+      appToast.success("Moved to waiting bill settlement — table is now free");
+      router.push("/table-orders/waiting-settlement");
+    } catch (error) {
+      appToast.error(getApiErrorMessage(error, "Failed to move table to bill"));
+    } finally {
+      setMovingToBill(false);
+    }
+  };
+
   const closeWorkspace = () => {
     setSession(null);
     setOrderLines([]);
@@ -564,6 +627,17 @@ export default function TableOrdersPage() {
               <Printer className="mr-1.5 h-3.5 w-3.5" aria-hidden />
               Print KOT
             </Button>
+            <Link href="/table-orders/waiting-settlement">
+              <Button type="button" size="sm" variant="secondary">
+                <Clock className="mr-1.5 h-3.5 w-3.5" />
+                Waiting bills
+                {waitingCount > 0 ? (
+                  <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--color-warning)] px-1.5 text-[11px] font-bold text-white">
+                    {waitingCount}
+                  </span>
+                ) : null}
+              </Button>
+            </Link>
             <Link href="/invoices">
               <Button type="button" size="sm" variant="secondary">
                 <FileText className="mr-1.5 h-3.5 w-3.5" />
@@ -673,6 +747,12 @@ export default function TableOrdersPage() {
                   onUpdateQty={updateLineQty}
                   onRemove={removeLine}
                   onGenerateBill={() => void handleGenerateBill()}
+                  onMoveToBill={
+                    session.status === "OPEN"
+                      ? () => void handleMoveToBill()
+                      : undefined
+                  }
+                  movingToBill={movingToBill}
                   onCancelBilling={
                     session.status === "IN_BILLING"
                       ? () => void handleCancelBilling()

@@ -493,7 +493,9 @@ function PosPageContent() {
       const handoff = await operationsApi.tableOrders.billingHandoff(sessionId);
       if (billingCompletedSessionIdRef.current === sessionId) return;
       setServiceType("DINE_IN");
-      setTableId(handoff.primaryTableId);
+      // A released (awaiting-settlement) session has no physical table; the
+      // backend resolves the table-name snapshot from the session id at checkout.
+      setTableId(handoff.primaryTableId ?? "");
       setSessionTableNames(handoff.tableNames);
       setCart(
         handoff.lines.map((l) => {

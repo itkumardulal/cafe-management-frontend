@@ -27,6 +27,7 @@ export function TableOrderKotReceipt({ batch, className, id }: TableOrderKotRece
         tableNames={batch.tableNamesSnapshot}
         printedAt={formatCompactDateTime(batch.createdAt)}
         itemCount={batch.lines.length}
+        waiterName={batch.createdByName}
       />
 
       <ThermalLineItems

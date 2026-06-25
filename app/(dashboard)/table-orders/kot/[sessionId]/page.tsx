@@ -12,6 +12,7 @@ import { PageHeader } from "@/src/components/shared/page-header";
 import { Button } from "@/src/components/ui/button";
 import { ThermalPrintHost } from "@/src/features/printing/components/thermal-print-host";
 import { useThermalPrint } from "@/src/features/printing/hooks/use-thermal-print";
+import { useTableOrdersSocket } from "@/src/hooks/use-table-orders-socket";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { formatCompactDateTime } from "@/src/features/printing/lib/thermal-text";
 import { appToast } from "@/src/lib/toast";
@@ -37,6 +38,7 @@ export default function TableOrderKotPage() {
   const sessionId = typeof params.sessionId === "string" ? params.sessionId : "";
 
   const [loading, setLoading] = useState(true);
+  const [sealing, setSealing] = useState(false);
   const [kot, setKot] = useState<TableOrderKotView | null>(null);
 
   const { printDocument, isPrinting, printLoaded } =
@@ -49,10 +51,7 @@ export default function TableOrderKotPage() {
     if (!sessionId) return;
     setLoading(true);
     try {
-      let view = await operationsApi.tableOrders.getKot(sessionId, { force: true });
-      if (view.printable && view.unsealedLines.length > 0) {
-        view = await operationsApi.tableOrders.sealKot(sessionId);
-      }
+      const view = await operationsApi.tableOrders.getKot(sessionId, { force: true });
       setKot(view);
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 404) {
@@ -70,11 +69,41 @@ export default function TableOrderKotPage() {
     void loadKot();
   }, [loadKot]);
 
+  useTableOrdersSocket({
+    sessionId,
+    onBoardChanged: () => {},
+    onSessionChanged: () => {
+      void loadKot();
+    },
+    onReconnect: () => {
+      void loadKot();
+    },
+  });
+
   const handlePrintBatch = (batch: TableOrderKotBatch) => {
     printLoaded(batch);
   };
 
-  const showEmpty = !loading && kot && (!kot.printable || kot.batches.length === 0);
+  const handlePrintUnsealed = async () => {
+    if (!sessionId || !kot || kot.unsealedLines.length === 0 || sealing) return;
+    setSealing(true);
+    try {
+      const view = await operationsApi.tableOrders.sealKot(sessionId);
+      setKot(view);
+      const latestBatch = view.batches.at(-1);
+      if (latestBatch) {
+        printLoaded(latestBatch);
+      }
+    } catch (error) {
+      appToast.error(getApiErrorMessage(error, "Failed to send kitchen order"));
+    } finally {
+      setSealing(false);
+    }
+  };
+
+  const hasUnsealed = (kot?.unsealedLines.length ?? 0) > 0;
+  const showEmpty =
+    !loading && kot && !hasUnsealed && (!kot.printable || kot.batches.length === 0);
 
   return (
     <section className="page-shell page-content space-y-6 pb-10">
@@ -124,6 +153,52 @@ export default function TableOrderKotPage() {
         </div>
       ) : kot ? (
         <div className="space-y-4">
+          {hasUnsealed ? (
+            <article className="rounded-xl border border-[var(--color-border)] bg-[color-mix(in_srgb,var(--color-warning)_8%,var(--color-surface))] overflow-hidden">
+              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--color-border)] px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-[var(--color-foreground)]">
+                    Pending kitchen items
+                  </p>
+                  <p className="mt-0.5 text-xs text-[var(--color-muted)]">
+                    Not yet sent to the kitchen — print to seal and send
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={isPrinting || sealing}
+                  onClick={() => void handlePrintUnsealed()}
+                >
+                  <Printer className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                  {sealing ? "Sending…" : "Print pending"}
+                </Button>
+              </div>
+              <ul className="divide-y divide-[var(--color-border)] px-4 py-2">
+                {kot.unsealedLines.map((line, idx) => (
+                  <li
+                    key={`unsealed-${idx}`}
+                    className="flex items-start justify-between gap-3 py-2.5 text-sm"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <span className="font-medium text-[var(--color-foreground)]">
+                        {line.menuItemName}
+                      </span>
+                      {line.notes?.trim() ? (
+                        <p className="mt-0.5 text-xs text-[var(--color-muted)]">
+                          {line.notes.trim()}
+                        </p>
+                      ) : null}
+                    </div>
+                    <span className="shrink-0 font-mono font-semibold tabular-nums text-[var(--color-foreground)]">
+                      × {line.quantity}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </article>
+          ) : null}
+
           {kot.batches.map((batch) => (
             <article
               key={batch.id}
@@ -136,12 +211,13 @@ export default function TableOrderKotPage() {
                   </p>
                   <p className="mt-0.5 text-xs text-[var(--color-muted)]">
                     Table {batch.tableNamesSnapshot} · {formatCompactDateTime(batch.createdAt)}
+                    {batch.createdByName ? ` · Waiter ${batch.createdByName}` : ""}
                   </p>
                 </div>
                 <Button
                   type="button"
                   size="sm"
-                  disabled={isPrinting}
+                  disabled={isPrinting || sealing}
                   onClick={() => handlePrintBatch(batch)}
                 >
                   <Printer className="mr-1.5 h-3.5 w-3.5" aria-hidden />

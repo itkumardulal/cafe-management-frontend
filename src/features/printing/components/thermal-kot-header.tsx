@@ -7,6 +7,7 @@ type ThermalKotHeaderProps = {
   tableNames: string;
   printedAt: string;
   itemCount: number;
+  waiterName?: string | null;
 };
 
 /** Kitchen ticket header — no cafe logo or name (POS receipts keep full branding). */
@@ -15,6 +16,7 @@ export function ThermalKotHeader({
   tableNames,
   printedAt,
   itemCount,
+  waiterName,
 }: ThermalKotHeaderProps) {
   return (
     <header className="thermal-receipt-header">
@@ -28,6 +30,12 @@ export function ThermalKotHeader({
         </span>
         <span className="ml-auto text-right text-[10px] font-medium">Table {tableNames}</span>
       </div>
+
+      {waiterName ? (
+        <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide">
+          Waiter: {waiterName}
+        </p>
+      ) : null}
 
       <p className="mt-1 text-[9px] leading-snug text-black/80">
         Printed {printedAt} · {itemCount} item{itemCount === 1 ? "" : "s"}
