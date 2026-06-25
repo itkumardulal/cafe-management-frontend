@@ -22,19 +22,25 @@ export function MenuSearchBar({
         <Search className="h-4 w-4" strokeWidth={2} />
       </span>
       <input
-        type="search"
+        type="text"
+        role="searchbox"
+        enterKeyHint="search"
+        autoComplete="off"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label="Search menu items"
-        className="public-menu-search-input"
+        className="public-menu-search-input search-field-custom-clear"
       />
       {value.trim() ? (
         <button
           type="button"
-          onClick={() => onChange("")}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            onChange("");
+          }}
           aria-label="Clear search"
-          className="public-menu-search-clear touch-target absolute right-1 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-full"
+          className="public-menu-search-clear touch-target absolute right-1 top-1/2 z-10 flex -translate-y-1/2 items-center justify-center rounded-full"
         >
           <X className="h-4 w-4" aria-hidden />
         </button>

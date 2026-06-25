@@ -49,7 +49,9 @@ type TableOrderSlipProps = {
   onCancelBilling?: () => void;
   cancellingBilling?: boolean;
   onGoToPos?: () => void;
-}; 
+  menuSearchActive?: boolean;
+  onClearMenuSearch?: () => void;
+};
 
 export function TableOrderSlip({
   tableNames,
@@ -73,6 +75,8 @@ export function TableOrderSlip({
   onCancelBilling,
   cancellingBilling,
   onGoToPos,
+  menuSearchActive,
+  onClearMenuSearch,
 }: TableOrderSlipProps) {
   const listRef = useRef<HTMLUListElement>(null);
   const isOpen = status === "OPEN";
@@ -113,6 +117,16 @@ export function TableOrderSlip({
               ) : null}
               {saving ? (
                 <span className="text-[11px] text-[var(--color-muted)]">Saving…</span>
+              ) : null}
+              {menuSearchActive && onClearMenuSearch ? (
+                <button
+                  type="button"
+                  onClick={onClearMenuSearch}
+                  className="inline-flex items-center gap-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--color-muted)] transition-colors hover:border-[var(--color-input)] hover:text-[var(--color-foreground)]"
+                >
+                  <X className="h-3 w-3" aria-hidden />
+                  Clear menu search
+                </button>
               ) : null}
             </div>
           </div>
@@ -199,82 +213,97 @@ export function TableOrderSlip({
 
       <div className={cn(tableOrdersScrollArea, "px-3 py-3")}>
         {lines.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-10 text-center">
-            <Receipt className="h-9 w-9 text-[var(--color-muted)] opacity-50" strokeWidth={1.25} aria-hidden />
-            <p className="mt-3 text-sm font-medium text-[var(--color-foreground)]">No items yet</p>
-            <p className="mt-1 max-w-[14rem] text-xs text-[var(--color-muted)]">
+          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-6 text-center">
+            <Receipt className="h-6 w-6 text-[var(--color-muted)] opacity-50" strokeWidth={1.25} aria-hidden />
+            <p className="mt-2 text-sm font-medium text-[var(--color-foreground)]">No items yet</p>
+            <p className="mt-0.5 max-w-[14rem] text-xs text-[var(--color-muted)]">
               {isBilling
                 ? "Resume editing to clear this order and free the table."
-                : "Use Add on each dish in the menu to add them here."}
+                : "Search dishes above or browse categories, then tap Add."}
             </p>
           </div>
         ) : (
-          <ul ref={listRef} className="space-y-2">
+          <ul ref={listRef} className="space-y-1.5">
             {lines.map((l) => {
               const lineTotal = Math.round(l.qty * l.unitPrice * 100) / 100;
               const isLastAdded = lastAddedKey === l.key;
+              const over = l.maxQty < 999_999 && l.qty > l.maxQty;
               return (
                 <li
                   key={l.key}
                   data-line-key={l.key}
                   className={cn(
-                    "rounded-xl border bg-[var(--color-surface)] p-3",
-                    isLastAdded
-                      ? "border-[var(--color-primary)]/40 shadow-[var(--shadow-sm)]"
-                      : "border-[var(--color-border)]",
+                    "rounded-lg border px-2.5 py-2 transition-colors",
+                    over
+                      ? "border-red-300/60 bg-red-500/5"
+                      : isLastAdded
+                        ? "border-[var(--color-primary)]/40 bg-[color-mix(in_srgb,var(--color-primary)_4%,var(--color-surface))]"
+                        : "border-[var(--color-border)] bg-[var(--color-surface)]",
                   )}
                 >
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2">
                     <div className="min-w-0 flex-1">
                       {isLastAdded ? (
-                        <span className="mb-1 inline-block text-[10px] font-semibold uppercase tracking-wide text-[var(--color-primary)]">
+                        <span className="mb-0.5 inline-block text-[10px] font-semibold uppercase tracking-wide text-[var(--color-primary)]">
                           Latest
                         </span>
                       ) : null}
-                      <p className="text-sm font-semibold leading-snug text-[var(--color-foreground)]">
+                      <p className="text-sm font-medium leading-snug text-[var(--color-foreground)]">
                         {l.name}
                       </p>
-                      <p className="mt-0.5 text-xs text-[var(--color-muted)]">
-                        {formatMoney(l.unitPrice)} × {l.qty % 1 === 0 ? l.qty : l.qty.toFixed(2)}
-                      </p>
-                      {l.notes ? (
-                        <p className="mt-1 text-xs italic text-[var(--color-subtle)]">{l.notes}</p>
-                      ) : null}
                     </div>
-                    <p className="shrink-0 font-mono text-sm font-semibold tabular-nums text-[var(--color-foreground)]">
+                    <span className="shrink-0 font-mono text-sm font-semibold tabular-nums text-[var(--color-foreground)]">
                       {formatMoney(lineTotal)}
-                    </p>
+                    </span>
+                    {editable ? (
+                      <button
+                        type="button"
+                        onClick={() => onRemove(l.key)}
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-danger)] hover:bg-red-50 dark:hover:bg-red-950/40"
+                        aria-label={`Remove ${l.name}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    ) : null}
                   </div>
-                  {editable ? (
-                    <div className="mt-2.5 flex items-center justify-between gap-2">
-                      <div className="inline-flex items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-0.5">
+                  <div className="mt-1.5 flex items-center gap-2">
+                    {editable ? (
+                      <div className="inline-flex shrink-0 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-0.5">
                         <QtyButton
-                          label={l.qty <= 1 ? "Remove item" : "Decrease"}
+                          label={l.qty <= 1 ? "Remove item" : "Decrease quantity"}
                           onClick={() =>
                             l.qty <= 1 ? onRemove(l.key) : onUpdateQty(l.key, l.qty - 1)
                           }
                         >
                           <Minus className="h-3.5 w-3.5" />
                         </QtyButton>
-                        <span className="min-w-[2.25rem] text-center font-mono text-sm font-semibold tabular-nums">
+                        <span className="min-w-[1.75rem] px-0.5 text-center font-mono text-xs font-semibold tabular-nums text-[var(--color-foreground)]">
                           {l.qty % 1 === 0 ? l.qty : l.qty.toFixed(2)}
                         </span>
                         <QtyButton
-                          label="Increase"
+                          label="Increase quantity"
                           onClick={() => onUpdateQty(l.key, Math.min(l.maxQty, l.qty + 1))}
                         >
                           <Plus className="h-3.5 w-3.5" />
                         </QtyButton>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => onRemove(l.key)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--color-danger)] hover:bg-red-50 dark:hover:bg-red-950/40"
-                        aria-label={`Remove ${l.name}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
+                    ) : (
+                      <span className="font-mono text-xs font-semibold tabular-nums text-[var(--color-foreground)]">
+                        {l.qty % 1 === 0 ? l.qty : l.qty.toFixed(2)}
+                      </span>
+                    )}
+                    <span className="text-[10px] text-[var(--color-muted)]" aria-hidden>
+                      ×
+                    </span>
+                    <span className="font-mono text-xs tabular-nums text-[var(--color-muted)]">
+                      {formatMoney(l.unitPrice)}
+                    </span>
+                    {over ? (
+                      <p className="ml-auto text-[10px] text-red-600">Max {l.maxQty}</p>
+                    ) : null}
+                  </div>
+                  {l.notes ? (
+                    <p className="mt-1 text-[11px] italic text-[var(--color-subtle)]">{l.notes}</p>
                   ) : null}
                 </li>
               );
@@ -368,7 +397,7 @@ function QtyButton({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[var(--color-foreground)] hover:bg-[var(--color-cream-100)]"
+      className="inline-flex h-7 w-7 items-center justify-center rounded text-[var(--color-muted)] hover:bg-[var(--color-cream-100)]"
     >
       {children}
     </button>

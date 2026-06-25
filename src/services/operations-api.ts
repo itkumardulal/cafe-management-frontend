@@ -72,6 +72,7 @@ export type TableOrderKotLine = {
   menuItemName: string;
   quantity: string;
   notes?: string | null;
+  unitPrice?: string | null;
 };
 
 export type TableOrderKotBatch = {

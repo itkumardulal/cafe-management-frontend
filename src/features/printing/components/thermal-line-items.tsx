@@ -35,7 +35,12 @@ type ThermalLineItemsProps =
     }
   | {
       variant: "kot";
-      lines: Array<{ name: string; quantity: string; notes?: string | null }>;
+      lines: Array<{
+        name: string;
+        quantity: string;
+        unitPrice?: string | null;
+        notes?: string | null;
+      }>;
       paperProfile?: PaperProfile;
     };
 
@@ -43,18 +48,20 @@ export function ThermalLineItems(props: ThermalLineItemsProps) {
   const paperProfile = props.paperProfile ?? DEFAULT_PAPER_PROFILE;
 
   if (props.variant === "kot") {
-    const itemMaxChars = Math.max(12, paperProfile.maxChars - 10);
+    const itemMaxChars = Math.max(10, paperProfile.maxChars - 20);
 
     return (
       <table className="w-full table-fixed border-collapse text-[10px]">
         <colgroup>
           <col />
-          <col className="w-[18%]" />
+          <col className="w-[14%]" />
+          <col className="w-[22%]" />
         </colgroup>
         <thead>
           <tr className="border-b border-black text-[8px] uppercase">
             <th className="pb-1 text-left font-semibold">Item</th>
-            <th className="pb-1 text-right font-semibold">Qty</th>
+            <th className="pb-1 pr-0.5 text-right font-semibold">Qty</th>
+            <th className="pb-1 text-right font-semibold">Rate</th>
           </tr>
         </thead>
         <tbody>
@@ -68,8 +75,11 @@ export function ThermalLineItems(props: ThermalLineItemsProps) {
                   </p>
                 ) : null}
               </td>
-              <td className="py-1 text-right font-mono text-[11px] font-semibold tabular-nums whitespace-nowrap">
+              <td className="py-1 pr-0.5 text-right font-mono text-[11px] font-semibold tabular-nums whitespace-nowrap">
                 {formatMoneyCompact(line.quantity)}
+              </td>
+              <td className="py-1 text-right font-mono tabular-nums whitespace-nowrap">
+                {line.unitPrice ? formatMoneyCompact(line.unitPrice) : "—"}
               </td>
             </tr>
           ))}

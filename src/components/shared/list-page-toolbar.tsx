@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Search, X } from "lucide-react";
-import type { ReactNode } from "react";
+import type { PointerEvent, ReactNode } from "react";
 import { Input } from "@/src/components/ui/input";
 import { cn } from "@/src/lib/cn";
 
@@ -41,6 +41,12 @@ export function ListPageToolbar({
     onSearchChange?.("");
   };
 
+  const handleClearPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
+    // Keep focus on the input and avoid the click being swallowed by the field underneath.
+    event.preventDefault();
+    handleClear();
+  };
+
   return (
     <div className={cn("flex flex-col gap-3", className)}>
       <div className="flex flex-row flex-wrap items-center gap-2">
@@ -52,8 +58,10 @@ export function ListPageToolbar({
                 aria-hidden
               />
               <Input
-                type="search"
+                type="text"
+                role="searchbox"
                 enterKeyHint="search"
+                autoComplete="off"
                 value={searchValue ?? ""}
                 onChange={(event) => onSearchChange(event.target.value)}
                 onKeyDown={(event) => {
@@ -63,10 +71,13 @@ export function ListPageToolbar({
                   }
                 }}
                 placeholder={searchPlaceholder}
-                className={cn("h-10 pl-9", (hasQuery || isSearching) && "pr-16")}
+                className={cn(
+                  "search-field-custom-clear h-10 pl-9",
+                  (hasQuery || isSearching) && "pr-16",
+                )}
                 aria-label={searchPlaceholder}
               />
-              <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+              <div className="pointer-events-none absolute right-2 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1">
                 {isSearching ? (
                   <Loader2
                     className="h-4 w-4 animate-spin text-[var(--color-muted)]"
@@ -76,8 +87,8 @@ export function ListPageToolbar({
                 {hasQuery ? (
                   <button
                     type="button"
-                    onClick={handleClear}
-                    className="icon-button-square text-[var(--color-muted)] transition-colors hover:bg-[var(--color-cream-100)] hover:text-[var(--color-foreground)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]"
+                    onPointerDown={handleClearPointerDown}
+                    className="pointer-events-auto icon-button-square text-[var(--color-muted)] transition-colors hover:bg-[var(--color-cream-100)] hover:text-[var(--color-foreground)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]"
                     aria-label="Clear search"
                   >
                     <X className="h-4 w-4" aria-hidden />

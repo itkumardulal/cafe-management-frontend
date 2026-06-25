@@ -291,10 +291,8 @@ export function usePaginatedList<T>({
 
   const clearSearch = useCallback(() => {
     setSearchInput("");
-    if (params.search) {
-      replaceParams({ search: "", resetPage: true });
-    }
-  }, [params.search, replaceParams]);
+    replaceParams({ search: "", resetPage: true });
+  }, [replaceParams]);
 
   const hasActiveFilters = useMemo(() => {
     return (

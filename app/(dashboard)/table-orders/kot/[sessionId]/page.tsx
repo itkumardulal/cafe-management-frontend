@@ -15,6 +15,7 @@ import { useThermalPrint } from "@/src/features/printing/hooks/use-thermal-print
 import { useTableOrdersSocket } from "@/src/hooks/use-table-orders-socket";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { formatCompactDateTime } from "@/src/features/printing/lib/thermal-text";
+import { kotBatchDisplayTitle } from "@/src/lib/kot-display";
 import { appToast } from "@/src/lib/toast";
 import {
   operationsApi,
@@ -178,9 +179,9 @@ export default function TableOrderKotPage() {
                 {kot.unsealedLines.map((line, idx) => (
                   <li
                     key={`unsealed-${idx}`}
-                    className="flex items-start justify-between gap-3 py-2.5 text-sm"
+                    className="grid grid-cols-[1fr_auto_auto] items-start gap-3 py-2.5 text-sm"
                   >
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0">
                       <span className="font-medium text-[var(--color-foreground)]">
                         {line.menuItemName}
                       </span>
@@ -190,6 +191,9 @@ export default function TableOrderKotPage() {
                         </p>
                       ) : null}
                     </div>
+                    <span className="shrink-0 font-mono text-xs tabular-nums text-[var(--color-muted)]">
+                      {line.unitPrice ? `Rs ${line.unitPrice}` : "—"}
+                    </span>
                     <span className="shrink-0 font-mono font-semibold tabular-nums text-[var(--color-foreground)]">
                       × {line.quantity}
                     </span>
@@ -207,7 +211,7 @@ export default function TableOrderKotPage() {
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--color-border)] px-4 py-3">
                 <div>
                   <p className="text-sm font-semibold text-[var(--color-foreground)]">
-                    {batch.batchNo > 1 ? `${batch.label} ${batch.batchNo}` : batch.label}
+                    {kotBatchDisplayTitle(batch)}
                   </p>
                   <p className="mt-0.5 text-xs text-[var(--color-muted)]">
                     Table {batch.tableNamesSnapshot} · {formatCompactDateTime(batch.createdAt)}
@@ -228,9 +232,9 @@ export default function TableOrderKotPage() {
                 {batch.lines.map((line, idx) => (
                   <li
                     key={`${batch.id}-${idx}`}
-                    className="flex items-start justify-between gap-3 py-2.5 text-sm"
+                    className="grid grid-cols-[1fr_auto_auto] items-start gap-3 py-2.5 text-sm"
                   >
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0">
                       <span className="font-medium text-[var(--color-foreground)]">
                         {line.menuItemName}
                       </span>
@@ -240,6 +244,9 @@ export default function TableOrderKotPage() {
                         </p>
                       ) : null}
                     </div>
+                    <span className="shrink-0 font-mono text-xs tabular-nums text-[var(--color-muted)]">
+                      {line.unitPrice ? `Rs ${line.unitPrice}` : "—"}
+                    </span>
                     <span className="shrink-0 font-mono font-semibold tabular-nums text-[var(--color-foreground)]">
                       × {line.quantity}
                     </span>

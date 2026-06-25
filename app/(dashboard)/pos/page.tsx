@@ -8,11 +8,11 @@ import {
   Minus,
   Plus,
   Printer,
-  Search,
   ShoppingCart,
   Trash2,
   Truck,
   UtensilsCrossed,
+  X,
 } from "lucide-react";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -53,10 +53,13 @@ import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
 import { fetchSellableCatalogThunk } from "@/src/store/slices/reference-data.slice";
+import { TableMenuPicker } from "@/src/components/table-orders/table-menu-picker";
 import {
-  buildCatalogSections,
-  buildCategoryChips,
-} from "@/src/lib/menu-catalog-layout";
+  tableOrdersScrollArea,
+  tableOrdersMenuColumn,
+  tableOrdersSlipColumn,
+  tableOrdersWorkspaceSplit,
+} from "@/src/components/table-orders/table-orders-layout";
 import type { SellableCatalogItem } from "@/src/store/types/reference-data.types";
 
 type CatalogItem = SellableCatalogItem;
@@ -96,23 +99,8 @@ const focusRing =
 
 const AUTO_PRINT_STORAGE_KEY = "pos.autoPrintReceipt";
 
-const actionIconClass = cn(
-  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-muted)] transition-colors hover:border-[var(--color-primary)]/30 hover:bg-[var(--color-cream-100)] hover:text-[var(--color-foreground)]",
-  focusRing,
-);
-
 const panelShell =
   "flex min-h-0 flex-col overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-sm)]";
-
-const menuPanelShell = cn(
-  panelShell,
-  "max-lg:rounded-b-none max-lg:border-b-0 lg:rounded-r-none lg:border-r-0",
-);
-
-const checkoutPanelShell = cn(
-  panelShell,
-  "max-lg:rounded-t-none lg:rounded-l-none lg:border-l-0",
-);
 
 const segmentClass = (active: boolean) =>
   cn(
@@ -125,94 +113,6 @@ const segmentClass = (active: boolean) =>
 
 const checkoutSectionTitle = "text-sm font-semibold text-foreground";
 const checkoutSectionGap = "space-y-2";
-
-const chipClass = (active: boolean) =>
-  cn(
-    "shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
-    focusRing,
-    active
-      ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-nav-active-text)] shadow-sm"
-      : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-nav-idle)] hover:border-[var(--color-input)] hover:bg-[var(--color-cream-100)] hover:text-[var(--color-nav-idle-hover)]",
-  );
-
-function MenuItemCard({
-  item,
-  qtyInCart,
-  onAdd,
-}: {
-  item: CatalogItem;
-  qtyInCart: number;
-  onAdd: () => void;
-}) {
-  const inCart = qtyInCart > 0;
-  const stock = item.trackStock ? Number(item.quantityOnHand ?? 0) : null;
-  const outOfStock =
-    item.trackStock && (!Number.isFinite(stock!) || (stock ?? 0) <= 0);
-
-  return (
-    <article
-      className={cn(
-        "flex flex-col overflow-hidden rounded-xl border bg-[var(--color-surface)] text-left transition-all",
-        outOfStock && "opacity-50",
-        inCart
-          ? "border-[var(--color-primary)] shadow-sm"
-          : "border-[var(--color-border)]",
-      )}
-    >
-      <div className="relative aspect-[5/4] w-full bg-[var(--color-cream-100)]">
-        {item.imageUrl ? (
-          <img
-            src={item.imageUrl}
-            alt=""
-            className="h-full w-full object-cover"
-            loading="lazy"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-muted/35">
-            <UtensilsCrossed className="h-9 w-9" strokeWidth={1.25} />
-          </div>
-        )}
-        {inCart ? (
-          <span className="absolute right-1.5 top-1.5 rounded-md bg-[var(--color-primary)] px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm">
-            ×{qtyInCart % 1 === 0 ? qtyInCart : qtyInCart.toFixed(2)}
-          </span>
-        ) : null}
-      </div>
-      <div className="flex flex-1 flex-col gap-1 p-2">
-        <p className="line-clamp-2 min-h-[2.5rem] text-sm font-medium leading-snug text-foreground">
-          {item.name}
-        </p>
-        <div className="mt-auto flex items-end justify-between gap-2 pt-1">
-          <div className="min-w-0">
-            <p className="text-sm font-bold tabular-nums text-[var(--color-primary)]">
-              {formatMoney(item.sellPricePerUnit)}
-            </p>
-            {item.trackStock ? (
-              <p className="text-[10px] tabular-nums text-muted">
-                {outOfStock ? "Out of stock" : `${item.quantityOnHand} left`}
-              </p>
-            ) : null}
-          </div>
-          <button
-            type="button"
-            disabled={outOfStock}
-            onClick={onAdd}
-            aria-label={`Add ${item.name}`}
-            className={cn(
-              "shrink-0 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors",
-              focusRing,
-              outOfStock
-                ? "cursor-not-allowed border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-muted)] opacity-50"
-                : "border-transparent bg-[var(--color-danger)] text-white hover:bg-[color-mix(in_srgb,var(--color-danger)_88%,#000)]",
-            )}
-          >
-            Add
-          </button>
-        </div>
-      </div>
-    </article>
-  );
-}
 
 function CollapsibleBlock({
   title,
@@ -308,6 +208,8 @@ function PosPageContent() {
   const [autoPrintReceipt, setAutoPrintReceipt] = useState(false);
   const [successSale, setSuccessSale] = useState<{ id: string; receiptNo: string } | null>(null);
   const [customerOpen, setCustomerOpen] = useState(false);
+  const [extraChargesOpen, setExtraChargesOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const needsCustomerDetails =
     serviceType === "DELIVERY" ||
     checkoutPaymentType === "CREDIT" ||
@@ -366,20 +268,6 @@ function PosPageContent() {
       return next;
     });
   };
-
-  const categories = useMemo(
-    () => buildCategoryChips(catalog.categories, catalogItems),
-    [catalog.categories, catalogItems],
-  );
-
-  const catalogSections = useMemo(
-    () =>
-      buildCatalogSections(catalog.categories, catalogItems, {
-        categoryFilter,
-        search,
-      }),
-    [catalog.categories, catalogItems, categoryFilter, search],
-  );
 
   const cartQtyByItemId = useMemo(() => {
     const map = new Map<string, number>();
@@ -645,6 +533,11 @@ function PosPageContent() {
     setTenderMode("CASH");
     setBankAccountId(bankAccounts[0]?.id ?? "");
     setTableId("");
+    setSearch("");
+    setCategoryFilter("");
+    setExtraChargesOpen(false);
+    setNotesOpen(false);
+    setCustomerOpen(false);
   };
 
   const onCheckout = async () => {
@@ -744,19 +637,25 @@ function PosPageContent() {
     void requestPrint(() => fetchSaleDetail(id));
   };
 
-  const scrollToCheckout = () => {
-    document.getElementById("pos-checkout")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
+  const extraChargesHint = useMemo(() => {
+    if (!otherChargeResult.invalid && otherChargeResult.amount > 0) {
+      return formatMoney(otherChargeResult.amount);
+    }
+    return "Optional";
+  }, [otherChargeResult]);
+
+  const notesHint = useMemo(() => {
+    const trimmed = notes.trim();
+    if (!trimmed) return "Optional";
+    return trimmed.length > 24 ? `${trimmed.slice(0, 24)}…` : trimmed;
+  }, [notes]);
+
+  const menuSearchActive = search.trim().length > 0;
 
   return (
-    <section
-      className={cn(
-        "page-shell safe-bottom flex flex-col pb-24 lg:h-full lg:min-h-0 lg:overflow-hidden lg:pb-0",
-        cart.length > 0 && "max-lg:pb-36",
-      )}
-    >
+    <section className="page-shell flex min-h-0 flex-col overflow-hidden lg:h-full lg:min-h-0">
       {billingFromSession ? (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sky-400/40 bg-sky-50/80 px-3 py-2 dark:bg-sky-950/30">
+        <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-sky-400/40 bg-sky-50/80 px-3 py-2 dark:bg-sky-950/30">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground">
               Billing table order
@@ -844,77 +743,48 @@ function PosPageContent() {
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 shrink-0 flex-col overflow-hidden">
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,26rem)] xl:grid-cols-[minmax(0,1fr)_minmax(24rem,28rem)]">
-          {/* Menu — toolbar fixed, catalog scrolls */}
-          <div className={cn(menuPanelShell, "flex min-h-0 flex-col")}>
-            <div className="shrink-0 space-y-2 border-b border-[var(--color-border)] bg-[var(--color-surface-muted)]/40 px-3 py-1.5">
-              <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-              <Input
-                placeholder="Search menu…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-9 pl-9"
-              />
-            </div>
-            {categories.length > 0 ? (
-              <div className="flex flex-wrap gap-1">
-                <button type="button" onClick={() => setCategoryFilter("")} className={chipClass(!categoryFilter)}>
-                  All
-                </button>
-                {categories.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setCategoryFilter(c.id)}
-                    className={chipClass(categoryFilter === c.id)}
-                  >
-                    {c.label}
-                  </button>
-                ))}
+      <div
+        className={cn(
+          panelShell,
+          "flex min-h-0 flex-1 shrink-0 flex-col overflow-hidden",
+        )}
+      >
+        <div className={tableOrdersWorkspaceSplit}>
+          <div className={tableOrdersMenuColumn}>
+            {catalogItems.length === 0 && !catalogLoading ? (
+              <div className="flex flex-1 items-center justify-center p-6">
+                <EmptyState title="No items" description="No sellable stock." />
               </div>
-            ) : null}
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-2 pt-1 [scrollbar-gutter:stable]">
-            {catalogLoading ? (
-              <div className="flex flex-col items-center justify-center gap-2 py-12 text-muted">
-                <div className="h-6 w-6 animate-pulse rounded-full bg-[var(--color-cream-200)]" />
-                <p className="text-sm">Loading menu…</p>
-              </div>
-            ) : catalogItems.length === 0 ? (
-              <EmptyState title="No items" description="No sellable stock." />
             ) : (
-              <div className="space-y-5">
-                {catalogSections.map((section) => (
-                  <section key={section.id}>
-                    {section.title ? (
-                      <h2 className="mb-2.5 text-xs font-semibold text-foreground">{section.title}</h2>
-                    ) : null}
-                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                      {section.items.map((item) => (
-                        <MenuItemCard
-                          key={item.id}
-                          item={item}
-                          qtyInCart={cartQtyByItemId.get(item.id) ?? 0}
-                          onAdd={() => addToCart(item)}
-                        />
-                      ))}
-                    </div>
-                  </section>
-                ))}
-              </div>
+              <TableMenuPicker
+                catalog={catalog}
+                loading={catalogLoading}
+                search={search}
+                onSearchChange={setSearch}
+                categoryFilter={categoryFilter}
+                onCategoryFilterChange={setCategoryFilter}
+                qtyByItemId={cartQtyByItemId}
+                onAddItem={addToCart}
+              />
             )}
           </div>
-          </div>
 
-          {/* Checkout — body scrolls vertically; total + Bill stay pinned */}
-          <div id="pos-checkout" className={cn(checkoutPanelShell, "flex min-h-0 flex-col scroll-mt-4")}>
-            <div className="flex shrink-0 items-center border-b border-[var(--color-border)] bg-[var(--color-surface-muted)]/40 px-3 py-1.5">
+          <div id="pos-checkout" className={tableOrdersSlipColumn}>
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[var(--color-border)] bg-[var(--color-surface-muted)]/40 px-4 py-2.5">
               <h2 className="text-sm font-semibold text-foreground">Checkout</h2>
+              {menuSearchActive ? (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="inline-flex items-center gap-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-0.5 text-[10px] font-semibold text-[var(--color-muted)] transition-colors hover:border-[var(--color-input)] hover:text-[var(--color-foreground)]"
+                >
+                  <X className="h-3 w-3" aria-hidden />
+                  Clear menu search
+                </button>
+              ) : null}
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2 [scrollbar-gutter:stable]">
+            <div className={cn(tableOrdersScrollArea, "px-3 py-2")}>
               <div className="space-y-3">
               <section className={checkoutSectionGap}>
                 <h3 className={checkoutSectionTitle}>How is this order?</h3>
@@ -1007,13 +877,13 @@ function PosPageContent() {
                   ) : null}
                 </div>
             {cart.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-cream-50)]/50 px-4 py-10 text-center">
-                <ShoppingCart className="mx-auto h-8 w-8 text-muted/70" strokeWidth={1.5} />
-                <p className="mt-3 text-sm font-medium text-foreground">No items yet</p>
-                <p className="mt-1 text-xs text-muted">Use Add on each dish in the menu to add them here</p>
+              <div className="rounded-lg border border-dashed border-[var(--color-border)] bg-[var(--color-cream-50)]/50 px-3 py-6 text-center">
+                <ShoppingCart className="mx-auto h-6 w-6 text-muted/70" strokeWidth={1.5} />
+                <p className="mt-2 text-sm font-medium text-foreground">No items yet</p>
+                <p className="mt-0.5 text-xs text-muted">Search or browse the menu, then tap Add.</p>
               </div>
             ) : (
-              <ul className="space-y-3">
+              <ul className="space-y-1.5">
                 {cart.map((line) => {
                   const over = line.qty > line.maxQty;
                   const lineTotal = Math.round(line.qty * line.unitPrice * 100) / 100;
@@ -1021,96 +891,88 @@ function PosPageContent() {
                     <li
                       key={line.key}
                       className={cn(
-                        "rounded-xl border p-3 transition-colors",
+                        "rounded-lg border px-2.5 py-2 transition-colors",
                         over
                           ? "border-red-300/60 bg-red-500/5"
                           : "border-[var(--color-border)] bg-[var(--color-surface)]",
                       )}
                     >
-                      <div className="space-y-2.5">
-                        <div className="flex items-start gap-2">
-                          <p className="min-w-0 flex-1 text-sm font-medium leading-snug text-foreground">
-                            {line.name}
-                          </p>
-                          <span className="shrink-0 font-mono text-sm font-semibold tabular-nums text-foreground">
-                            {formatMoney(lineTotal)}
+                      <div className="flex items-start gap-2">
+                        <p className="min-w-0 flex-1 text-sm font-medium leading-snug text-foreground">
+                          {line.name}
+                        </p>
+                        <span className="shrink-0 font-mono text-sm font-semibold tabular-nums text-foreground">
+                          {formatMoney(lineTotal)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeLine(line.key)}
+                          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-danger)] hover:bg-red-50 dark:hover:bg-red-950/40"
+                          aria-label={`Remove ${line.name}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <div className="inline-flex shrink-0 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-0.5">
+                          <button
+                            type="button"
+                            className={cn(
+                              "flex h-7 w-7 items-center justify-center rounded text-muted hover:bg-[var(--color-cream-100)]",
+                              focusRing,
+                            )}
+                            aria-label={line.qty <= 1 ? "Remove item" : "Decrease quantity"}
+                            onClick={() =>
+                              line.qty <= 1
+                                ? removeLine(line.key)
+                                : updateCartLine(line.key, {
+                                    qty: Math.max(0.01, Math.round((line.qty - 1) * 100) / 100),
+                                  })
+                            }
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </button>
+                          <span className="min-w-[1.75rem] px-0.5 text-center font-mono text-xs font-semibold tabular-nums text-foreground">
+                            {line.qty % 1 === 0 ? line.qty : line.qty.toFixed(2)}
                           </span>
                           <button
                             type="button"
-                            onClick={() => removeLine(line.key)}
-                            className={actionIconClass}
-                            aria-label="Remove"
+                            className={cn(
+                              "flex h-7 w-7 items-center justify-center rounded text-muted hover:bg-[var(--color-cream-100)]",
+                              focusRing,
+                            )}
+                            aria-label="Increase quantity"
+                            onClick={() =>
+                              updateCartLine(line.key, {
+                                qty: Math.min(
+                                  line.maxQty,
+                                  Math.round((line.qty + 1) * 100) / 100,
+                                ),
+                              })
+                            }
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Plus className="h-3.5 w-3.5" />
                           </button>
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="mb-1 block text-[11px] text-muted">Quantity</label>
-                            <div className="flex items-center overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
-                              <button
-                                type="button"
-                                className={cn(
-                                  "flex h-9 w-9 items-center justify-center text-muted hover:bg-[var(--color-cream-100)]",
-                                  focusRing,
-                                )}
-                                onClick={() =>
-                                  updateCartLine(line.key, {
-                                    qty: Math.max(0.01, Math.round((line.qty - 1) * 100) / 100),
-                                  })
-                                }
-                              >
-                                <Minus className="h-4 w-4" />
-                              </button>
-                              <NumberInput
-                                min={0.01}
-                                fullWidth={false}
-                                className="h-9 w-full min-w-0 rounded-none border-0 px-1 text-center"
-                                value={roundMoneyStr(line.qty)}
-                                onValueChange={(value) => {
-                                  const qty = Number(value);
-                                  if (Number.isFinite(qty)) {
-                                    updateCartLine(line.key, { qty });
-                                  }
-                                }}
-                              />
-                              <button
-                                type="button"
-                                className={cn(
-                                  "flex h-9 w-9 items-center justify-center text-muted hover:bg-[var(--color-cream-100)]",
-                                  focusRing,
-                                )}
-                                onClick={() =>
-                                  updateCartLine(line.key, {
-                                    qty: Math.min(
-                                      line.maxQty,
-                                      Math.round((line.qty + 1) * 100) / 100,
-                                    ),
-                                  })
-                                }
-                              >
-                                <Plus className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </div>
-                          <div>
-                            <label className="mb-1 block text-[11px] text-muted">Unit price</label>
-                            <NumberInput
-                              min={0}
-                              className="h-9 font-mono tabular-nums"
-                              value={roundMoneyStr(line.unitPrice)}
-                              onValueChange={(value) => {
-                                const unitPrice = Number(value);
-                                if (Number.isFinite(unitPrice)) {
-                                  updateCartLine(line.key, { unitPrice });
-                                }
-                              }}
-                              aria-label={`Unit price for ${line.name}`}
-                            />
-                          </div>
-                        </div>
+                        <span className="text-[10px] text-muted" aria-hidden>
+                          ×
+                        </span>
+                        <NumberInput
+                          min={0}
+                          className="h-7 w-[4.5rem] min-w-0 px-2 font-mono text-xs tabular-nums"
+                          value={roundMoneyStr(line.unitPrice)}
+                          onValueChange={(value) => {
+                            const unitPrice = Number(value);
+                            if (Number.isFinite(unitPrice)) {
+                              updateCartLine(line.key, { unitPrice });
+                            }
+                          }}
+                          aria-label={`Unit price for ${line.name}`}
+                        />
                         {over ? (
-                          <p className="text-xs text-red-600">Only {line.maxQty} in stock</p>
+                          <p className="ml-auto text-[10px] text-red-600">
+                            Max {line.maxQty}
+                          </p>
                         ) : null}
                       </div>
                     </li>
@@ -1121,17 +983,21 @@ function PosPageContent() {
               </section>
 
               <section className={checkoutSectionGap}>
-                <h3 className={checkoutSectionTitle}>
-                  {serviceType === "DELIVERY" ? "Delivery fee" : "Extra charges"}
-                </h3>
-                <NumberInput
-                  id="pos-other-charge"
-                  min={0}
-                  value={otherChargeStr}
-                  onValueChange={setOtherChargeStr}
-                  placeholder="0.00"
-                  className="h-10"
-                />
+                <CollapsibleBlock
+                  title={serviceType === "DELIVERY" ? "Delivery fee" : "Extra charges"}
+                  open={extraChargesOpen}
+                  onToggle={() => setExtraChargesOpen((o) => !o)}
+                  hint={extraChargesHint}
+                >
+                  <NumberInput
+                    id="pos-other-charge"
+                    min={0}
+                    value={otherChargeStr}
+                    onValueChange={setOtherChargeStr}
+                    placeholder="0.00"
+                    className="h-10"
+                  />
+                </CollapsibleBlock>
               </section>
 
               <section className={checkoutSectionGap}>
@@ -1322,71 +1188,53 @@ function PosPageContent() {
               </section>
 
               <section className={checkoutSectionGap}>
-                <h3 className={checkoutSectionTitle}>Notes</h3>
-                <Input
-                  className="h-10"
-                  placeholder="Optional note for this sale"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                />
+                <CollapsibleBlock
+                  title="Notes"
+                  open={notesOpen}
+                  onToggle={() => setNotesOpen((o) => !o)}
+                  hint={notesHint}
+                >
+                  <Input
+                    className="h-10"
+                    placeholder="Optional note for this sale"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                  />
+                </CollapsibleBlock>
               </section>
               </div>
             </div>
 
-            <div className="shrink-0 border-t border-[var(--color-border)] bg-[var(--color-cream-50)]/60 px-3 py-2.5">
-            <label className="mb-2 flex cursor-pointer items-start gap-2 text-[10px] text-muted">
-              <input
-                type="checkbox"
-                className="mt-0.5"
-                checked={autoPrintReceipt}
-                onChange={toggleAutoPrintReceipt}
-              />
-              <span>
-                Auto-print receipt after checkout. Use an 80mm thermal printer and disable
-                headers/footers in the print dialog.
-              </span>
-            </label>
-            <div className="flex items-center gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-muted">Total</p>
-                <p className="font-mono text-lg font-bold leading-tight tabular-nums text-[var(--color-primary)]">
-                  {formatMoney(grandTotalPreview)}
-                </p>
-              </div>
-              <Button
-                type="button"
-                size="sm"
-                className="h-9 shrink-0 px-6 font-semibold"
-                disabled={submitting || cart.length === 0 || isPrinting}
-                onClick={() => void onCheckout()}
-              >
-                {submitting ? "…" : "Bill"}
-              </Button>
-            </div>
-            </div>
-          </div>
-        </div>
-
-        {cart.length > 0 ? (
-          <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--color-border)] bg-[var(--color-surface)]/95 backdrop-blur-sm safe-bottom lg:hidden">
-            <div className="mx-auto flex max-w-[1400px] items-center gap-3 px-4 py-3">
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                <ShoppingCart className="h-5 w-5 shrink-0 text-[var(--color-primary)]" aria-hidden />
-                <div className="min-w-0">
-                  <p className="text-xs text-[var(--color-muted)]">
-                    {cart.length} item{cart.length === 1 ? "" : "s"}
-                  </p>
-                  <p className="truncate font-mono text-base font-semibold tabular-nums text-[var(--color-primary)]">
+            <div className="shrink-0 border-t border-[var(--color-border)] bg-[var(--color-cream-50)]/60 px-3 py-2">
+              <label className="mb-1.5 flex cursor-pointer items-center gap-2 text-xs text-muted">
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 shrink-0"
+                  checked={autoPrintReceipt}
+                  onChange={toggleAutoPrintReceipt}
+                />
+                <span>Auto print</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted">Total</p>
+                  <p className="font-mono text-base font-bold leading-tight tabular-nums text-[var(--color-primary)]">
                     {formatMoney(grandTotalPreview)}
                   </p>
                 </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 shrink-0 px-5 text-sm font-semibold"
+                  disabled={submitting || cart.length === 0 || isPrinting}
+                  onClick={() => void onCheckout()}
+                >
+                  {submitting ? "…" : "Bill"}
+                </Button>
               </div>
-              <Button type="button" size="sm" className="h-11 shrink-0 px-5" onClick={scrollToCheckout}>
-                Checkout
-              </Button>
             </div>
           </div>
-        ) : null}
+        </div>
       </div>
 
       <Modal

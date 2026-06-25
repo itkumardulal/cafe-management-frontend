@@ -48,24 +48,36 @@ function sortCategories(categories: CatalogCategory[]): CatalogCategory[] {
   });
 }
 
+export function filterCatalogBySearch<T extends CatalogMenuItem>(
+  items: T[],
+  search: string,
+): T[] {
+  const q = search.trim().toLowerCase();
+  if (!q) return [];
+
+  const seen = new Set<string>();
+  const deduped: T[] = [];
+  for (const item of items) {
+    if (!item.name.toLowerCase().includes(q)) continue;
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    deduped.push(item);
+  }
+  return sortItems(deduped);
+}
+
 export function buildCatalogSections<T extends CatalogMenuItem>(
   categories: CatalogCategory[],
   items: T[],
   options: BuildCatalogSectionsOptions = {},
 ): CatalogSection<T>[] {
   const { categoryFilter = '', search = '' } = options;
-  const q = search.trim().toLowerCase();
 
-  if (q) {
-    const seen = new Set<string>();
-    const deduped: T[] = [];
-    for (const item of items) {
-      if (!item.name.toLowerCase().includes(q)) continue;
-      if (seen.has(item.id)) continue;
-      seen.add(item.id);
-      deduped.push(item);
-    }
-    return deduped.length > 0 ? [{ id: '__search__', title: 'Search results', items: sortItems(deduped) }] : [];
+  if (search.trim()) {
+    const matches = filterCatalogBySearch(items, search);
+    return matches.length > 0
+      ? [{ id: '__search__', title: 'Search results', items: matches }]
+      : [];
   }
 
   if (categoryFilter === SPECIALS_FILTER_ID) {

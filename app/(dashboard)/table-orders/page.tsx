@@ -578,6 +578,8 @@ export default function TableOrdersPage() {
     setSession(null);
     setOrderLines([]);
     setLastAddedKey(null);
+    setMenuSearch("");
+    setCategoryFilter("");
   };
 
   const canPrintKot =
@@ -764,6 +766,8 @@ export default function TableOrdersPage() {
                       ? () => router.push(`/pos?sessionId=${session.id}`)
                       : undefined
                   }
+                  menuSearchActive={menuSearch.trim().length > 0}
+                  onClearMenuSearch={() => setMenuSearch("")}
                 />
               </div>
             </div>

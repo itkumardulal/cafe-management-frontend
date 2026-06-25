@@ -428,6 +428,21 @@
     cursor: pointer;
   }
 
+  /* Search fields with a custom clear control — hide the browser-native X */
+  .search-field-custom-clear::-webkit-search-cancel-button,
+  .search-field-custom-clear::-webkit-search-decoration,
+  .search-field-custom-clear::-webkit-search-results-button {
+    -webkit-appearance: none;
+    appearance: none;
+    display: none;
+  }
+
+  .search-field-custom-clear::-ms-clear {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
   /* Password show/hide — sits inside rounded inputs; subtle hover, no harsh fill */
   .input-password-toggle {
     display: inline-flex;

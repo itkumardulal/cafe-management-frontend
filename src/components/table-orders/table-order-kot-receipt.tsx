@@ -5,6 +5,7 @@ import { ThermalKotHeader } from "@/src/features/printing/components/thermal-kot
 import { ThermalLineItems } from "@/src/features/printing/components/thermal-line-items";
 import { ThermalReceiptShell } from "@/src/features/printing/components/thermal-receipt-shell";
 import { formatCompactDateTime } from "@/src/features/printing/lib/thermal-text";
+import { kotBatchDisplayTitle } from "@/src/lib/kot-display";
 import { cn } from "@/src/lib/cn";
 import type { TableOrderKotBatch } from "@/src/services/operations-api";
 
@@ -17,8 +18,7 @@ type TableOrderKotReceiptProps = {
 };
 
 export function TableOrderKotReceipt({ batch, className, id }: TableOrderKotReceiptProps) {
-  const batchTitle =
-    batch.batchNo > 1 ? `${batch.label} ${batch.batchNo}` : batch.label;
+  const batchTitle = kotBatchDisplayTitle(batch);
 
   return (
     <ThermalReceiptShell id={id} className={cn(className)}>
@@ -35,6 +35,7 @@ export function TableOrderKotReceipt({ batch, className, id }: TableOrderKotRece
         lines={batch.lines.map((line) => ({
           name: line.menuItemName,
           quantity: line.quantity,
+          unitPrice: line.unitPrice,
           notes: line.notes,
         }))}
       />
