@@ -76,6 +76,12 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  if (pathname === "/table-orders/waiting-settlement") {
+    return NextResponse.redirect(
+      new URL("/table-orders?view=waiting-bills", request.url),
+    );
+  }
+
   return NextResponse.next();
 }
 

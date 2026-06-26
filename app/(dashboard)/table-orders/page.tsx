@@ -3,7 +3,7 @@
 import axios from "axios";
 import { Clock, Combine, Eye, FileText, Printer, RefreshCw, Split } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader } from "@/src/components/shared/page-header";
 import {
@@ -25,6 +25,7 @@ import {
   tableOrdersWorkspaceSplit,
 } from "@/src/components/table-orders/table-orders-layout";
 import { TableOrdersPanel } from "@/src/components/table-orders/table-orders-panel";
+import { WaitingSettlementView } from "@/src/components/table-orders/waiting-settlement-view";
 import { Button } from "@/src/components/ui/button";
 import { Modal } from "@/src/components/ui/modal";
 import { ThermalPrintHost } from "@/src/features/printing/components/thermal-print-host";
@@ -43,6 +44,8 @@ import {
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
 import { fetchSellableCatalogThunk } from "@/src/store/slices/reference-data.slice";
 import type { SellableCatalogItem } from "@/src/store/types/reference-data.types";
+
+const WAITING_BILLS_HREF = "/table-orders?view=waiting-bills";
 
 type OrderLine = {
   key: string;
@@ -92,6 +95,8 @@ function sessionToLines(session: TableOrderSessionDetail): OrderLine[] {
 export default function TableOrdersPage() {
   const dispatch = useAppDispatch();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const showWaitingBills = searchParams.get("view") === "waiting-bills";
   const catalog = useAppSelector((state) => state.referenceData.sellableCatalog);
   const sellableCatalogStatus = useAppSelector((state) => state.referenceData.sellableCatalogStatus);
   const catalogLoading =
@@ -579,7 +584,7 @@ export default function TableOrdersPage() {
       await loadBoard(true, true);
       void refreshWaitingCount();
       appToast.success("Moved to waiting bill settlement — table is now free");
-      router.push("/table-orders/waiting-settlement");
+      router.push(WAITING_BILLS_HREF);
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to move table to bill"));
     } finally {
@@ -650,6 +655,10 @@ export default function TableOrdersPage() {
     }
   };
 
+  if (showWaitingBills) {
+    return <WaitingSettlementView />;
+  }
+
   return (
     <section className="page-shell flex min-h-0 flex-col overflow-hidden lg:h-full lg:min-h-0">
       <div className="shrink-0 space-y-1 pb-2">
@@ -707,7 +716,7 @@ export default function TableOrdersPage() {
               <Eye className="mr-1.5 h-3.5 w-3.5" aria-hidden />
               View KOT
             </Button>
-            <Link href="/table-orders/waiting-settlement">
+            <Link href={WAITING_BILLS_HREF}>
               <Button type="button" size="sm" variant="secondary">
                 <Clock className="mr-1.5 h-3.5 w-3.5" />
                 Waiting bills
