@@ -90,114 +90,85 @@ export function TableOrderSlip({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-surface)] text-[var(--color-primary)] shadow-[var(--shadow-sm)]">
-                <Receipt className="h-4 w-4" strokeWidth={1.5} aria-hidden />
-              </span>
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--color-muted)]">
-                  Order ticket
-                </p>
-                <p className="truncate font-mono text-sm font-semibold text-[var(--color-foreground)]">
-                  {tableNames.join(" + ")}
-                </p>
-              </div>
-            </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {status === "OPEN" ? (
-                <StatusChip
-                  status={lines.length === 0 ? "VACANT" : "IN_PROGRESS"}
-                  pulse={lines.length > 0}
-                />
-              ) : status === "IN_BILLING" ? (
-                <StatusChip status="IN_BILLING" />
-              ) : null}
-              {saving ? (
-                <span className="text-[11px] text-[var(--color-muted)]">Saving…</span>
-              ) : null}
-              {menuSearchActive && onClearMenuSearch ? (
-                <button
-                  type="button"
-                  onClick={onClearMenuSearch}
-                  className="inline-flex items-center gap-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--color-muted)] transition-colors hover:border-[var(--color-input)] hover:text-[var(--color-foreground)]"
-                >
-                  <X className="h-3 w-3" aria-hidden />
-                  Clear menu search
-                </button>
-              ) : null}
-            </div>
+      <div className="shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
+        <div className="flex items-center gap-2">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--color-surface-muted)] text-[var(--color-primary)]">
+            <Receipt className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
+              Order ticket
+            </p>
+            <p className="truncate font-mono text-sm font-semibold leading-tight text-[var(--color-foreground)]">
+              {tableNames.join(" + ")}
+            </p>
           </div>
-          {onClose ? (
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--color-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-foreground)] lg:hidden"
-              aria-label="Close order"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          ) : null}
-        </div>
 
-        {isOpen && (onMerge || onUnmerge) ? (
-          <div className="mt-2.5 flex flex-wrap gap-1.5">
-            {onMerge ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                className="h-7 text-xs"
+          <div className="flex shrink-0 items-center gap-1">
+            {status === "OPEN" ? (
+              <StatusChip
+                status={lines.length === 0 ? "VACANT" : "IN_PROGRESS"}
+                pulse={lines.length > 0}
+              />
+            ) : status === "IN_BILLING" ? (
+              <StatusChip status="IN_BILLING" />
+            ) : null}
+
+            {isOpen && onMerge ? (
+              <SlipIconAction
+                label="Merge tables"
                 onClick={onMerge}
                 disabled={mergeDisabled}
               >
-                <Combine className="mr-1 h-3 w-3" />
-                Merge
-              </Button>
+                <Combine className="h-3.5 w-3.5" />
+              </SlipIconAction>
             ) : null}
-            {onUnmerge ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                className="h-7 text-xs"
+            {isOpen && onUnmerge ? (
+              <SlipIconAction
+                label="Unmerge table"
                 onClick={onUnmerge}
                 disabled={unmergeDisabled}
               >
-                <Split className="mr-1 h-3 w-3" />
-                Unmerge
-              </Button>
+                <Split className="h-3.5 w-3.5" />
+              </SlipIconAction>
             ) : null}
             {onClose ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="hidden h-7 text-xs lg:inline-flex"
-                onClick={onClose}
-              >
-                Close
-              </Button>
+              <SlipIconAction label="Close order" onClick={onClose}>
+                <X className="h-3.5 w-3.5" />
+              </SlipIconAction>
             ) : null}
           </div>
-        ) : isBilling && (onCancelBilling || onGoToPos) ? (
-          <div className="mt-2.5 flex flex-wrap gap-1.5">
-            {onCancelBilling ? (
+        </div>
+
+        {saving || (menuSearchActive && onClearMenuSearch) || (isBilling && (onCancelBilling || onGoToPos)) ? (
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {saving ? (
+              <span className="text-[10px] text-[var(--color-muted)]">Saving…</span>
+            ) : null}
+            {menuSearchActive && onClearMenuSearch ? (
+              <button
+                type="button"
+                onClick={onClearMenuSearch}
+                className="inline-flex items-center gap-1 rounded border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-muted)] transition-colors hover:border-[var(--color-input)] hover:text-[var(--color-foreground)]"
+              >
+                <X className="h-2.5 w-2.5" aria-hidden />
+                Clear search
+              </button>
+            ) : null}
+            {isBilling && onCancelBilling ? (
               <Button
                 type="button"
                 size="sm"
                 variant="secondary"
-                className="h-7 text-xs"
+                className="h-6 px-2 text-[10px]"
                 onClick={onCancelBilling}
                 disabled={cancellingBilling}
               >
                 {cancellingBilling ? "Cancelling…" : "Resume editing"}
               </Button>
             ) : null}
-            {onGoToPos ? (
-              <Button type="button" size="sm" className="h-7 text-xs" onClick={onGoToPos}>
+            {isBilling && onGoToPos ? (
+              <Button type="button" size="sm" className="h-6 px-2 text-[10px]" onClick={onGoToPos}>
                 Continue at POS
               </Button>
             ) : null}
@@ -211,10 +182,10 @@ export function TableOrderSlip({
         </p>
       ) : null}
 
-      <div className={cn(tableOrdersScrollArea, "px-3 py-3")}>
+      <div className={cn(tableOrdersScrollArea, "min-h-[8rem] px-3 py-2")}>
         {lines.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-6 text-center">
-            <Receipt className="h-6 w-6 text-[var(--color-muted)] opacity-50" strokeWidth={1.25} aria-hidden />
+          <div className="flex h-full min-h-[7rem] flex-col items-center justify-center rounded-lg border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-5 text-center">
+            <Receipt className="h-7 w-7 text-[var(--color-muted)] opacity-50" strokeWidth={1.25} aria-hidden />
             <p className="mt-2 text-sm font-medium text-[var(--color-foreground)]">No items yet</p>
             <p className="mt-0.5 max-w-[14rem] text-xs text-[var(--color-muted)]">
               {isBilling
@@ -223,7 +194,7 @@ export function TableOrderSlip({
             </p>
           </div>
         ) : (
-          <ul ref={listRef} className="space-y-1.5">
+          <ul ref={listRef} className="space-y-2">
             {lines.map((l) => {
               const lineTotal = Math.round(l.qty * l.unitPrice * 100) / 100;
               const isLastAdded = lastAddedKey === l.key;
@@ -241,16 +212,54 @@ export function TableOrderSlip({
                         : "border-[var(--color-border)] bg-[var(--color-surface)]",
                   )}
                 >
-                  <div className="flex items-start gap-2">
+                  <div className="flex items-center gap-2">
                     <div className="min-w-0 flex-1">
-                      {isLastAdded ? (
-                        <span className="mb-0.5 inline-block text-[10px] font-semibold uppercase tracking-wide text-[var(--color-primary)]">
-                          Latest
+                      <div className="flex items-baseline gap-1.5">
+                        {isLastAdded ? (
+                          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-primary)]">
+                            New
+                          </span>
+                        ) : null}
+                        <p className="truncate text-sm font-medium text-[var(--color-foreground)]">
+                          {l.name}
+                        </p>
+                      </div>
+                      <div className="mt-1 flex items-center gap-2">
+                        {editable ? (
+                          <div className="inline-flex shrink-0 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-0.5">
+                            <QtyButton
+                              label={l.qty <= 1 ? "Remove item" : "Decrease quantity"}
+                              onClick={() =>
+                                l.qty <= 1 ? onRemove(l.key) : onUpdateQty(l.key, l.qty - 1)
+                              }
+                            >
+                              <Minus className="h-3.5 w-3.5" />
+                            </QtyButton>
+                            <span className="min-w-[1.5rem] px-0.5 text-center font-mono text-xs font-semibold tabular-nums text-[var(--color-foreground)]">
+                              {l.qty % 1 === 0 ? l.qty : l.qty.toFixed(2)}
+                            </span>
+                            <QtyButton
+                              label="Increase quantity"
+                              onClick={() => onUpdateQty(l.key, Math.min(l.maxQty, l.qty + 1))}
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </QtyButton>
+                          </div>
+                        ) : (
+                          <span className="font-mono text-xs font-semibold tabular-nums text-[var(--color-foreground)]">
+                            {l.qty % 1 === 0 ? l.qty : l.qty.toFixed(2)}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-[var(--color-muted)]" aria-hidden>
+                          ×
                         </span>
-                      ) : null}
-                      <p className="text-sm font-medium leading-snug text-[var(--color-foreground)]">
-                        {l.name}
-                      </p>
+                        <span className="font-mono text-xs tabular-nums text-[var(--color-muted)]">
+                          {formatMoney(l.unitPrice)}
+                        </span>
+                        {over ? (
+                          <span className="text-[10px] text-red-600">Max {l.maxQty}</span>
+                        ) : null}
+                      </div>
                     </div>
                     <span className="shrink-0 font-mono text-sm font-semibold tabular-nums text-[var(--color-foreground)]">
                       {formatMoney(lineTotal)}
@@ -266,42 +275,6 @@ export function TableOrderSlip({
                       </button>
                     ) : null}
                   </div>
-                  <div className="mt-1.5 flex items-center gap-2">
-                    {editable ? (
-                      <div className="inline-flex shrink-0 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-0.5">
-                        <QtyButton
-                          label={l.qty <= 1 ? "Remove item" : "Decrease quantity"}
-                          onClick={() =>
-                            l.qty <= 1 ? onRemove(l.key) : onUpdateQty(l.key, l.qty - 1)
-                          }
-                        >
-                          <Minus className="h-3.5 w-3.5" />
-                        </QtyButton>
-                        <span className="min-w-[1.75rem] px-0.5 text-center font-mono text-xs font-semibold tabular-nums text-[var(--color-foreground)]">
-                          {l.qty % 1 === 0 ? l.qty : l.qty.toFixed(2)}
-                        </span>
-                        <QtyButton
-                          label="Increase quantity"
-                          onClick={() => onUpdateQty(l.key, Math.min(l.maxQty, l.qty + 1))}
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                        </QtyButton>
-                      </div>
-                    ) : (
-                      <span className="font-mono text-xs font-semibold tabular-nums text-[var(--color-foreground)]">
-                        {l.qty % 1 === 0 ? l.qty : l.qty.toFixed(2)}
-                      </span>
-                    )}
-                    <span className="text-[10px] text-[var(--color-muted)]" aria-hidden>
-                      ×
-                    </span>
-                    <span className="font-mono text-xs tabular-nums text-[var(--color-muted)]">
-                      {formatMoney(l.unitPrice)}
-                    </span>
-                    {over ? (
-                      <p className="ml-auto text-[10px] text-red-600">Max {l.maxQty}</p>
-                    ) : null}
-                  </div>
                   {l.notes ? (
                     <p className="mt-1 text-[11px] italic text-[var(--color-subtle)]">{l.notes}</p>
                   ) : null}
@@ -312,29 +285,32 @@ export function TableOrderSlip({
         )}
       </div>
 
-      <div className="shrink-0 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5">
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="text-xs font-medium text-[var(--color-muted)]">Subtotal</span>
+      <div className="shrink-0 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1">
+        <div className="flex items-center justify-between gap-2 rounded-md bg-[var(--color-surface-muted)] px-2.5 py-1.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">
+            Subtotal
+          </span>
           <span className="font-mono text-base font-bold tabular-nums tracking-tight text-[var(--color-foreground)]">
             {formatMoney(subtotal)}
           </span>
         </div>
         {status === "OPEN" ? (
-          <div className="mt-2 space-y-2">
+          <div className="mt-1 flex gap-1">
             <Button
               type="button"
               size="sm"
-              className="h-9 w-full text-sm"
+              className="h-7 min-w-0 flex-1 px-2 text-[10px]"
               disabled={generating || movingToBill || lines.length === 0}
               onClick={onGenerateBill}
+              title="Generate bill"
             >
               {generating ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Opening POS…
+                <span className="inline-flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                  <span className="truncate">POS…</span>
                 </span>
               ) : (
-                "Generate bill"
+                <span className="truncate">Generate bill</span>
               )}
             </Button>
             {onMoveToBill ? (
@@ -342,26 +318,32 @@ export function TableOrderSlip({
                 type="button"
                 size="sm"
                 variant="secondary"
-                className="h-9 w-full text-sm"
+                className="h-7 min-w-0 flex-1 px-2 text-[10px]"
                 disabled={generating || movingToBill || lines.length === 0}
                 onClick={onMoveToBill}
+                title="Move to bill (free table)"
               >
                 {movingToBill ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Moving…
+                  <span className="inline-flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                    <span className="truncate">Moving…</span>
                   </span>
                 ) : (
-                  "Move to bill (free table)"
+                  <span className="truncate">Free table</span>
                 )}
               </Button>
             ) : null}
           </div>
         ) : isBilling ? (
-          <div className="mt-2 space-y-2">
+          <div className="mt-1 flex gap-1">
             {onGoToPos ? (
-              <Button type="button" size="sm" className="h-9 w-full text-sm" onClick={onGoToPos}>
-                Continue at POS
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 min-w-0 flex-1 px-2 text-[10px]"
+                onClick={onGoToPos}
+              >
+                <span className="truncate">Continue POS</span>
               </Button>
             ) : null}
             {onCancelBilling ? (
@@ -369,17 +351,49 @@ export function TableOrderSlip({
                 type="button"
                 size="sm"
                 variant="secondary"
-                className="h-9 w-full text-sm"
+                className="h-7 min-w-0 flex-1 px-2 text-[10px]"
                 onClick={onCancelBilling}
                 disabled={cancellingBilling}
               >
-                {cancellingBilling ? "Cancelling…" : "Resume editing"}
+                <span className="truncate">
+                  {cancellingBilling ? "Cancelling…" : "Resume edit"}
+                </span>
               </Button>
             ) : null}
           </div>
         ) : null}
       </div>
     </div>
+  );
+}
+
+function SlipIconAction({
+  children,
+  label,
+  onClick,
+  disabled,
+}: {
+  children: ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+      className={cn(
+        "inline-flex h-6 w-6 items-center justify-center rounded border border-transparent text-[var(--color-muted)] transition-colors",
+        disabled
+          ? "cursor-not-allowed opacity-40"
+          : "hover:border-[var(--color-border)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-foreground)]",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -397,7 +411,7 @@ function QtyButton({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="inline-flex h-7 w-7 items-center justify-center rounded text-[var(--color-muted)] hover:bg-[var(--color-cream-100)]"
+      className="inline-flex h-6 w-6 items-center justify-center rounded text-[var(--color-muted)] hover:bg-[var(--color-cream-100)]"
     >
       {children}
     </button>

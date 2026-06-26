@@ -52,10 +52,10 @@ export function MenuSectionSlider({
   if (items.length === 0) return null;
 
   return (
-    <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
-      <div className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] px-3 py-2.5">
-        <h3 className="text-xs font-semibold text-[var(--color-foreground)]">{title}</h3>
-        <span className="text-[11px] text-[var(--color-muted)]">
+    <section className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
+      <div className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] px-2.5 py-1.5">
+        <h3 className="text-[11px] font-semibold text-[var(--color-foreground)]">{title}</h3>
+        <span className="text-[10px] text-[var(--color-muted)]">
           {items.length} · swipe
         </span>
       </div>
@@ -72,9 +72,9 @@ export function MenuSectionSlider({
           ref={trackRef}
           onScroll={updateScrollHints}
           className={cn(
-            "flex gap-2.5 overflow-x-auto overscroll-x-contain px-3 py-3",
+            "flex gap-2 overflow-x-auto overscroll-x-contain px-2.5 py-2.5",
             "snap-x snap-mandatory scroll-smooth [scrollbar-width:thin]",
-            "[&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--color-input)]",
+            "[&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--color-input)]",
           )}
         >
           {items.map((item) => (
@@ -136,7 +136,7 @@ function MenuSlideTile({
   return (
     <article
       className={cn(
-        "flex w-[9.5rem] shrink-0 snap-start flex-col overflow-hidden rounded-xl border text-left sm:w-[10.5rem]",
+        "flex w-[10.5rem] shrink-0 snap-start items-center gap-2 overflow-hidden rounded-lg border p-2 text-left sm:w-[11rem]",
         "bg-[var(--color-surface)]",
         outOfStock && "opacity-50",
         inOrder
@@ -144,51 +144,51 @@ function MenuSlideTile({
           : "border-[var(--color-border)]",
       )}
     >
-      <div className="relative aspect-[4/3] w-full bg-[var(--color-cream-100)]">
+      <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-md bg-[var(--color-cream-100)]">
         {item.imageUrl ? (
           <img src={item.imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
         ) : (
           <div className="flex h-full items-center justify-center text-[var(--color-muted)]">
-            <UtensilsCrossed className="h-7 w-7 opacity-40" strokeWidth={1.25} aria-hidden />
+            <UtensilsCrossed className="h-5 w-5 opacity-40" strokeWidth={1.25} aria-hidden />
           </div>
         )}
         {inOrder ? (
-          <span className="absolute right-1 top-1 rounded-md bg-[var(--color-primary)] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[var(--color-primary-foreground)] shadow-[var(--shadow-sm)]">
+          <span className="absolute right-0.5 top-0.5 rounded bg-[var(--color-primary)] px-1 py-px text-[9px] font-semibold tabular-nums text-[var(--color-primary-foreground)]">
             ×{qty % 1 === 0 ? qty : qty.toFixed(1)}
           </span>
         ) : null}
       </div>
-      <div className="flex flex-1 flex-col gap-0.5 p-2">
-        <p className="line-clamp-2 min-h-[2.25rem] text-xs font-semibold leading-snug text-[var(--color-foreground)]">
+
+      <div className="min-w-0 flex-1">
+        <p className="line-clamp-2 text-xs font-semibold leading-tight text-[var(--color-foreground)]">
           {item.name}
         </p>
-        <div className="mt-auto flex items-end justify-between gap-1.5 pt-0.5">
-          <div className="min-w-0">
-            <p className="font-mono text-xs font-semibold tabular-nums text-[var(--color-primary)] dark:text-[var(--color-primary-hover)]">
-              {formatMoney(item.sellPricePerUnit)}
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+          <p className="font-mono text-xs font-semibold tabular-nums text-[var(--color-primary)] dark:text-[var(--color-primary-hover)]">
+            {formatMoney(item.sellPricePerUnit)}
+          </p>
+          {item.trackStock ? (
+            <p className="text-[10px] font-medium text-[var(--color-muted)]">
+              {outOfStock ? "Out" : `${item.quantityOnHand} left`}
             </p>
-            {item.trackStock ? (
-              <p className="text-[10px] font-medium text-[var(--color-muted)]">
-                {outOfStock ? "Out of stock" : `${item.quantityOnHand} left`}
-              </p>
-            ) : null}
-          </div>
-          <button
-            type="button"
-            disabled={disabled || outOfStock}
-            onClick={onAdd}
-            aria-label={`Add ${item.name}`}
-            className={cn(
-              "shrink-0 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors",
-              disabled || outOfStock
-                ? "cursor-not-allowed border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-muted)] opacity-50"
-                : "border-transparent bg-[var(--color-danger)] text-white hover:bg-[color-mix(in_srgb,var(--color-danger)_88%,#000)]",
-            )}
-          >
-            Add
-          </button>
+          ) : null}
         </div>
       </div>
+
+      <button
+        type="button"
+        disabled={disabled || outOfStock}
+        onClick={onAdd}
+        aria-label={`Add ${item.name}`}
+        className={cn(
+          "shrink-0 self-center rounded border px-2 py-1 text-[11px] font-semibold transition-colors",
+          disabled || outOfStock
+            ? "cursor-not-allowed border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-muted)] opacity-50"
+            : "border-transparent bg-[var(--color-danger)] text-white hover:bg-[color-mix(in_srgb,var(--color-danger)_88%,#000)]",
+        )}
+      >
+        Add
+      </button>
     </article>
   );
 }

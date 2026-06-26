@@ -22,8 +22,8 @@ export const tableOrdersWorkspacePanelJoined = cn(
 export const tableOrdersWorkspaceSplit = cn(
   "grid min-h-0 flex-1 basis-0 gap-0 overflow-hidden",
   "max-lg:grid-rows-[minmax(0,1fr)_minmax(0,1fr)] max-lg:divide-y max-lg:divide-[var(--color-border)]",
-  "lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)] lg:divide-x lg:divide-[var(--color-border)]",
-  "xl:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)]",
+  "lg:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)] lg:divide-x lg:divide-[var(--color-border)]",
+  "xl:grid-cols-[minmax(0,1fr)_minmax(22rem,26rem)]",
 );
 
 /** Menu column inside workspace */

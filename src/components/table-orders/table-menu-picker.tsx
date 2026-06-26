@@ -77,7 +77,7 @@ export function TableMenuPicker({
 
   return (
     <div className="flex h-full min-h-0 flex-1 basis-0 flex-col overflow-hidden">
-      <div className="shrink-0 min-w-0 space-y-2.5 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
+      <div className="shrink-0 min-w-0 space-y-2 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
         <div className="relative min-w-0">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]"
@@ -144,21 +144,21 @@ export function TableMenuPicker({
         ) : null}
       </div>
 
-      <div className={cn(tableOrdersScrollArea, "bg-[var(--color-surface)] p-4")}>
+      <div className={cn(tableOrdersScrollArea, "bg-[var(--color-surface)] p-3")}>
         {loading ? (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {Array.from({ length: isSearching ? 4 : 3 }).map((_, i) => (
               <div
                 key={i}
                 className={cn(
-                  "animate-pulse rounded-xl bg-[var(--color-cream-100)]",
-                  isSearching ? "h-16" : "h-36",
+                  "animate-pulse rounded-lg bg-[var(--color-cream-100)]",
+                  isSearching ? "h-14" : "h-16",
                 )}
               />
             ))}
           </div>
         ) : isSearching ? (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <p className="text-xs font-medium text-[var(--color-muted)]" aria-live="polite">
               {searchResults.length === 0
                 ? "No matches — try another name or clear search to browse."
@@ -176,7 +176,7 @@ export function TableMenuPicker({
             No dishes in this category.
           </p>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {sections.map((section) => (
               <MenuSectionSlider
                 key={section.id}

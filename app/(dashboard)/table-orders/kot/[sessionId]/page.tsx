@@ -16,6 +16,7 @@ import { useTableOrdersSocket } from "@/src/hooks/use-table-orders-socket";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { formatCompactDateTime } from "@/src/features/printing/lib/thermal-text";
 import { kotBatchDisplayTitle } from "@/src/lib/kot-display";
+import { fetchLatestKotBatch } from "@/src/lib/print-latest-kot";
 import { appToast } from "@/src/lib/toast";
 import {
   operationsApi,
@@ -89,9 +90,8 @@ export default function TableOrderKotPage() {
     if (!sessionId || !kot || kot.unsealedLines.length === 0 || sealing) return;
     setSealing(true);
     try {
-      const view = await operationsApi.tableOrders.sealKot(sessionId);
+      const { batch: latestBatch, view } = await fetchLatestKotBatch(sessionId);
       setKot(view);
-      const latestBatch = view.batches.at(-1);
       if (latestBatch) {
         printLoaded(latestBatch);
       }
@@ -109,7 +109,7 @@ export default function TableOrderKotPage() {
   return (
     <section className="page-shell page-content space-y-6 pb-10">
       <PageHeader
-        title="Print kitchen order"
+        title="View kitchen order"
         description={
           kot?.tableNames.length
             ? `Table ${kot.tableNames.join(" + ")}`

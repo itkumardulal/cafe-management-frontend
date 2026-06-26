@@ -61,14 +61,14 @@ function MenuSearchResultCard({
     <li>
       <article
         className={cn(
-          "flex items-center gap-2.5 rounded-xl border bg-[var(--color-surface)] p-2 text-left transition-colors",
+          "flex items-center gap-2.5 rounded-lg border bg-[var(--color-surface)] p-2 text-left transition-colors",
           outOfStock && "opacity-50",
           inOrder
             ? "border-[var(--color-primary)] bg-[color-mix(in_srgb,var(--color-primary)_5%,var(--color-surface))] ring-1 ring-[color-mix(in_srgb,var(--color-primary)_18%,transparent)]"
             : "border-[var(--color-border)] hover:border-[var(--color-input)]",
         )}
       >
-        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-[var(--color-cream-100)]">
+        <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-md bg-[var(--color-cream-100)]">
           {item.imageUrl ? (
             <img
               src={item.imageUrl}
@@ -89,7 +89,7 @@ function MenuSearchResultCard({
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="line-clamp-2 text-sm font-semibold leading-snug text-[var(--color-foreground)]">
+          <p className="line-clamp-2 text-xs font-semibold leading-tight text-[var(--color-foreground)]">
             {item.name}
           </p>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -110,7 +110,7 @@ function MenuSearchResultCard({
           onClick={onAdd}
           aria-label={`Add ${item.name}`}
           className={cn(
-            "shrink-0 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors",
+            "shrink-0 rounded border px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
             disabled || outOfStock
               ? "cursor-not-allowed border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-muted)] opacity-50"
               : "border-transparent bg-[var(--color-danger)] text-white hover:bg-[color-mix(in_srgb,var(--color-danger)_88%,#000)]",

@@ -1,7 +1,7 @@
 "use client";
 
 import axios from "axios";
-import { Clock, Combine, FileText, Printer, RefreshCw, Split } from "lucide-react";
+import { Clock, Combine, Eye, FileText, Printer, RefreshCw, Split } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -12,6 +12,10 @@ import {
 } from "@/src/components/table-orders/table-floor-board";
 import { TableMenuPicker } from "@/src/components/table-orders/table-menu-picker";
 import { TableOrderSlip } from "@/src/components/table-orders/table-order-slip";
+import {
+  TableOrderKotReceipt,
+  type TableOrderKotPrintData,
+} from "@/src/components/table-orders/table-order-kot-receipt";
 import { TableOrdersEmptyWorkspace } from "@/src/components/table-orders/table-orders-empty-workspace";
 import {
   tableOrdersFloorPanelJoined,
@@ -23,7 +27,10 @@ import {
 import { TableOrdersPanel } from "@/src/components/table-orders/table-orders-panel";
 import { Button } from "@/src/components/ui/button";
 import { Modal } from "@/src/components/ui/modal";
+import { ThermalPrintHost } from "@/src/features/printing/components/thermal-print-host";
+import { useThermalPrint } from "@/src/features/printing/hooks/use-thermal-print";
 import { getApiErrorMessage } from "@/src/lib/api-error";
+import { fetchLatestKotBatch } from "@/src/lib/print-latest-kot";
 import { cn } from "@/src/lib/cn";
 import { appToast } from "@/src/lib/toast";
 import { useTableOrdersSocket } from "@/src/hooks/use-table-orders-socket";
@@ -108,7 +115,13 @@ export default function TableOrdersPage() {
   const [unmergeTargetId, setUnmergeTargetId] = useState<string | null>(null);
   const [unmerging, setUnmerging] = useState(false);
   const [lastAddedKey, setLastAddedKey] = useState<string | null>(null);
+  const [printingLatestKot, setPrintingLatestKot] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { printDocument, isPrinting, printLoaded } = useThermalPrint<TableOrderKotPrintData>({
+    onError: (error) =>
+      appToast.error(getApiErrorMessage(error, "Failed to prepare kitchen ticket")),
+  });
 
   const loadBoard = useCallback(async (silent = false, force = false) => {
     if (!silent) setBoardLoading(true);
@@ -582,12 +595,59 @@ export default function TableOrdersPage() {
     setCategoryFilter("");
   };
 
-  const canPrintKot =
+  const canViewKot =
     Boolean(session?.id) && session?.status === "OPEN" && orderLines.length > 0;
 
   const navigateToKot = () => {
-    if (!session?.id || !canPrintKot) return;
+    if (!session?.id || !canViewKot) return;
     router.push(`/table-orders/kot/${session.id}`);
+  };
+
+  const handleLatestKot = async () => {
+    if (!session?.id || !canViewKot || printingLatestKot || isPrinting) return;
+    setPrintingLatestKot(true);
+    try {
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+
+      let currentSession = session;
+      if (currentSession.status === "OPEN") {
+        const saved = await operationsApi.tableOrders.updateLines(currentSession.id, {
+          version: currentSession.version,
+          lines: orderLines.map((l) => ({
+            menuItemId: l.menuItemId,
+            quantity: l.qty,
+            unitPrice: l.unitPrice,
+            notes: l.notes ?? undefined,
+          })),
+        });
+        if (isDeletedSessionUpdate(saved)) {
+          setBoard((prev) => markSessionClearedOnBoard(prev, currentSession));
+          setSession(null);
+          setOrderLines([]);
+          setLastAddedKey(null);
+          await loadBoard(true, true);
+          appToast.error("No items to print");
+          return;
+        }
+        currentSession = saved;
+        setSession(saved);
+        setOrderLines(sessionToLines(saved));
+      }
+
+      const { batch: latestBatch } = await fetchLatestKotBatch(currentSession.id);
+      if (!latestBatch) {
+        appToast.error("No kitchen orders to print for this table");
+        return;
+      }
+      printLoaded(latestBatch);
+    } catch (error) {
+      appToast.error(getApiErrorMessage(error, "Failed to print latest kitchen order"));
+    } finally {
+      setPrintingLatestKot(false);
+    }
   };
 
   return (
@@ -618,16 +678,34 @@ export default function TableOrdersPage() {
               type="button"
               size="sm"
               variant="secondary"
-              disabled={!canPrintKot}
-              onClick={navigateToKot}
+              disabled={!canViewKot || printingLatestKot || isPrinting}
+              loading={printingLatestKot || isPrinting}
+              onClick={() => void handleLatestKot()}
               title={
-                canPrintKot
-                  ? "Print kitchen order tickets for this table"
-                  : "Open a table with items to print KOT"
+                canViewKot
+                  ? "Print only the latest kitchen ticket (new items since last print)"
+                  : "Open a table with items to print latest KOT"
               }
             >
-              <Printer className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-              Print KOT
+              {!printingLatestKot && !isPrinting ? (
+                <Printer className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              ) : null}
+              Latest KOT
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={!canViewKot}
+              onClick={navigateToKot}
+              title={
+                canViewKot
+                  ? "View all kitchen order tickets for this table"
+                  : "Open a table with items to view KOT"
+              }
+            >
+              <Eye className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              View KOT
             </Button>
             <Link href="/table-orders/waiting-settlement">
               <Button type="button" size="sm" variant="secondary">
@@ -896,6 +974,12 @@ export default function TableOrdersPage() {
           </Button>
         </div>
       </Modal>
+
+      <ThermalPrintHost open={printDocument != null}>
+        {printDocument ? (
+          <TableOrderKotReceipt batch={printDocument} id="table-order-latest-kot-print" />
+        ) : null}
+      </ThermalPrintHost>
     </section>
   );
 }
