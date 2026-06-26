@@ -31,6 +31,8 @@ import { Modal } from "@/src/components/ui/modal";
 import { ThermalPrintHost } from "@/src/features/printing/components/thermal-print-host";
 import { useThermalPrint } from "@/src/features/printing/hooks/use-thermal-print";
 import { getApiErrorMessage } from "@/src/lib/api-error";
+import { sessionWriteQueue } from "@/src/lib/session-write-queue";
+import { isVersionConflict } from "@/src/lib/version-conflict";
 import { fetchLatestKotBatch } from "@/src/lib/print-latest-kot";
 import { cn } from "@/src/lib/cn";
 import { appToast } from "@/src/lib/toast";
@@ -90,6 +92,31 @@ function sessionToLines(session: TableOrderSessionDetail): OrderLine[] {
     maxQty: 999_999,
     notes: l.notes ?? null,
   }));
+}
+
+function linesToApiPayload(lines: OrderLine[]) {
+  return lines.map((l) => ({
+    menuItemId: l.menuItemId,
+    quantity: l.qty,
+    unitPrice: l.unitPrice,
+    notes: l.notes ?? undefined,
+  }));
+}
+
+async function withVersionRetry<T>(
+  sessionId: string,
+  run: (version: number) => Promise<T>,
+  initialVersion: number,
+): Promise<T> {
+  try {
+    return await run(initialVersion);
+  } catch (error) {
+    if (!isVersionConflict(error)) {
+      throw error;
+    }
+    const fresh = await operationsApi.tableOrders.getSession(sessionId, { force: true });
+    return await run(fresh.version);
+  }
 }
 
 export default function TableOrdersPage() {
@@ -335,15 +362,21 @@ export default function TableOrdersPage() {
       if (currentSession.status !== "OPEN") return;
       setSaving(true);
       try {
-        const updated = await operationsApi.tableOrders.updateLines(currentSession.id, {
-          version: currentSession.version,
-          lines: lines.map((l) => ({
-            menuItemId: l.menuItemId,
-            quantity: l.qty,
-            unitPrice: l.unitPrice,
-            notes: l.notes ?? undefined,
-          })),
-        });
+        const updated = await sessionWriteQueue.enqueue(
+          currentSession.id,
+          "normal",
+          () =>
+            withVersionRetry(
+              currentSession.id,
+              (version) =>
+                operationsApi.tableOrders.updateLines(currentSession.id, {
+                  version,
+                  lines: linesToApiPayload(lines),
+                }),
+              currentSession.version,
+            ),
+          "updateLines",
+        );
         if (isDeletedSessionUpdate(updated)) {
           suppressTableOrdersSocketRefetch();
           setBoard((prev) => markSessionClearedOnBoard(prev, currentSession));
@@ -359,8 +392,14 @@ export default function TableOrdersPage() {
         setOrderLines(sessionToLines(updated));
         await loadBoard(true, true);
       } catch (error) {
-        appToast.error(getApiErrorMessage(error, "Failed to save order"));
-        const fresh = await operationsApi.tableOrders.getSession(currentSession.id);
+        if (isVersionConflict(error)) {
+          appToast.warning("Order updated elsewhere — refreshed from server");
+        } else {
+          appToast.error(getApiErrorMessage(error, "Failed to save order"));
+        }
+        const fresh = await operationsApi.tableOrders.getSession(currentSession.id, {
+          force: true,
+        });
         setSession(fresh);
         setOrderLines(sessionToLines(fresh));
       } finally {
@@ -459,10 +498,17 @@ export default function TableOrdersPage() {
   const handleMerge = async () => {
     if (!session || mergeSelected.length === 0) return;
     try {
-      const updated = await operationsApi.tableOrders.merge(session.id, {
-        tableIds: mergeSelected,
-        version: session.version,
-      });
+      const updated = await sessionWriteQueue.enqueue(session.id, "critical", () =>
+        withVersionRetry(
+          session.id,
+          (version) =>
+            operationsApi.tableOrders.merge(session.id, {
+              tableIds: mergeSelected,
+              version,
+            }),
+          session.version,
+        ),
+      );
       await openSession(updated);
       setMergeOpen(false);
       setMergeSelected([]);
@@ -477,10 +523,17 @@ export default function TableOrdersPage() {
     if (!session) return;
     setUnmerging(true);
     try {
-      const updated = await operationsApi.tableOrders.unmerge(session.id, {
-        tableId,
-        version: session.version,
-      });
+      const updated = await sessionWriteQueue.enqueue(session.id, "critical", () =>
+        withVersionRetry(
+          session.id,
+          (version) =>
+            operationsApi.tableOrders.unmerge(session.id, {
+              tableId,
+              version,
+            }),
+          session.version,
+        ),
+      );
       await openSession(updated);
       setUnmergeOpen(false);
       setUnmergeTargetId(null);
@@ -497,7 +550,9 @@ export default function TableOrdersPage() {
     if (!session || session.status !== "IN_BILLING") return;
     setCancellingBilling(true);
     try {
-      const updated = await operationsApi.tableOrders.cancelBilling(session.id);
+      const updated = await sessionWriteQueue.enqueue(session.id, "critical", () =>
+        operationsApi.tableOrders.cancelBilling(session.id),
+      );
       await openSession(updated);
       await loadBoard(true, true);
       appToast.success("Billing cancelled — you can edit the order again");
@@ -518,15 +573,21 @@ export default function TableOrdersPage() {
     try {
       let current = session;
       if (current.status === "OPEN") {
-        const saved = await operationsApi.tableOrders.updateLines(current.id, {
-          version: current.version,
-          lines: orderLines.map((l) => ({
-            menuItemId: l.menuItemId,
-            quantity: l.qty,
-            unitPrice: l.unitPrice,
-            notes: l.notes ?? undefined,
-          })),
-        });
+        const saved = await sessionWriteQueue.enqueue(
+          current.id,
+          "critical",
+          () =>
+            withVersionRetry(
+              current.id,
+              (version) =>
+                operationsApi.tableOrders.updateLines(current.id, {
+                  version,
+                  lines: linesToApiPayload(orderLines),
+                }),
+              current.version,
+            ),
+          "updateLines",
+        );
         if (isDeletedSessionUpdate(saved)) {
           setBoard((prev) => markSessionClearedOnBoard(prev, current));
           setSession(null);
@@ -538,7 +599,9 @@ export default function TableOrdersPage() {
         }
         current = saved;
       }
-      await operationsApi.tableOrders.generateBill(current.id);
+      await sessionWriteQueue.enqueue(current.id, "critical", () =>
+        operationsApi.tableOrders.generateBill(current.id),
+      );
       router.push(`/pos?sessionId=${current.id}`);
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to generate bill"));
@@ -557,15 +620,21 @@ export default function TableOrdersPage() {
     try {
       let current = session;
       if (current.status === "OPEN") {
-        const saved = await operationsApi.tableOrders.updateLines(current.id, {
-          version: current.version,
-          lines: orderLines.map((l) => ({
-            menuItemId: l.menuItemId,
-            quantity: l.qty,
-            unitPrice: l.unitPrice,
-            notes: l.notes ?? undefined,
-          })),
-        });
+        const saved = await sessionWriteQueue.enqueue(
+          current.id,
+          "critical",
+          () =>
+            withVersionRetry(
+              current.id,
+              (version) =>
+                operationsApi.tableOrders.updateLines(current.id, {
+                  version,
+                  lines: linesToApiPayload(orderLines),
+                }),
+              current.version,
+            ),
+          "updateLines",
+        );
         if (isDeletedSessionUpdate(saved)) {
           setBoard((prev) => markSessionClearedOnBoard(prev, current));
           setSession(null);
@@ -577,9 +646,14 @@ export default function TableOrdersPage() {
         }
         current = saved;
       }
-      await operationsApi.tableOrders.releaseForSettlement(current.id, {
-        version: current.version,
-      });
+      await sessionWriteQueue.enqueue(current.id, "critical", () =>
+        withVersionRetry(
+          current.id,
+          (version) =>
+            operationsApi.tableOrders.releaseForSettlement(current.id, { version }),
+          current.version,
+        ),
+      );
       closeWorkspace();
       await loadBoard(true, true);
       void refreshWaitingCount();
@@ -619,15 +693,21 @@ export default function TableOrdersPage() {
 
       let currentSession = session;
       if (currentSession.status === "OPEN") {
-        const saved = await operationsApi.tableOrders.updateLines(currentSession.id, {
-          version: currentSession.version,
-          lines: orderLines.map((l) => ({
-            menuItemId: l.menuItemId,
-            quantity: l.qty,
-            unitPrice: l.unitPrice,
-            notes: l.notes ?? undefined,
-          })),
-        });
+        const saved = await sessionWriteQueue.enqueue(
+          currentSession.id,
+          "critical",
+          () =>
+            withVersionRetry(
+              currentSession.id,
+              (version) =>
+                operationsApi.tableOrders.updateLines(currentSession.id, {
+                  version,
+                  lines: linesToApiPayload(orderLines),
+                }),
+              currentSession.version,
+            ),
+          "updateLines",
+        );
         if (isDeletedSessionUpdate(saved)) {
           setBoard((prev) => markSessionClearedOnBoard(prev, currentSession));
           setSession(null);

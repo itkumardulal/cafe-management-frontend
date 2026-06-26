@@ -11,6 +11,7 @@ import { refreshSessionWithRetry } from "@/src/lib/session-refresh-coordinator";
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api",
   withCredentials: true,
+  timeout: Number(process.env.NEXT_PUBLIC_API_TIMEOUT_MS ?? 30_000),
 });
 
 let refreshingPromise: Promise<void> | null = null;
