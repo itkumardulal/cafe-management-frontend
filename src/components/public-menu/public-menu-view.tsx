@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import type { PublicMenuData, PublicMenuItem } from "@/src/services/public-menu-api";
@@ -12,6 +12,7 @@ import { MenuItemSheet } from "./menu-item-sheet";
 import { MenuSearchBar } from "./menu-search-bar";
 import { PublicMenuEmptyState } from "./public-menu-empty-state";
 import { PublicMenuFooter } from "./public-menu-footer";
+import { PublicMenuContentSkeleton } from "./public-menu-content-skeleton";
 import { categoryCoverImage, itemMatchesSearchWithCategory } from "./public-menu-utils";
 import { SPECIALS_SECTION_LABEL } from "@/src/lib/menu-catalog-layout";
 
@@ -45,6 +46,8 @@ export function PublicMenuView({ data }: PublicMenuViewProps) {
   const [activeCategoryByScroll, setActiveCategoryByScroll] = useState<string | null>(categoryIdFromUrl);
   const [selectedItem, setSelectedItem] = useState<PublicMenuItem | null>(null);
   const [selectedItemCategory, setSelectedItemCategory] = useState<string | undefined>();
+  const [pressedCategoryId, setPressedCategoryId] = useState<string | null | undefined>(undefined);
+  const [isFilterPending, startFilterTransition] = useTransition();
 
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const chipRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -60,7 +63,9 @@ export function PublicMenuView({ data }: PublicMenuViewProps) {
       if (categoryId) params.set("category", categoryId);
       if (query.trim()) params.set("q", query.trim());
       const qs = params.toString();
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      startFilterTransition(() => {
+        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      });
     },
     [pathname, router],
   );
@@ -108,11 +113,32 @@ export function PublicMenuView({ data }: PublicMenuViewProps) {
     [filteredCategories],
   );
 
-  const effectiveActiveChip = selectedCategoryId ?? activeCategoryByScroll ?? null;
+  const effectiveActiveChip =
+    isFilterPending && pressedCategoryId !== undefined
+      ? pressedCategoryId
+      : (categoryIdFromUrl ?? activeCategoryByScroll);
   const showCategoryGrid = selectedCategoryId === null;
   const isCategoryDetail = selectedCategoryId !== null;
+  const isCategoryFiltering = isFilterPending && pressedCategoryId !== undefined;
+  const isContentLoading = isFilterPending;
+
+  const pressedCategory = useMemo(
+    () =>
+      pressedCategoryId
+        ? (data.categories.find((category) => category.id === pressedCategoryId) ?? null)
+        : null,
+    [data.categories, pressedCategoryId],
+  );
+
+  const skeletonVariant = useMemo((): "grid" | "category" | "items" => {
+    if (!isFilterPending) return "items";
+    if (pressedCategoryId === null) return "grid";
+    if (pressedCategoryId) return "category";
+    return "items";
+  }, [isFilterPending, pressedCategoryId]);
 
   const handleSearchChange = (value: string) => {
+    setPressedCategoryId(undefined);
     updateUrl(selectedCategoryId, value);
   };
 
@@ -124,6 +150,7 @@ export function PublicMenuView({ data }: PublicMenuViewProps) {
   );
 
   const handleCategorySelect = (categoryId: string | null) => {
+    setPressedCategoryId(categoryId);
     setActiveCategoryByScroll(categoryId);
     setSelectedItem(null);
     updateUrl(categoryId, search);
@@ -138,6 +165,7 @@ export function PublicMenuView({ data }: PublicMenuViewProps) {
   }, [scrollToTop, selectedCategoryId]);
 
   const handleBackToCategories = () => {
+    setPressedCategoryId(null);
     setActiveCategoryByScroll(null);
     setSelectedItem(null);
     updateUrl(null, "");
@@ -173,6 +201,10 @@ export function PublicMenuView({ data }: PublicMenuViewProps) {
     chip?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
   }, [effectiveActiveChip]);
 
+  const displayCategory = activeCategory ?? pressedCategory;
+  const showCategoryChrome =
+    displayCategory !== null && (isCategoryDetail || (isFilterPending && pressedCategoryId !== undefined));
+
   const handleItemSelect = (item: PublicMenuItem, categoryName?: string) => {
     setSelectedItem(item);
     setSelectedItemCategory(categoryName);
@@ -180,14 +212,22 @@ export function PublicMenuView({ data }: PublicMenuViewProps) {
 
   return (
     <div className="public-menu-shell safe-bottom pb-10">
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {isContentLoading
+          ? isCategoryFiltering
+            ? `Loading ${pressedCategory?.name ?? "category"} menu.`
+            : "Updating menu results."
+          : ""}
+      </p>
+
       <DigitalMenuHeader
         cafeName={data.cafe.cafeName}
         logo={data.cafe.logo}
-        subtitle={isCategoryDetail ? activeCategory?.name ?? "Menu" : "Select a category to explore"}
-        compact={isCategoryDetail}
+        subtitle={showCategoryChrome ? displayCategory?.name ?? "Menu" : "Select a category to explore"}
+        compact={showCategoryChrome}
       />
 
-      {isCategoryDetail && activeCategory ? (
+      {activeCategory && !isCategoryFiltering ? (
         <CategoryDetailHero
           categoryName={activeCategory.name}
           itemCount={displayedCategories[0]?.visibleItems.length ?? 0}
@@ -198,7 +238,9 @@ export function PublicMenuView({ data }: PublicMenuViewProps) {
       ) : null}
 
       {totalItems > 0 ? (
-        <div className="public-menu-sticky-nav public-menu-edge-pad py-3">
+        <div
+          className={`public-menu-sticky-nav public-menu-edge-pad py-3${isContentLoading ? " is-filtering" : ""}`}
+        >
           <MenuSearchBar value={search} onChange={handleSearchChange} placeholder="Search dishes or categories…" />
           <div className="public-menu-chip-scroll mt-3" role="tablist" aria-label="Menu categories">
             <button
@@ -206,8 +248,8 @@ export function PublicMenuView({ data }: PublicMenuViewProps) {
               ref={(node) => {
                 chipRefs.current.all = node;
               }}
-              className={`public-menu-category-chip${selectedCategoryId === null ? " is-active" : ""}`}
-              aria-pressed={selectedCategoryId === null}
+              className={`public-menu-category-chip${effectiveActiveChip === null ? " is-active" : ""}${isCategoryFiltering && pressedCategoryId === null ? " is-loading" : ""}`}
+              aria-pressed={effectiveActiveChip === null}
               onClick={() => {
                 if (isCategoryDetail) handleCategorySelect(null);
                 else scrollToTop();
@@ -216,7 +258,8 @@ export function PublicMenuView({ data }: PublicMenuViewProps) {
               All
             </button>
             {data.categories.map((category) => {
-              const chipActive = effectiveActiveChip === category.id || selectedCategoryId === category.id;
+              const chipActive = effectiveActiveChip === category.id;
+              const chipLoading = isCategoryFiltering && pressedCategoryId === category.id;
               return (
                 <button
                   key={category.id}
@@ -224,7 +267,7 @@ export function PublicMenuView({ data }: PublicMenuViewProps) {
                   ref={(node) => {
                     chipRefs.current[category.id] = node;
                   }}
-                  className={`public-menu-category-chip${chipActive ? " is-active" : ""}`}
+                  className={`public-menu-category-chip${chipActive ? " is-active" : ""}${chipLoading ? " is-loading" : ""}`}
                   aria-pressed={chipActive}
                   onClick={() => handleCategorySelect(category.id)}
                 >
@@ -236,11 +279,13 @@ export function PublicMenuView({ data }: PublicMenuViewProps) {
         </div>
       ) : null}
 
-      <div className="public-menu-content min-h-[40vh]">
+      <div className="public-menu-content min-h-[40vh]" aria-busy={isContentLoading}>
         {totalItems === 0 ? (
           <div className="public-menu-edge-pad">
             <PublicMenuEmptyState variant="oos" />
           </div>
+        ) : isContentLoading ? (
+          <PublicMenuContentSkeleton variant={skeletonVariant} />
         ) : showCategoryGrid ? (
           <>
             {filteredSpecials.length > 0 ? (
