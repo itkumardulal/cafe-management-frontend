@@ -116,28 +116,32 @@ export function PublicMenuView({ data }: PublicMenuViewProps) {
     updateUrl(selectedCategoryId, value);
   };
 
-  const scrollToCategory = (categoryId: string | null) => {
-    if (!categoryId) {
-      window.scrollTo({ top: 0, behavior: reducedMotion ? "auto" : "smooth" });
-      return;
-    }
-    const section = sectionRefs.current[categoryId];
-    if (!section) return;
-    section.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
-  };
+  const scrollToTop = useCallback(
+    (behavior: ScrollBehavior = reducedMotion ? "auto" : "instant") => {
+      window.scrollTo({ top: 0, left: 0, behavior });
+    },
+    [reducedMotion],
+  );
 
   const handleCategorySelect = (categoryId: string | null) => {
     setActiveCategoryByScroll(categoryId);
     setSelectedItem(null);
     updateUrl(categoryId, search);
-    requestAnimationFrame(() => scrollToCategory(categoryId));
+    if (categoryId === null) {
+      scrollToTop();
+    }
   };
+
+  useEffect(() => {
+    if (!selectedCategoryId) return;
+    scrollToTop();
+  }, [scrollToTop, selectedCategoryId]);
 
   const handleBackToCategories = () => {
     setActiveCategoryByScroll(null);
     setSelectedItem(null);
     updateUrl(null, "");
-    window.scrollTo({ top: 0, behavior: reducedMotion ? "auto" : "smooth" });
+    scrollToTop();
   };
 
   useEffect(() => {
@@ -206,7 +210,7 @@ export function PublicMenuView({ data }: PublicMenuViewProps) {
               aria-pressed={selectedCategoryId === null}
               onClick={() => {
                 if (isCategoryDetail) handleCategorySelect(null);
-                else scrollToCategory(null);
+                else scrollToTop();
               }}
             >
               All
@@ -317,9 +321,9 @@ export function PublicMenuView({ data }: PublicMenuViewProps) {
                 ref={(node) => {
                   sectionRefs.current[category.id] = node;
                 }}
-                initial={reducedMotion ? false : { opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
+                initial={reducedMotion ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.25 }}
                 className="public-menu-category-section"
                 aria-label={category.name}
               >
