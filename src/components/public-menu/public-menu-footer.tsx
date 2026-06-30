@@ -8,7 +8,7 @@ export function PublicMenuFooter({ cafeName, address, contactNumber }: PublicMen
   const hasContact = Boolean(address?.trim() || contactNumber?.trim());
 
   return (
-    <footer className="mt-8 px-4 pb-2 text-center">
+    <footer className="public-menu-edge-pad mt-8 pb-2 text-center">
       {hasContact ? (
         <div className="public-menu-footer-contact mb-4 space-y-1.5 text-sm">
           {address?.trim() ? (

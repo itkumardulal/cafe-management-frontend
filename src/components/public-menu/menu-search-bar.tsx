@@ -17,11 +17,12 @@ export function MenuSearchBar({
   placeholder = "Search dishes…",
 }: MenuSearchBarProps) {
   return (
-    <div className={cn("public-menu-search-wrap", className)}>
+    <form role="search" aria-label="Menu search" className={cn("public-menu-search-wrap", className)}>
       <span className="public-menu-search-icon" aria-hidden>
         <Search className="h-4 w-4" strokeWidth={2} />
       </span>
       <input
+        id="public-menu-search-input"
         type="text"
         role="searchbox"
         enterKeyHint="search"
@@ -45,6 +46,6 @@ export function MenuSearchBar({
           <X className="h-4 w-4" aria-hidden />
         </button>
       ) : null}
-    </div>
+    </form>
   );
 }

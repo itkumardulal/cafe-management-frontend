@@ -17,7 +17,7 @@ export function DigitalMenuHeader({
 
   if (compact) {
     return (
-      <header className="public-menu-glass flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2.5">
+      <header className="public-menu-glass public-menu-edge-pad flex items-center gap-3 border-b border-[var(--color-border)] py-2.5">
         {logo ? (
           <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg ring-1 ring-[var(--color-border)]">
             <PublicMenuImage src={logo} alt={cafeName} sizes="32px" />
@@ -36,7 +36,7 @@ export function DigitalMenuHeader({
   }
 
   return (
-    <header className="public-menu-header-gradient px-4 pb-5 pt-8 text-center">
+    <header className="public-menu-header-gradient public-menu-edge-pad pb-4 pt-7 text-center">
       <p className="public-menu-eyebrow mb-4">Digital Menu</p>
 
       <div className="relative mx-auto mb-4 inline-flex">

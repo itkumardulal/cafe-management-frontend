@@ -37,7 +37,7 @@ function postLoginDestination(request: NextRequest): string {
   return next ?? "/dashboard";
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (

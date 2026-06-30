@@ -35,7 +35,13 @@ type ApiEnvelope<T> = {
   data: T;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+function getPublicMenuApiBase(): string {
+  if (typeof window === "undefined") {
+    const origin = (process.env.API_URL ?? "http://localhost:4000").replace(/\/$/, "");
+    return `${origin}/api`;
+  }
+  return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+}
 
 export class PublicMenuNotFoundError extends Error {
   constructor() {
@@ -52,7 +58,8 @@ export class PublicMenuInvalidSlugError extends Error {
 }
 
 async function fetchPublicMenuUncached(slug: string): Promise<PublicMenuData> {
-  const res = await fetch(`${API_BASE}/public/menu/${encodeURIComponent(slug)}`, {
+  const apiBase = getPublicMenuApiBase();
+  const res = await fetch(`${apiBase}/public/menu/${encodeURIComponent(slug)}`, {
     method: "GET",
     headers: { Accept: "application/json" },
     next: { revalidate: 60 },
@@ -92,7 +99,7 @@ export function resolvePublicMenuAssetUrl(url: string | null | undefined): strin
   if (url.startsWith("http://") || url.startsWith("https://")) {
     return url;
   }
-  const apiBase = API_BASE.replace(/\/api\/?$/, "");
+  const apiBase = getPublicMenuApiBase().replace(/\/api\/?$/, "");
   return `${apiBase}${url.startsWith("/") ? url : `/${url}`}`;
 }
 

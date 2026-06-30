@@ -28,8 +28,10 @@ export function PublicMenuEmptyState({
       Icon: UtensilsCrossed,
     },
     search: {
-      title: searchQuery ? `No match for «${searchQuery}»` : "No results",
-      subtitle: "Try another dish name or browse categories.",
+      title: "No menu items found",
+      subtitle: searchQuery
+        ? `No match for "${searchQuery}". Try another dish or reset filters.`
+        : "Try another dish name or reset filters.",
       Icon: Search,
     },
     error: {
@@ -42,7 +44,7 @@ export function PublicMenuEmptyState({
   const Icon = config.Icon;
 
   return (
-    <div className="public-menu-empty-state mx-4 mt-4 flex flex-col items-center px-6 py-14 text-center">
+    <div className="public-menu-empty-state mt-4 flex flex-col items-center px-6 py-14 text-center">
       <span className="public-menu-icon-badge mb-5 flex h-16 w-16 items-center justify-center rounded-2xl shadow-sm">
         <Icon className="h-7 w-7" strokeWidth={1.5} aria-hidden />
       </span>
@@ -52,7 +54,7 @@ export function PublicMenuEmptyState({
       </p>
       {variant === "search" && onClearSearch ? (
         <button type="button" onClick={onClearSearch} className="public-menu-clear-btn mt-5">
-          Clear search
+          Reset filters
         </button>
       ) : null}
       {variant === "error" && onRetry ? (

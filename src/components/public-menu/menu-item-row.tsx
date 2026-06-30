@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { UtensilsCrossed } from "lucide-react";
+import { Dot, Sparkles, UtensilsCrossed } from "lucide-react";
 import { motion } from "framer-motion";
 import { formatMoney } from "@/src/lib/format-display";
 import type { PublicMenuItem } from "@/src/services/public-menu-api";
-import { formatMenuItemUnit, motionListDelay } from "./public-menu-utils";
+import { resolvePublicMenuAssetUrl } from "@/src/services/public-menu-api";
+import { formatMenuItemUnit, getDietaryType, motionListDelay } from "./public-menu-utils";
 import { PublicMenuImage } from "./public-menu-image";
 
 type MenuItemRowProps = {
@@ -18,13 +19,14 @@ type MenuItemRowProps = {
 
 function ItemMedia({ imageUrl, name }: { imageUrl: string | null; name: string }) {
   const [failed, setFailed] = useState(false);
-  const showImage = Boolean(imageUrl) && !failed;
+  const resolvedUrl = resolvePublicMenuAssetUrl(imageUrl);
+  const showImage = Boolean(resolvedUrl) && !failed;
 
   return (
     <div className="public-menu-item-media">
       {showImage ? (
         <PublicMenuImage
-          src={imageUrl!}
+          src={resolvedUrl!}
           alt={name}
           sizes="(max-width: 640px) 100vw, 640px"
           onError={() => setFailed(true)}
@@ -47,6 +49,13 @@ export function MenuItemRow({
 }: MenuItemRowProps) {
   const unitLabel = formatMenuItemUnit(item);
   const interactive = Boolean(onSelect);
+  const dietaryType = getDietaryType(item.itemType);
+  const itemTypeLabel = item.itemType?.trim() || null;
+  const description = unitLabel
+    ? `${itemTypeLabel ? `${itemTypeLabel} · ` : ""}${unitLabel}`
+    : itemTypeLabel
+      ? `${itemTypeLabel} speciality`
+      : "Freshly prepared in our kitchen";
 
   const content = (
     <article
@@ -72,18 +81,22 @@ export function MenuItemRow({
           <h3 className="public-menu-item-name">{item.name}</h3>
           <p className="public-menu-item-price">{formatMoney(item.sellPricePerUnit)}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <p className="public-menu-item-description">{description}</p>
+        <div className="flex flex-wrap items-center gap-2.5">
+          {dietaryType ? (
+            <span className={`public-menu-diet-badge ${dietaryType === "veg" ? "is-veg" : "is-non-veg"}`}>
+              <Dot className="h-3.5 w-3.5" aria-hidden />
+              {dietaryType === "veg" ? "Vegetarian" : "Non-veg"}
+            </span>
+          ) : null}
           {item.isSpecial ? (
-            <span className="public-menu-item-type">Special</span>
+            <span className="public-menu-item-type">
+              <Sparkles className="h-3.5 w-3.5" aria-hidden />
+              Popular
+            </span>
           ) : null}
-          {item.itemType?.trim() ? (
-            <span className="public-menu-item-type">{item.itemType.trim()}</span>
-          ) : null}
-          {unitLabel ? (
-            <p className="public-menu-item-unit">
-              <span className="public-menu-item-unit-dot" aria-hidden />
-              {unitLabel}
-            </p>
+          {itemTypeLabel ? (
+            <span className="public-menu-item-variant">{itemTypeLabel}</span>
           ) : null}
         </div>
       </div>

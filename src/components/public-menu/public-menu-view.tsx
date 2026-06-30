@@ -1,637 +1,362 @@
 "use client";
 
-
-
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-
-import { AnimatePresence, motion } from "framer-motion";
-
+import { motion } from "framer-motion";
 import type { PublicMenuData, PublicMenuItem } from "@/src/services/public-menu-api";
-
 import { CategoryDetailHero } from "./category-detail-hero";
-
 import { DigitalMenuHeader } from "./digital-menu-header";
-
 import { MenuCategoryCard } from "./menu-category-card";
-
 import { MenuItemRow } from "./menu-item-row";
-
 import { MenuItemSheet } from "./menu-item-sheet";
-
 import { MenuSearchBar } from "./menu-search-bar";
-
 import { PublicMenuEmptyState } from "./public-menu-empty-state";
-
 import { PublicMenuFooter } from "./public-menu-footer";
-
-import { categoryCoverImage, itemMatchesSearch } from "./public-menu-utils";
+import { categoryCoverImage, itemMatchesSearchWithCategory } from "./public-menu-utils";
 import { SPECIALS_SECTION_LABEL } from "@/src/lib/menu-catalog-layout";
 
-
-
 function subscribeReducedMotion(cb: () => void) {
-
   const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-
   mq.addEventListener("change", cb);
-
   return () => mq.removeEventListener("change", cb);
-
 }
-
-
 
 function getReducedMotion() {
-
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
 }
-
-
 
 function getReducedMotionServer() {
-
   return false;
-
 }
 
-
-
-type SearchResult = {
-
-  item: PublicMenuItem;
-
-  categoryName: string;
-
-};
-
-
-
 type PublicMenuViewProps = {
-
   data: PublicMenuData;
-
 };
-
-
 
 export function PublicMenuView({ data }: PublicMenuViewProps) {
-
   const router = useRouter();
-
   const pathname = usePathname();
-
   const searchParams = useSearchParams();
 
-
-
   const categoryIdFromUrl = searchParams.get("category");
-
   const qFromUrl = searchParams.get("q") ?? "";
-
-
-
-  const [search, setSearch] = useState(qFromUrl);
-
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(categoryIdFromUrl);
-
+  const selectedCategoryId = categoryIdFromUrl;
+  const search = qFromUrl;
+  const [activeCategoryByScroll, setActiveCategoryByScroll] = useState<string | null>(categoryIdFromUrl);
   const [selectedItem, setSelectedItem] = useState<PublicMenuItem | null>(null);
-
   const [selectedItemCategory, setSelectedItemCategory] = useState<string | undefined>();
 
-  const categoryHeadingRef = useRef<HTMLHeadingElement>(null);
-
-  const singleCategoryApplied = useRef(false);
-
-
-
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
+  const chipRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const reducedMotion = useSyncExternalStore(
-
     subscribeReducedMotion,
-
     getReducedMotion,
-
     getReducedMotionServer,
-
   );
-
-
 
   const updateUrl = useCallback(
-
     (categoryId: string | null, query: string) => {
-
       const params = new URLSearchParams();
-
       if (categoryId) params.set("category", categoryId);
-
       if (query.trim()) params.set("q", query.trim());
-
       const qs = params.toString();
-
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-
     },
-
     [pathname, router],
-
   );
-
-
-
-  useEffect(() => {
-
-    setSearch(qFromUrl);
-
-    setSelectedCategoryId(categoryIdFromUrl);
-
-  }, [categoryIdFromUrl, qFromUrl]);
-
-
-
-  useEffect(() => {
-
-    if (singleCategoryApplied.current) return;
-
-    if (data.categories.length !== 1) return;
-
-    if (categoryIdFromUrl || qFromUrl.trim()) return;
-
-
-
-    singleCategoryApplied.current = true;
-
-    const onlyCategory = data.categories[0]!;
-
-    setSelectedCategoryId(onlyCategory.id);
-
-    updateUrl(onlyCategory.id, "");
-
-  }, [categoryIdFromUrl, data.categories, qFromUrl, updateUrl]);
-
-
-
-  const activeCategory = useMemo(
-
-    () => data.categories.find((c) => c.id === selectedCategoryId) ?? null,
-
-    [data.categories, selectedCategoryId],
-
-  );
-
-
 
   const totalItems = data.categories.reduce((n, c) => n + c.items.length, 0);
+  const normalizedQuery = search.trim();
+  const activeCategory = useMemo(
+    () => data.categories.find((category) => category.id === selectedCategoryId) ?? null,
+    [data.categories, selectedCategoryId],
+  );
 
-  const isSearchActive = search.trim().length > 0;
+  const filteredSpecials = useMemo(() => {
+    return data.specials.filter((item) =>
+      itemMatchesSearchWithCategory(item, SPECIALS_SECTION_LABEL, normalizedQuery),
+    );
+  }, [data.specials, normalizedQuery]);
 
-  const isGlobalSearch = isSearchActive && selectedCategoryId === null;
+  const categoriesForGrid = useMemo(() => {
+    if (!normalizedQuery) return data.categories;
+    return data.categories.filter((category) =>
+      category.items.some((item) =>
+        itemMatchesSearchWithCategory(item, category.name, normalizedQuery),
+      ),
+    );
+  }, [data.categories, normalizedQuery]);
 
-  const isCategoryDetail = selectedCategoryId !== null && !isGlobalSearch;
+  const filteredCategories = useMemo(() => {
+    return data.categories
+      .map((category) => {
+        const visibleItems = category.items.filter((item) =>
+          itemMatchesSearchWithCategory(item, category.name, normalizedQuery),
+        );
+        return { ...category, visibleItems };
+      })
+      .filter((category) => category.visibleItems.length > 0);
+  }, [data.categories, normalizedQuery]);
 
-  const showCategoryList = !isGlobalSearch && !isCategoryDetail && data.categories.length > 1;
+  const displayedCategories = useMemo(() => {
+    if (!selectedCategoryId) return filteredCategories;
+    return filteredCategories.filter((category) => category.id === selectedCategoryId);
+  }, [filteredCategories, selectedCategoryId]);
 
+  const allFilteredItemsCount = useMemo(
+    () => filteredCategories.reduce((acc, category) => acc + category.visibleItems.length, 0),
+    [filteredCategories],
+  );
 
-
-  const searchResults = useMemo((): SearchResult[] => {
-    const q = search.trim();
-    if (!q) return [];
-    const seen = new Set<string>();
-    const results: SearchResult[] = [];
-    for (const cat of data.categories) {
-      for (const item of cat.items) {
-        if (!itemMatchesSearch(item, q)) continue;
-        if (seen.has(item.catalogItemId)) continue;
-        seen.add(item.catalogItemId);
-        results.push({ item, categoryName: cat.name });
-      }
-    }
-    return results;
-  }, [data.categories, search]);
-
-
-
-  const categoryItems = useMemo(() => {
-
-    if (!activeCategory) return [];
-
-    const q = search.trim();
-
-    if (!q) return activeCategory.items;
-
-    return activeCategory.items.filter((item) => itemMatchesSearch(item, q));
-
-  }, [activeCategory, search]);
-
-
-
-  useEffect(() => {
-
-    if (isCategoryDetail && activeCategory) {
-
-      categoryHeadingRef.current?.focus();
-
-    }
-
-  }, [activeCategory, isCategoryDetail, selectedCategoryId]);
-
-
+  const effectiveActiveChip = selectedCategoryId ?? activeCategoryByScroll ?? null;
+  const showCategoryGrid = selectedCategoryId === null;
+  const isCategoryDetail = selectedCategoryId !== null;
 
   const handleSearchChange = (value: string) => {
-
-    setSearch(value);
-
     updateUrl(selectedCategoryId, value);
-
   };
 
+  const scrollToCategory = (categoryId: string | null) => {
+    if (!categoryId) {
+      window.scrollTo({ top: 0, behavior: reducedMotion ? "auto" : "smooth" });
+      return;
+    }
+    const section = sectionRefs.current[categoryId];
+    if (!section) return;
+    section.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+  };
 
-
-  const handleBack = () => {
-
-    setSelectedCategoryId(null);
-
-    setSearch("");
-
+  const handleCategorySelect = (categoryId: string | null) => {
+    setActiveCategoryByScroll(categoryId);
     setSelectedItem(null);
+    updateUrl(categoryId, search);
+    requestAnimationFrame(() => scrollToCategory(categoryId));
+  };
 
+  const handleBackToCategories = () => {
+    setActiveCategoryByScroll(null);
+    setSelectedItem(null);
     updateUrl(null, "");
-
+    window.scrollTo({ top: 0, behavior: reducedMotion ? "auto" : "smooth" });
   };
 
+  useEffect(() => {
+    if (!isCategoryDetail) return;
+    const categoriesToObserve = displayedCategories;
+    if (categoriesToObserve.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        if (!visible.length) return;
+        const nextId = visible[0]?.target.getAttribute("data-category-id");
+        if (!nextId) return;
+        setActiveCategoryByScroll((prev) => (prev === nextId ? prev : nextId));
+      },
+      { threshold: [0.2, 0.4, 0.6], rootMargin: "-42% 0px -45% 0px" },
+    );
+    for (const category of categoriesToObserve) {
+      const el = sectionRefs.current[category.id];
+      if (el) observer.observe(el);
+    }
+    return () => observer.disconnect();
+  }, [displayedCategories, isCategoryDetail]);
 
-
-  const handleCategorySelect = (categoryId: string) => {
-
-    setSelectedCategoryId(categoryId);
-
-    setSearch("");
-
-    setSelectedItem(null);
-
-    updateUrl(categoryId, "");
-
-  };
-
-
+  useEffect(() => {
+    const activeKey = effectiveActiveChip ?? "all";
+    const chip = chipRefs.current[activeKey];
+    chip?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }, [effectiveActiveChip]);
 
   const handleItemSelect = (item: PublicMenuItem, categoryName?: string) => {
-
     setSelectedItem(item);
-
-    setSelectedItemCategory(categoryName ?? activeCategory?.name);
-
+    setSelectedItemCategory(categoryName);
   };
 
-
-
-  const headerSubtitle = isGlobalSearch
-
-    ? "Find your favourite dish"
-
-    : isCategoryDetail
-
-      ? activeCategory?.name ?? "Menu"
-
-      : data.categories.length === 1
-
-        ? activeCategory?.name ?? "Browse our menu"
-
-        : "Select a category to begin";
-
-
-
   return (
-
     <div className="public-menu-shell safe-bottom pb-10">
-
-      {!isCategoryDetail ? (
-
-        <DigitalMenuHeader
-
-          cafeName={data.cafe.cafeName}
-
-          logo={data.cafe.logo}
-
-          subtitle={headerSubtitle}
-
-        />
-
-      ) : (
-
-        <DigitalMenuHeader
-
-          cafeName={data.cafe.cafeName}
-
-          logo={data.cafe.logo}
-
-          subtitle={headerSubtitle}
-
-          compact
-
-        />
-
-      )}
-
-
+      <DigitalMenuHeader
+        cafeName={data.cafe.cafeName}
+        logo={data.cafe.logo}
+        subtitle={isCategoryDetail ? activeCategory?.name ?? "Menu" : "Select a category to explore"}
+        compact={isCategoryDetail}
+      />
 
       {isCategoryDetail && activeCategory ? (
-
         <CategoryDetailHero
-
-          ref={categoryHeadingRef}
-
           categoryName={activeCategory.name}
-
-          itemCount={categoryItems.length}
-
+          itemCount={displayedCategories[0]?.visibleItems.length ?? 0}
           coverImage={categoryCoverImage(activeCategory)}
-
-          onBack={handleBack}
-
+          onBack={handleBackToCategories}
           showBack={data.categories.length > 1}
-
         />
-
       ) : null}
-
-
 
       {totalItems > 0 ? (
-
-        <div className="public-menu-sticky-nav px-4 py-3.5">
-
-          <MenuSearchBar
-
-            value={search}
-
-            onChange={handleSearchChange}
-
-            placeholder={
-
-              isCategoryDetail ? "Search in this category…" : "Search all dishes…"
-
-            }
-
-          />
-
+        <div className="public-menu-sticky-nav public-menu-edge-pad py-3">
+          <MenuSearchBar value={search} onChange={handleSearchChange} placeholder="Search dishes or categories…" />
+          <div className="public-menu-chip-scroll mt-3" role="tablist" aria-label="Menu categories">
+            <button
+              type="button"
+              ref={(node) => {
+                chipRefs.current.all = node;
+              }}
+              className={`public-menu-category-chip${selectedCategoryId === null ? " is-active" : ""}`}
+              aria-pressed={selectedCategoryId === null}
+              onClick={() => {
+                if (isCategoryDetail) handleCategorySelect(null);
+                else scrollToCategory(null);
+              }}
+            >
+              All
+            </button>
+            {data.categories.map((category) => {
+              const chipActive = effectiveActiveChip === category.id || selectedCategoryId === category.id;
+              return (
+                <button
+                  key={category.id}
+                  type="button"
+                  ref={(node) => {
+                    chipRefs.current[category.id] = node;
+                  }}
+                  className={`public-menu-category-chip${chipActive ? " is-active" : ""}`}
+                  aria-pressed={chipActive}
+                  onClick={() => handleCategorySelect(category.id)}
+                >
+                  {category.name}
+                </button>
+              );
+            })}
+          </div>
         </div>
-
       ) : null}
 
-
-
-      <div className="min-h-[40vh]">
-
+      <div className="public-menu-content min-h-[40vh]">
         {totalItems === 0 ? (
-
-          <PublicMenuEmptyState variant="oos" />
-
-        ) : isGlobalSearch ? (
-
-          <AnimatePresence mode="wait">
-
-            <motion.div
-
-              key="search"
-
-              initial={reducedMotion ? false : { opacity: 0, y: 8 }}
-
-              animate={{ opacity: 1, y: 0 }}
-
-              exit={reducedMotion ? undefined : { opacity: 0 }}
-
-              transition={{ duration: 0.28 }}
-
-              className="px-4 pt-2"
-
-            >
-
-              <p className="public-menu-eyebrow mb-3 px-1">
-
-                {searchResults.length} result{searchResults.length === 1 ? "" : "s"}
-
-              </p>
-
-              <div className="public-menu-item-list">
-
-                {searchResults.length === 0 ? (
-
-                  <PublicMenuEmptyState
-
-                    variant="search"
-
-                    searchQuery={search.trim()}
-
-                    onClearSearch={() => handleSearchChange("")}
-
-                  />
-
-                ) : (
-
-                  searchResults.map(({ item, categoryName }, i) => (
-
-                    <MenuItemRow
-
-                      key={item.catalogItemId}
-
-                      item={item}
-
-                      categoryName={categoryName}
-
-                      index={i}
-
-                      reducedMotion={reducedMotion}
-
-                      onSelect={(selected) => handleItemSelect(selected, categoryName)}
-
-                    />
-
-                  ))
-
-                )}
-
-              </div>
-
-            </motion.div>
-
-          </AnimatePresence>
-
-        ) : isCategoryDetail ? (
-
-          <AnimatePresence mode="wait">
-
-            <motion.div
-
-              key={selectedCategoryId}
-
-              initial={reducedMotion ? false : { opacity: 0, y: 12 }}
-
-              animate={{ opacity: 1, y: 0 }}
-
-              exit={reducedMotion ? undefined : { opacity: 0, y: -8 }}
-
-              transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-
-              className="px-4 pt-2"
-
-            >
-
-              <div className="public-menu-item-list">
-
-                {categoryItems.length === 0 ? (
-
-                  isSearchActive ? (
-
-                    <PublicMenuEmptyState
-
-                      variant="search"
-
-                      searchQuery={search.trim()}
-
-                      onClearSearch={() => handleSearchChange("")}
-
-                    />
-
-                  ) : (
-
-                    <PublicMenuEmptyState variant="oos" />
-
-                  )
-
-                ) : (
-
-                  categoryItems.map((item, i) => (
-
-                    <MenuItemRow
-
-                      key={item.catalogItemId}
-
-                      item={item}
-
-                      index={i}
-
-                      reducedMotion={reducedMotion}
-
-                      onSelect={(selected) => handleItemSelect(selected)}
-
-                    />
-
-                  ))
-
-                )}
-
-              </div>
-
-            </motion.div>
-
-          </AnimatePresence>
-
-        ) : showCategoryList ? (
-
-          <AnimatePresence mode="wait">
-
-            <motion.div
-
-              key="categories"
-
-              initial={reducedMotion ? false : { opacity: 0, y: 8 }}
-
-              animate={{ opacity: 1, y: 0 }}
-
-              exit={reducedMotion ? undefined : { opacity: 0 }}
-
-              transition={{ duration: 0.28 }}
-
-              className="px-4 pt-2"
-
-            >
-
-              {data.specials.length > 0 ? (
-                <section className="mb-6" aria-label={SPECIALS_SECTION_LABEL}>
+          <div className="public-menu-edge-pad">
+            <PublicMenuEmptyState variant="oos" />
+          </div>
+        ) : showCategoryGrid ? (
+          <>
+            {filteredSpecials.length > 0 ? (
+              <motion.section
+                className="public-menu-specials-section"
+                aria-label={SPECIALS_SECTION_LABEL}
+                initial={reducedMotion ? false : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="public-menu-edge-pad">
+                  <div className="public-menu-category-section-head">
+                    <h2 className="public-menu-category-section-title">{SPECIALS_SECTION_LABEL}</h2>
+                    <p className="public-menu-category-section-count">
+                      {filteredSpecials.length} item{filteredSpecials.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
                   <div className="public-menu-ornament public-menu-text-muted mb-3 text-[10px] font-semibold uppercase tracking-[0.18em]">
-                    <span className="shrink-0 px-2">{SPECIALS_SECTION_LABEL}</span>
+                    <span className="shrink-0 px-2">Highlighted today</span>
                   </div>
                   <div className="public-menu-item-list">
-                    {data.specials.map((item, i) => (
+                    {filteredSpecials.map((item, index) => (
                       <MenuItemRow
                         key={item.catalogItemId}
                         item={item}
-                        index={i}
+                        index={index}
                         reducedMotion={reducedMotion}
                         onSelect={(selected) => handleItemSelect(selected, SPECIALS_SECTION_LABEL)}
                       />
                     ))}
                   </div>
-                </section>
-              ) : null}
+                </div>
+              </motion.section>
+            ) : null}
 
-              <div className="public-menu-ornament public-menu-text-muted mb-5 text-[10px] font-semibold uppercase tracking-[0.18em]">
-
-                <span className="shrink-0 px-2">Categories</span>
-
-              </div>
-
-              <div className="public-menu-category-grid">
-
-                {data.categories.map((cat, i) => (
-
-                  <MenuCategoryCard
-
-                    key={cat.id}
-
-                    category={cat}
-
-                    index={i}
-
-                    reducedMotion={reducedMotion}
-
-                    onSelect={handleCategorySelect}
-
-                  />
-
-                ))}
-
-              </div>
-
-            </motion.div>
-
-          </AnimatePresence>
-
-        ) : null}
-
+            <div className="public-menu-edge-pad pt-3">
+            {categoriesForGrid.length > 0 ? (
+              <>
+                <div className="public-menu-ornament public-menu-text-muted mb-5 text-[10px] font-semibold uppercase tracking-[0.18em]">
+                  <span className="shrink-0 px-2">Categories</span>
+                </div>
+                <div className="public-menu-category-grid">
+                  {categoriesForGrid.map((category, index) => (
+                    <MenuCategoryCard
+                      key={category.id}
+                      category={category}
+                      index={index}
+                      reducedMotion={reducedMotion}
+                      onSelect={(id) => handleCategorySelect(id)}
+                    />
+                  ))}
+                </div>
+              </>
+            ) : filteredSpecials.length === 0 && normalizedQuery ? (
+              <PublicMenuEmptyState
+                variant="search"
+                searchQuery={normalizedQuery}
+                onClearSearch={() => handleSearchChange("")}
+              />
+            ) : null}
+            </div>
+          </>
+        ) : allFilteredItemsCount === 0 ? (
+          <PublicMenuEmptyState
+            variant="search"
+            searchQuery={normalizedQuery}
+            onClearSearch={() => {
+              handleSearchChange("");
+              updateUrl(null, "");
+            }}
+          />
+        ) : (
+          <div className="public-menu-sections public-menu-edge-pad pt-3">
+            {displayedCategories.map((category) => (
+              <motion.section
+                key={category.id}
+                data-category-id={category.id}
+                ref={(node) => {
+                  sectionRefs.current[category.id] = node;
+                }}
+                initial={reducedMotion ? false : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="public-menu-category-section"
+                aria-label={category.name}
+              >
+                <div className="public-menu-category-section-head">
+                  <h2 className="public-menu-category-section-title">{category.name}</h2>
+                  <p className="public-menu-category-section-count">
+                    {category.visibleItems.length} item{category.visibleItems.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <div className="public-menu-ornament public-menu-text-muted mb-4 text-[10px] font-semibold uppercase tracking-[0.18em]">
+                  <span className="shrink-0 px-2">Featured Selection</span>
+                </div>
+                <div className="public-menu-item-list">
+                  {category.visibleItems.map((item, index) => (
+                    <MenuItemRow
+                      key={item.catalogItemId}
+                      item={item}
+                      categoryName={selectedCategoryId ? undefined : category.name}
+                      index={index}
+                      reducedMotion={reducedMotion}
+                      onSelect={(selected) => handleItemSelect(selected, category.name)}
+                    />
+                  ))}
+                </div>
+              </motion.section>
+            ))}
+          </div>
+        )}
       </div>
 
-
-
       <PublicMenuFooter
-
         cafeName={data.cafe.cafeName}
-
         address={data.cafe.address}
-
         contactNumber={data.cafe.contactNumber}
-
       />
 
-
-
-      <MenuItemSheet
-
-        item={selectedItem}
-
-        categoryName={selectedItemCategory}
-
-        onClose={() => setSelectedItem(null)}
-
-      />
-
+      <MenuItemSheet item={selectedItem} categoryName={selectedItemCategory} onClose={() => setSelectedItem(null)} />
     </div>
-
   );
-
 }
-
-
