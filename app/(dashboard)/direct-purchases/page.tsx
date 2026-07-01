@@ -20,7 +20,7 @@ import { PurchasePaymentTypeSection } from "@/src/components/purchases/purchase-
 import type { PurchaseBankAccountOption } from "@/src/components/purchases/purchase-payment-type-section";
 import { PaymentStatusBadge } from "@/src/components/purchases/ap-status-badges";
 import { SortableTableHeader } from "@/src/components/ui/sortable-table-header";
-import { usePaginatedList } from "@/src/hooks/use-paginated-list";
+import { todayIsoDate } from "@/src/lib/date-picker-utils";
 import { useUploadEntityId } from "@/src/hooks/use-upload-entity-id";
 import { ViewModalSkeleton } from "@/src/components/skeletons/view-modal-skeleton";
 import { PaginationSkeleton } from "@/src/components/skeletons/pagination-skeleton";
@@ -180,7 +180,7 @@ function DirectPurchasesContent() {
   const [editId, setEditId] = useState<string | null>(null);
   const [editSupplierId, setEditSupplierId] = useState("");
   const [saving, setSaving] = useState(false);
-  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().slice(0, 10));
+  const [purchaseDate, setPurchaseDate] = useState(todayIsoDate);
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<Line[]>([emptyLine()]);
   const [paymentType, setPaymentType] = useState<CreatePaymentType>("FULLY_PAID");
@@ -282,7 +282,7 @@ function DirectPurchasesContent() {
   const resetFormState = () => {
     setEditId(null);
     setEditSupplierId("");
-    setPurchaseDate(new Date().toISOString().slice(0, 10));
+    setPurchaseDate(todayIsoDate());
     setNotes("");
     setSupplierInvoiceNo("");
     setLines([emptyLine()]);

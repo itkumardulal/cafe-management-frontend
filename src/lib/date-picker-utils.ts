@@ -1,4 +1,6 @@
-/** ISO date string helpers (YYYY-MM-DD, local calendar). */
+/** ISO date string helpers (YYYY-MM-DD, app business timezone). */
+
+import { addDaysToIsoDate, formatIsoDateInTimeZone } from "@/src/lib/app-timezone";
 
 export function parseIsoDate(value: string | undefined | null): Date | null {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -16,7 +18,7 @@ export function toIsoDate(date: Date): string {
 }
 
 export function todayIsoDate(): string {
-  return toIsoDate(new Date());
+  return formatIsoDateInTimeZone(new Date());
 }
 
 export function isIsoBefore(a: string, b: string): boolean {

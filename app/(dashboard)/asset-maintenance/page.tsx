@@ -40,6 +40,7 @@ import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
 import { useAppDispatch, useAppSelector } from "@/src/store/hooks";
 import { fetchAssetOptionsThunk } from "@/src/store/slices/reference-data.slice";
+import { todayIsoDate } from "@/src/lib/date-picker-utils";
 
 const emptyForm = {
   assetId: "",
@@ -149,7 +150,7 @@ function AssetMaintenanceContent() {
     setForm({
       ...emptyForm,
       assetId: assetFilter || assetOptions[0]?.id || "",
-      maintenanceDate: new Date().toISOString().slice(0, 10),
+      maintenanceDate: todayIsoDate(),
     });
     setInitialForm(null);
     setOpen(true);

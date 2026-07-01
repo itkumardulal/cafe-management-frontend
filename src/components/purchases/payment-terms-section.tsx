@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { addDaysToIsoDate } from "@/src/lib/app-timezone";
 import { DatePicker } from "@/src/components/ui/date-picker";
 import { Field } from "@/src/components/ui/field";
 import { Select } from "@/src/components/ui/select";
@@ -8,9 +9,7 @@ import { PAYMENT_TERMS_OPTIONS } from "@/src/lib/ap-display";
 import type { PaymentTermsPreset } from "@/src/lib/ap-types";
 
 function addDays(iso: string, days: number): string {
-  const d = new Date(iso + "T00:00:00");
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return addDaysToIsoDate(iso, days);
 }
 
 const TERM_DAYS: Record<string, number> = {

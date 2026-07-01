@@ -38,6 +38,7 @@ import { cn } from "@/src/lib/cn";
 import { formatDateOnly, formatMoney } from "@/src/lib/format-display";
 import { appToast } from "@/src/lib/toast";
 import { operationsApi } from "@/src/services/operations-api";
+import { todayIsoDate } from "@/src/lib/date-picker-utils";
 
 type ExpenseEntryRow = {
   id: string;
@@ -53,12 +54,16 @@ type ExpenseEntryRow = {
 
 type ExpenseItemOption = { id: string; name: string };
 
-const emptyForm = {
-  expenseItemId: "",
-  amount: "",
-  expenseDate: new Date().toISOString().slice(0, 10),
-  notes: "",
-};
+function createEmptyExpenseForm() {
+  return {
+    expenseItemId: "",
+    amount: "",
+    expenseDate: todayIsoDate(),
+    notes: "",
+  };
+}
+
+type ExpenseForm = ReturnType<typeof createEmptyExpenseForm>;
 
 export default function DailyExpensesPage() {
   return (
@@ -121,8 +126,8 @@ function DailyExpensesContent() {
   const [edit, setEdit] = useState<ExpenseEntryRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ExpenseEntryRow | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [form, setForm] = useState(emptyForm);
-  const [initialForm, setInitialForm] = useState<typeof emptyForm | null>(null);
+  const [form, setForm] = useState(createEmptyExpenseForm);
+  const [initialForm, setInitialForm] = useState<ExpenseForm | null>(null);
 
   const canSave = hasEditChanges(Boolean(edit), form, initialForm);
 
@@ -155,10 +160,7 @@ function DailyExpensesContent() {
 
   const openCreate = () => {
     setEdit(null);
-    setForm({
-      ...emptyForm,
-      expenseDate: new Date().toISOString().slice(0, 10),
-    });
+    setForm(createEmptyExpenseForm());
     setInitialForm(null);
     setOpen(true);
   };

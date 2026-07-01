@@ -50,6 +50,7 @@ import {
   invalidateAssetCategoryOptions,
   invalidateAssetOptions,
 } from "@/src/store/slices/reference-data.slice";
+import { todayIsoDate } from "@/src/lib/date-picker-utils";
 
 const emptyForm = {
   assetCategoryId: "",
@@ -169,7 +170,7 @@ function AssetsContent() {
     setForm({
       ...emptyForm,
       assetCategoryId: categories[0]?.id ?? "",
-      purchaseDate: new Date().toISOString().slice(0, 10),
+      purchaseDate: todayIsoDate(),
     });
     setInitialForm(null);
     setOpen(true);

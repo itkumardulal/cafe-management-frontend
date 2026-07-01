@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { useUploadEntityId } from "@/src/hooks/use-upload-entity-id";
+import { todayIsoDate } from "@/src/lib/date-picker-utils";
 import { ArrowLeftRight } from "lucide-react";
 import { ImageUploadField } from "@/src/components/shared/image-upload-field";
 import { DateRangeFilter } from "@/src/components/shared/date-range-filter";
@@ -72,15 +72,19 @@ type TransactionsMeta = {
 
 type BankAccountOption = { id: string; label: string };
 
-const emptyForm = {
-  bankAccountId: "",
-  type: "DEPOSIT" as "DEPOSIT" | "WITHDRAWAL",
-  amount: "",
-  transactionDate: new Date().toISOString().slice(0, 10),
-  referenceNumber: "",
-  proofAttachmentUrl: "",
-  notes: "",
-};
+function createEmptyForm() {
+  return {
+    bankAccountId: "",
+    type: "DEPOSIT" as "DEPOSIT" | "WITHDRAWAL",
+    amount: "",
+    transactionDate: todayIsoDate(),
+    referenceNumber: "",
+    proofAttachmentUrl: "",
+    notes: "",
+  };
+}
+
+type BankTransactionForm = ReturnType<typeof createEmptyForm>;
 
 export default function BankTransactionsPage() {
   return (
@@ -148,8 +152,8 @@ function BankTransactionsContent() {
   const [viewTarget, setViewTarget] = useState<TransactionRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TransactionRow | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [form, setForm] = useState(emptyForm);
-  const [initialForm, setInitialForm] = useState<typeof emptyForm | null>(null);
+  const [form, setForm] = useState(createEmptyForm);
+  const [initialForm, setInitialForm] = useState<BankTransactionForm | null>(null);
 
   const canSave = hasEditChanges(Boolean(edit), form, initialForm);
   const { entityId: uploadEntityId, resetForCreate: resetUploadEntityId, setForEdit: setUploadEntityForEdit } =
@@ -200,8 +204,7 @@ function BankTransactionsContent() {
   const openCreate = () => {
     setEdit(null);
     setForm({
-      ...emptyForm,
-      transactionDate: new Date().toISOString().slice(0, 10),
+      ...createEmptyForm(),
       bankAccountId: bankAccounts[0]?.id ?? "",
     });
     setInitialForm(null);
