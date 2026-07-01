@@ -37,6 +37,7 @@ import {
 } from "@/src/components/ui/table";
 import { ReportSummaryCard } from "@/src/features/reports/components/report-detail-shell";
 import { usePaginatedList } from "@/src/hooks/use-paginated-list";
+import { useUploadEntityId } from "@/src/hooks/use-upload-entity-id";
 import { cn } from "@/src/lib/cn";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { hasEditChanges } from "@/src/lib/form-snapshot";
