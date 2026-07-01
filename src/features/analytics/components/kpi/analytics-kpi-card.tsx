@@ -6,7 +6,7 @@ import { Minus, TrendingDown, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { Card } from "@/src/components/ui/card";
 import { cn } from "@/src/lib/cn";
-import type { AnalyticsKpiMetric, AnalyticsLiveKpi, AnalyticsTrend } from "@/src/features/analytics/types/analytics.types";
+import type { AnalyticsKpiMetric, AnalyticsLiveKpi, AnalyticsTodayKpi, AnalyticsTrend } from "@/src/features/analytics/types/analytics.types";
 
 type AnalyticsKpiCardProps = {
   title: string;
@@ -14,6 +14,7 @@ type AnalyticsKpiCardProps = {
   subtitle?: string;
   trend?: AnalyticsKpiMetric;
   live?: AnalyticsLiveKpi;
+  today?: AnalyticsTodayKpi;
   icon: LucideIcon;
   chipClass: string;
   index: number;
@@ -44,6 +45,7 @@ export function AnalyticsKpiCard({
   subtitle,
   trend,
   live,
+  today,
   icon: Icon,
   chipClass,
   index,
@@ -64,6 +66,10 @@ export function AnalyticsKpiCard({
         {live ? (
           <span className="inline-flex shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200">
             Live
+          </span>
+        ) : today ? (
+          <span className="inline-flex shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+            Today
           </span>
         ) : trend ? (
           <span className="inline-flex shrink-0 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-900 dark:border-sky-800 dark:bg-sky-950/50 dark:text-sky-200">

@@ -16,6 +16,16 @@ export type AnalyticsLiveKpi = {
   badge: "live";
 };
 
+export type AnalyticsTodayKpi = {
+  value: string;
+  saleCount: number;
+  badge: "today";
+};
+
+export type AnalyticsCreditSalesPeriodKpi = AnalyticsKpiMetric & {
+  saleCount: number;
+};
+
 export type AnalyticsVisibility = {
   financials: boolean;
   inventory: boolean;
@@ -29,10 +39,15 @@ export type AnalyticsOverview = {
   generatedAt: string;
   kpis: {
     totalSales: AnalyticsKpiMetric | null;
+    collectedSales: AnalyticsKpiMetric | null;
+    creditSalesPeriod: AnalyticsCreditSalesPeriodKpi | null;
     grossProfit: AnalyticsKpiMetric | null;
     totalOrders: AnalyticsKpiMetric | null;
     cashAtHand: AnalyticsKpiMetric | null;
     cashAtBank: AnalyticsKpiMetric | null;
+    discountGiven: AnalyticsKpiMetric | null;
+    changeReturn: AnalyticsKpiMetric | null;
+    creditSalesToday: AnalyticsTodayKpi | null;
     customerReceivablesOutstanding: AnalyticsLiveKpi | null;
     supplierPayablesOutstanding: AnalyticsLiveKpi | null;
     discountImpact: { value: string; subtitle: string } | null;

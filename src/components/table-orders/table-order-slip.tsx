@@ -46,6 +46,8 @@ type TableOrderSlipProps = {
   onGenerateBill: () => void;
   onMoveToBill?: () => void;
   movingToBill?: boolean;
+  onPrintInterimBill?: () => void;
+  printingInterimBill?: boolean;
   onCancelBilling?: () => void;
   cancellingBilling?: boolean;
   onGoToPos?: () => void;
@@ -72,6 +74,8 @@ export function TableOrderSlip({
   onGenerateBill,
   onMoveToBill,
   movingToBill,
+  onPrintInterimBill,
+  printingInterimBill,
   onCancelBilling,
   cancellingBilling,
   onGoToPos,
@@ -295,41 +299,72 @@ export function TableOrderSlip({
           </span>
         </div>
         {status === "OPEN" ? (
-          <div className="mt-1 flex gap-1">
-            <Button
-              type="button"
-              size="sm"
-              className="h-7 min-w-0 flex-1 px-2 text-[10px]"
-              disabled={generating || movingToBill || lines.length === 0}
-              onClick={onGenerateBill}
-              title="Generate bill"
-            >
-              {generating ? (
-                <span className="inline-flex items-center gap-1">
-                  <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
-                  <span className="truncate">POS…</span>
-                </span>
-              ) : (
-                <span className="truncate">Generate bill</span>
-              )}
-            </Button>
-            {onMoveToBill ? (
+          <div className="mt-1 space-y-1">
+            <div className="flex gap-1">
               <Button
                 type="button"
                 size="sm"
-                variant="secondary"
                 className="h-7 min-w-0 flex-1 px-2 text-[10px]"
                 disabled={generating || movingToBill || lines.length === 0}
-                onClick={onMoveToBill}
-                title="Move to bill (free table)"
+                onClick={onGenerateBill}
+                title="Generate bill"
               >
-                {movingToBill ? (
+                {generating ? (
                   <span className="inline-flex items-center gap-1">
                     <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
-                    <span className="truncate">Moving…</span>
+                    <span className="truncate">POS…</span>
                   </span>
                 ) : (
-                  <span className="truncate">Free table</span>
+                  <span className="truncate">Generate bill</span>
+                )}
+              </Button>
+              {onMoveToBill ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="h-7 min-w-0 flex-1 px-2 text-[10px]"
+                  disabled={generating || movingToBill || lines.length === 0}
+                  onClick={onMoveToBill}
+                  title="Move to bill (free table)"
+                >
+                  {movingToBill ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                      <span className="truncate">Moving…</span>
+                    </span>
+                  ) : (
+                    <span className="truncate">Free table</span>
+                  )}
+                </Button>
+              ) : null}
+            </div>
+            {onPrintInterimBill ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 w-full border border-[var(--color-border)] px-2 text-[10px]"
+                disabled={
+                  saving ||
+                  generating ||
+                  movingToBill ||
+                  printingInterimBill ||
+                  lines.length === 0
+                }
+                onClick={onPrintInterimBill}
+                title="Print running total for the guest — does not take payment or close the table"
+              >
+                {printingInterimBill ? (
+                  <span className="inline-flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                    <span className="truncate">Printing…</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1">
+                    <Receipt className="h-3 w-3 shrink-0" aria-hidden />
+                    <span className="truncate">Interim bill</span>
+                  </span>
                 )}
               </Button>
             ) : null}

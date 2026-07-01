@@ -22,14 +22,38 @@ function kpiRows(overview: AnalyticsOverview): Array<{ metric: string; value: st
   if (overview.kpis.totalSales) {
     rows.push({ metric: "Total sales", value: String(overview.kpis.totalSales.value) });
   }
+  if (overview.kpis.collectedSales) {
+    rows.push({ metric: "Collected sales", value: String(overview.kpis.collectedSales.value) });
+  }
+  if (overview.kpis.creditSalesPeriod) {
+    rows.push({
+      metric: "On credit sales (period)",
+      value: String(overview.kpis.creditSalesPeriod.value),
+    });
+  }
   if (overview.kpis.grossProfit) {
     rows.push({ metric: "Gross profit", value: String(overview.kpis.grossProfit.value) });
   }
   if (overview.kpis.cashAtHand) {
-    rows.push({ metric: "Cash at hand (POS)", value: String(overview.kpis.cashAtHand.value) });
+    rows.push({
+      metric: "Cash at hand (POS, net after change)",
+      value: String(overview.kpis.cashAtHand.value),
+    });
   }
   if (overview.kpis.cashAtBank) {
     rows.push({ metric: "Cash at bank (POS)", value: String(overview.kpis.cashAtBank.value) });
+  }
+  if (overview.kpis.discountGiven) {
+    rows.push({ metric: "Discount given", value: String(overview.kpis.discountGiven.value) });
+  }
+  if (overview.kpis.changeReturn) {
+    rows.push({ metric: "Change return", value: String(overview.kpis.changeReturn.value) });
+  }
+  if (overview.kpis.creditSalesToday) {
+    rows.push({
+      metric: "On credit sales (today)",
+      value: overview.kpis.creditSalesToday.value,
+    });
   }
   if (overview.kpis.discountImpact) {
     rows.push({ metric: "Discount impact", value: overview.kpis.discountImpact.value });

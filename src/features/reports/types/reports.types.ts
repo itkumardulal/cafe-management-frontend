@@ -1,3 +1,5 @@
+import { getZonedDateParts } from "@/src/lib/app-timezone";
+
 export type ReportPeriodKey =
   | "today"
   | "yesterday"
@@ -354,13 +356,12 @@ export function buildReportQueryParams(params?: ReportPeriodParams): Record<stri
   };
 }
 
-/** First day of current month through today (UTC), for custom range defaults. */
+/** First day of current month through today (app timezone), for custom range defaults. */
 export function defaultCustomReportRange(): { fromDate: string; toDate: string } {
   const now = new Date();
-  const toDate = now.toISOString().slice(0, 10);
-  const fromDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-    .toISOString()
-    .slice(0, 10);
+  const parts = getZonedDateParts(now);
+  const toDate = `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+  const fromDate = `${parts.year}-${String(parts.month).padStart(2, "0")}-01`;
   return { fromDate, toDate };
 }
 

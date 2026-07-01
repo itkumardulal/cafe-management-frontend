@@ -12,6 +12,7 @@ export type ThermalSaleLineItem = {
   quantity: string;
   unitPrice: string;
   lineTotal: string;
+  notes?: string | null;
 };
 
 export type ThermalPurchaseLineItem = {
@@ -112,6 +113,11 @@ export function ThermalLineItems(props: ThermalLineItemsProps) {
             <tr key={idx} className="align-top">
               <td className="py-1 pr-1 font-medium leading-snug break-words">
                 {truncateThermalText(line.name, itemMaxChars)}
+                {line.notes?.trim() ? (
+                  <p className="mt-0.5 text-[8px] font-normal leading-snug text-black/75">
+                    Note: {truncateThermalText(line.notes.trim(), itemMaxChars)}
+                  </p>
+                ) : null}
               </td>
               <td className="py-1 pr-0.5 text-right font-mono tabular-nums whitespace-nowrap">
                 {formatMoneyCompact(line.quantity)}

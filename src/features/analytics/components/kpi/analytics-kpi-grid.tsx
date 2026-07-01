@@ -3,8 +3,12 @@
 import {
   AlertTriangle,
   Banknote,
+  CircleDollarSign,
+  CreditCard,
   HandCoins,
+  RotateCcw,
   ShoppingBag,
+  Tag,
   TrendingUp,
   Truck,
   Wallet,
@@ -21,6 +25,7 @@ type KpiCardConfig = {
   subtitle?: string;
   trend?: AnalyticsOverview["kpis"]["totalSales"];
   live?: AnalyticsOverview["kpis"]["customerReceivablesOutstanding"];
+  today?: AnalyticsOverview["kpis"]["creditSalesToday"];
   icon: typeof ShoppingBag;
   chip: string;
   href?: string;
@@ -80,6 +85,31 @@ export function AnalyticsKpiGrid({
           href: reportHref("/reports/sales", periodParams),
         }
       : null,
+    kpis.collectedSales
+      ? {
+          title: "Collected sales",
+          value: formatMoney(String(kpis.collectedSales.value)),
+          subtitle: "Total sales minus on credit sales",
+          trend: kpis.collectedSales,
+          icon: CircleDollarSign,
+          chip: "bg-lime-50 text-lime-800 dark:bg-lime-950/40 dark:text-lime-200",
+          href: reportHref("/reports/sales", periodParams),
+        }
+      : null,
+    kpis.creditSalesPeriod
+      ? {
+          title: "On credit sales",
+          value: formatMoney(String(kpis.creditSalesPeriod.value)),
+          subtitle:
+            kpis.creditSalesPeriod.saleCount === 1
+              ? "1 credit sale in period"
+              : `${kpis.creditSalesPeriod.saleCount} credit sales in period`,
+          trend: kpis.creditSalesPeriod,
+          icon: CreditCard,
+          chip: "bg-violet-50 text-violet-800 dark:bg-violet-950/40 dark:text-violet-200",
+          href: "/customer-receivables?hasOutstanding=true",
+        }
+      : null,
     kpis.grossProfit
       ? {
           title: "Gross profit",
@@ -94,7 +124,7 @@ export function AnalyticsKpiGrid({
       ? {
           title: "Cash at hand",
           value: formatMoney(String(kpis.cashAtHand.value)),
-          subtitle: "POS cash receipts",
+          subtitle: "POS net cash (after change)",
           trend: kpis.cashAtHand,
           icon: HandCoins,
           chip: "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200",
@@ -110,6 +140,42 @@ export function AnalyticsKpiGrid({
           icon: Banknote,
           chip: "bg-teal-50 text-teal-800 dark:bg-teal-950/40 dark:text-teal-200",
           href: reportHref("/reports/sales", periodParams),
+        }
+      : null,
+    kpis.discountGiven
+      ? {
+          title: "Discount given",
+          value: formatMoney(String(kpis.discountGiven.value)),
+          subtitle: kpis.discountImpact?.subtitle,
+          trend: kpis.discountGiven,
+          icon: Tag,
+          chip: "bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-200",
+          href: reportHref("/reports/sales", periodParams),
+        }
+      : null,
+    kpis.changeReturn
+      ? {
+          title: "Change return",
+          value: formatMoney(String(kpis.changeReturn.value)),
+          subtitle: "Cash change returned at POS",
+          trend: kpis.changeReturn,
+          icon: RotateCcw,
+          chip: "bg-orange-50 text-orange-800 dark:bg-orange-950/40 dark:text-orange-200",
+          href: reportHref("/reports/sales", periodParams),
+        }
+      : null,
+    kpis.creditSalesToday
+      ? {
+          title: "Credit sales today",
+          value: formatMoney(kpis.creditSalesToday.value),
+          subtitle:
+            kpis.creditSalesToday.saleCount === 1
+              ? "1 credit sale today"
+              : `${kpis.creditSalesToday.saleCount} credit sales today`,
+          today: kpis.creditSalesToday,
+          icon: CreditCard,
+          chip: "bg-indigo-50 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200",
+          href: "/customer-receivables?hasOutstanding=true",
         }
       : null,
   ];
@@ -181,6 +247,7 @@ export function AnalyticsKpiGrid({
           subtitle={card.subtitle}
           trend={card.trend ?? undefined}
           live={card.live ?? undefined}
+          today={card.today ?? undefined}
           icon={card.icon}
           chipClass={card.chip}
           href={card.href}

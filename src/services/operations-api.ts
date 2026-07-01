@@ -124,6 +124,32 @@ export type TableOrderBillingHandoff = {
   subtotal: string;
 };
 
+export type TableOrderInterimBill = {
+  sessionId: string;
+  status: "OPEN" | "AWAITING_SETTLEMENT";
+  printedAt: string;
+  tableNames: string[];
+  lineCount: number;
+  itemQuantityTotal: string;
+  subtotal: string;
+  grandTotal: string;
+  createdByName: string | null;
+  lines: Array<{
+    menuItemName: string;
+    quantity: string;
+    unitPrice: string;
+    lineTotal: string;
+    notes?: string | null;
+  }>;
+  cafe: {
+    cafeName: string;
+    address: string | null;
+    contactNumber: string | null;
+    email: string | null;
+    logo: string | null;
+  };
+};
+
 async function getData<T>(
   path: string,
   params?: Record<string, string | number | undefined>,
@@ -484,6 +510,12 @@ export const operationsApi = {
       mutate<TableOrderSessionDetail>("post", `/table-orders/sessions/${id}/cancel-billing`, {}),
     billingHandoff: (id: string) =>
       getData<TableOrderBillingHandoff>(`/table-orders/sessions/${id}/billing-handoff`),
+    getInterimBill: (id: string, options?: { force?: boolean }) =>
+      getData<TableOrderInterimBill>(
+        `/table-orders/sessions/${id}/interim-bill`,
+        undefined,
+        options,
+      ),
     getKot: (id: string, options?: { force?: boolean }) =>
       getData<TableOrderKotView>(`/table-orders/sessions/${id}/kot`, undefined, options),
     sealKot: (id: string, data?: { kind?: "ORDER" | "ADDITIONAL" }) =>

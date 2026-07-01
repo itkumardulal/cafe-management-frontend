@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/src/components/shared/page-header";
 import { EmptyState } from "@/src/components/ui/empty-state";
 import { ReportPeriodFilter } from "@/src/features/reports/components/report-period-filter";
@@ -28,6 +28,7 @@ import {
   TableStatusCards,
 } from "@/src/features/analytics/components/widgets/analytics-widgets";
 import { useAnalyticsPeriod } from "@/src/features/analytics/hooks/use-analytics-period";
+import { useDashboardMidnightRefresh } from "@/src/features/analytics/hooks/use-dashboard-midnight-refresh";
 import {
   ANALYTICS_DEFAULT_PERIOD,
   analyticsCacheKey,
@@ -67,6 +68,19 @@ export function CafeAnalyticsDashboard() {
       void operationsApi.assets.summary().then(setAssetsSummary).catch(() => setAssetsSummary(null));
     }
   }, [dispatch, effectivePeriodParams, menus, user?.role]);
+
+  const handleMidnightRefresh = useCallback(() => {
+    if (!effectivePeriodParams) return;
+    void dispatch(fetchAnalyticsOverviewForceThunk(effectivePeriodParams));
+    if (canAccessStockAlerts(user?.role, menus)) {
+      void dispatch(fetchStockAlertsThunk());
+    }
+    if (canAccessAssets(user?.role, menus)) {
+      void operationsApi.assets.summary().then(setAssetsSummary).catch(() => setAssetsSummary(null));
+    }
+  }, [dispatch, effectivePeriodParams, menus, user?.role]);
+
+  useDashboardMidnightRefresh(handleMidnightRefresh);
 
   const handleRefresh = () => {
     if (!effectivePeriodParams || refreshing) return;

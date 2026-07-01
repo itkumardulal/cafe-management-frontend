@@ -1,7 +1,7 @@
 "use client";
 
 import axios from "axios";
-import { Clock, Combine, Eye, FileText, Printer, RefreshCw, Split } from "lucide-react";
+import { Clock, Combine, Eye, FileText, Printer, Receipt, RefreshCw, Split } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -14,8 +14,8 @@ import { TableMenuPicker } from "@/src/components/table-orders/table-menu-picker
 import { TableOrderSlip } from "@/src/components/table-orders/table-order-slip";
 import {
   TableOrderKotReceipt,
-  type TableOrderKotPrintData,
 } from "@/src/components/table-orders/table-order-kot-receipt";
+import { TableOrderInterimReceipt } from "@/src/components/table-orders/table-order-interim-receipt";
 import { TableOrdersEmptyWorkspace } from "@/src/components/table-orders/table-orders-empty-workspace";
 import {
   tableOrdersFloorPanelJoined,
@@ -29,11 +29,12 @@ import { WaitingSettlementView } from "@/src/components/table-orders/waiting-set
 import { Button } from "@/src/components/ui/button";
 import { Modal } from "@/src/components/ui/modal";
 import { ThermalPrintHost } from "@/src/features/printing/components/thermal-print-host";
-import { useThermalPrint } from "@/src/features/printing/hooks/use-thermal-print";
+import { useTableOrderThermalPrint } from "@/src/hooks/use-table-order-thermal-print";
 import { getApiErrorMessage } from "@/src/lib/api-error";
 import { sessionWriteQueue } from "@/src/lib/session-write-queue";
 import { isVersionConflict } from "@/src/lib/version-conflict";
 import { fetchLatestKotBatch } from "@/src/lib/print-latest-kot";
+import { prepareSessionForPrint } from "@/src/lib/prepare-session-for-print";
 import { cn } from "@/src/lib/cn";
 import { appToast } from "@/src/lib/toast";
 import { useTableOrdersSocket } from "@/src/hooks/use-table-orders-socket";
@@ -148,11 +149,13 @@ export default function TableOrdersPage() {
   const [unmerging, setUnmerging] = useState(false);
   const [lastAddedKey, setLastAddedKey] = useState<string | null>(null);
   const [printingLatestKot, setPrintingLatestKot] = useState(false);
+  const [printingInterimBill, setPrintingInterimBill] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { printDocument, isPrinting, printLoaded } = useThermalPrint<TableOrderKotPrintData>({
+  const { printDocument, isPrintBusy, printKot, printInterimBill } =
+    useTableOrderThermalPrint({
     onError: (error) =>
-      appToast.error(getApiErrorMessage(error, "Failed to prepare kitchen ticket")),
+      appToast.error(getApiErrorMessage(error, "Failed to prepare printout")),
   });
 
   const loadBoard = useCallback(async (silent = false, force = false) => {
@@ -677,62 +680,98 @@ export default function TableOrdersPage() {
   const canViewKot =
     Boolean(session?.id) && session?.status === "OPEN" && orderLines.length > 0;
 
-  const navigateToKot = () => {
-    if (!session?.id || !canViewKot) return;
-    router.push(`/table-orders/kot/${session.id}`);
+  const canPrintInterimBill =
+    Boolean(session?.id) &&
+    session?.status === "OPEN" &&
+    orderLines.length > 0 &&
+    !saving &&
+    !isPrintBusy &&
+    !printingLatestKot &&
+    !printingInterimBill;
+
+  const clearSaveTimer = () => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+  };
+
+  const handleSessionClearedForPrint = async (
+    clearedSession: TableOrderSessionDetail,
+  ) => {
+    setBoard((prev) => markSessionClearedOnBoard(prev, clearedSession));
+    setSession(null);
+    setOrderLines([]);
+    setLastAddedKey(null);
+    await loadBoard(true, true);
+    appToast.error("No items to print");
   };
 
   const handleLatestKot = async () => {
-    if (!session?.id || !canViewKot || printingLatestKot || isPrinting) return;
+    if (!session?.id || !canViewKot || printingLatestKot || isPrintBusy) return;
     setPrintingLatestKot(true);
     try {
-      if (saveTimer.current) {
-        clearTimeout(saveTimer.current);
-        saveTimer.current = null;
-      }
+      clearSaveTimer();
 
-      let currentSession = session;
-      if (currentSession.status === "OPEN") {
-        const saved = await sessionWriteQueue.enqueue(
-          currentSession.id,
-          "critical",
-          () =>
-            withVersionRetry(
-              currentSession.id,
-              (version) =>
-                operationsApi.tableOrders.updateLines(currentSession.id, {
-                  version,
-                  lines: linesToApiPayload(orderLines),
-                }),
-              currentSession.version,
-            ),
-          "updateLines",
-        );
-        if (isDeletedSessionUpdate(saved)) {
-          setBoard((prev) => markSessionClearedOnBoard(prev, currentSession));
-          setSession(null);
-          setOrderLines([]);
-          setLastAddedKey(null);
-          await loadBoard(true, true);
-          appToast.error("No items to print");
-          return;
-        }
-        currentSession = saved;
-        setSession(saved);
-        setOrderLines(sessionToLines(saved));
+      const prepared = await prepareSessionForPrint({
+        session,
+        lines: linesToApiPayload(orderLines),
+        withVersionRetry,
+      });
+      if (prepared.kind === "cleared") {
+        await handleSessionClearedForPrint(prepared.session);
+        return;
       }
+      const currentSession = prepared.session;
+      setSession(currentSession);
+      setOrderLines(sessionToLines(currentSession));
 
       const { batch: latestBatch } = await fetchLatestKotBatch(currentSession.id);
       if (!latestBatch) {
         appToast.error("No kitchen orders to print for this table");
         return;
       }
-      printLoaded(latestBatch);
+      printKot(latestBatch);
     } catch (error) {
       appToast.error(getApiErrorMessage(error, "Failed to print latest kitchen order"));
     } finally {
       setPrintingLatestKot(false);
     }
+  };
+
+  const handlePrintInterimBill = async () => {
+    if (!session?.id || !canPrintInterimBill) return;
+    setPrintingInterimBill(true);
+    try {
+      clearSaveTimer();
+
+      const prepared = await prepareSessionForPrint({
+        session,
+        lines: linesToApiPayload(orderLines),
+        withVersionRetry,
+      });
+      if (prepared.kind === "cleared") {
+        await handleSessionClearedForPrint(prepared.session);
+        return;
+      }
+      const currentSession = prepared.session;
+      setSession(currentSession);
+      setOrderLines(sessionToLines(currentSession));
+
+      const bill = await operationsApi.tableOrders.getInterimBill(currentSession.id, {
+        force: true,
+      });
+      printInterimBill(bill);
+    } catch (error) {
+      appToast.error(getApiErrorMessage(error, "Failed to print interim bill"));
+    } finally {
+      setPrintingInterimBill(false);
+    }
+  };
+
+  const navigateToKot = () => {
+    if (!session?.id || !canViewKot) return;
+    router.push(`/table-orders/kot/${session.id}`);
   };
 
   if (showWaitingBills) {
@@ -767,8 +806,10 @@ export default function TableOrdersPage() {
               type="button"
               size="sm"
               variant="secondary"
-              disabled={!canViewKot || printingLatestKot || isPrinting}
-              loading={printingLatestKot || isPrinting}
+              disabled={
+                !canViewKot || printingLatestKot || printingInterimBill || isPrintBusy
+              }
+              loading={printingLatestKot}
               onClick={() => void handleLatestKot()}
               title={
                 canViewKot
@@ -776,10 +817,28 @@ export default function TableOrdersPage() {
                   : "Open a table with items to print latest KOT"
               }
             >
-              {!printingLatestKot && !isPrinting ? (
+              {!printingLatestKot && !isPrintBusy ? (
                 <Printer className="mr-1.5 h-3.5 w-3.5" aria-hidden />
               ) : null}
               Latest KOT
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={!canPrintInterimBill}
+              loading={printingInterimBill}
+              onClick={() => void handlePrintInterimBill()}
+              title={
+                canPrintInterimBill
+                  ? "Print running total for the guest — does not take payment or close the table"
+                  : "Open a table with items to print an interim bill"
+              }
+            >
+              {!printingInterimBill ? (
+                <Receipt className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              ) : null}
+              Interim bill
             </Button>
             <Button
               type="button"
@@ -922,6 +981,12 @@ export default function TableOrdersPage() {
                       : undefined
                   }
                   movingToBill={movingToBill}
+                  onPrintInterimBill={
+                    session.status === "OPEN"
+                      ? () => void handlePrintInterimBill()
+                      : undefined
+                  }
+                  printingInterimBill={printingInterimBill}
                   onCancelBilling={
                     session.status === "IN_BILLING"
                       ? () => void handleCancelBilling()
@@ -1065,8 +1130,13 @@ export default function TableOrdersPage() {
       </Modal>
 
       <ThermalPrintHost open={printDocument != null}>
-        {printDocument ? (
-          <TableOrderKotReceipt batch={printDocument} id="table-order-latest-kot-print" />
+        {printDocument?.kind === "kot" ? (
+          <TableOrderKotReceipt batch={printDocument.batch} id="table-order-latest-kot-print" />
+        ) : printDocument?.kind === "interim" ? (
+          <TableOrderInterimReceipt
+            bill={printDocument.bill}
+            id="table-order-interim-bill-print"
+          />
         ) : null}
       </ThermalPrintHost>
     </section>

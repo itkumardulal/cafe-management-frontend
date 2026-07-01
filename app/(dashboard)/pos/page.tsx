@@ -19,6 +19,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ThermalPrintHost } from "@/src/features/printing/components/thermal-print-host";
 import { useThermalPrint } from "@/src/features/printing/hooks/use-thermal-print";
 import {
+  PosCreditCustomerSection,
+  type CreditCustomerMode,
+} from "@/src/components/pos/pos-credit-customer-section";
+import {
   buildInitialPaymentsFromCheckout,
   PosCheckoutPaymentSection,
   useCheckoutPaymentValidation,
@@ -119,12 +123,14 @@ function CollapsibleBlock({
   open,
   onToggle,
   hint,
+  compact,
   children,
 }: {
   title: string;
   open: boolean;
   onToggle: () => void;
   hint?: string;
+  compact?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -133,7 +139,8 @@ function CollapsibleBlock({
         type="button"
         onClick={onToggle}
         className={cn(
-          "flex w-full items-center justify-between gap-2 rounded-md py-2 text-left transition-colors hover:bg-[var(--color-cream-100)]/80",
+          "flex w-full items-center justify-between gap-2 rounded-md text-left transition-colors hover:bg-[var(--color-cream-100)]/80",
+          compact ? "py-1.5" : "py-2",
           focusRing,
         )}
       >
@@ -156,7 +163,9 @@ function CollapsibleBlock({
           />
         </span>
       </button>
-      {open ? <div className="pb-3 pt-0.5">{children}</div> : null}
+      {open ? (
+        <div className={compact ? "pb-1.5 pt-0" : "pb-3 pt-0.5"}>{children}</div>
+      ) : null}
     </div>
   );
 }
@@ -191,6 +200,8 @@ function PosPageContent() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [creditCustomerMode, setCreditCustomerMode] = useState<CreditCustomerMode>("existing");
   const [otherChargeStr, setOtherChargeStr] = useState("");
   const [discountMode, setDiscountMode] = useState<"none" | "amount" | "percent">("none");
   const [discountStr, setDiscountStr] = useState("");
@@ -214,6 +225,9 @@ function PosPageContent() {
     serviceType === "DELIVERY" ||
     checkoutPaymentType === "CREDIT" ||
     checkoutPaymentType === "PARTIALLY_PAID";
+
+  const isCreditCustomerFlow =
+    checkoutPaymentType === "CREDIT" || checkoutPaymentType === "PARTIALLY_PAID";
 
   useEffect(() => {
     if (needsCustomerDetails) {
@@ -522,6 +536,8 @@ function PosPageContent() {
     setCustomerPhone("");
     setCustomerEmail("");
     setCustomerAddress("");
+    setCustomerId(null);
+    setCreditCustomerMode("existing");
     setOtherChargeStr("");
     setDiscountMode("none");
     setDiscountStr("");
@@ -574,6 +590,7 @@ function PosPageContent() {
         ...(initialPayments.length > 0 ? { initialPayments } : {}),
         ...(serviceType === "DINE_IN" && tableId ? { tableId } : {}),
         ...(diningSessionIdParam ? { diningSessionId: diningSessionIdParam } : {}),
+        ...(customerId ? { customerId } : {}),
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         customerEmail: customerEmail.trim() || undefined,
@@ -1115,75 +1132,86 @@ function PosPageContent() {
 
               <section className={checkoutSectionGap}>
                 <CollapsibleBlock
-                  title="Customer details"
+                  title={isCreditCustomerFlow ? "Credit customer" : "Customer details"}
                   open={customerOpen}
                   onToggle={() => setCustomerOpen((o) => !o)}
                   hint={needsCustomerDetails ? "Required" : "Optional"}
+                  compact={isCreditCustomerFlow}
                 >
-                  <div className="grid gap-3">
-                    <Input
-                      placeholder="Customer name"
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
+                  {isCreditCustomerFlow ? (
+                    <PosCreditCustomerSection
+                      mode={creditCustomerMode}
+                      onModeChange={setCreditCustomerMode}
+                      customerId={customerId}
+                      onCustomerIdChange={setCustomerId}
+                      customerName={customerName}
+                      onCustomerNameChange={setCustomerName}
+                      customerPhone={customerPhone}
+                      onCustomerPhoneChange={setCustomerPhone}
+                      customerEmail={customerEmail}
+                      onCustomerEmailChange={setCustomerEmail}
+                      customerAddress={customerAddress}
+                      onCustomerAddressChange={setCustomerAddress}
+                      disabled={submitting}
                     />
-                    <Input
-                      placeholder="Phone number"
-                      inputMode="numeric"
-                      maxLength={10}
-                      value={customerPhone}
-                      onChange={(e) =>
-                        setCustomerPhone(e.target.value.replace(/\D/g, "").slice(0, 10))
-                      }
-                      onKeyDown={(e) => {
-                        const controlKeys = new Set([
-                          "Backspace",
-                          "Delete",
-                          "Tab",
-                          "ArrowLeft",
-                          "ArrowRight",
-                          "Home",
-                          "End",
-                        ]);
-                        if (controlKeys.has(e.key) || e.ctrlKey || e.metaKey) {
-                          return;
+                  ) : (
+                    <div className="grid gap-3">
+                      <Input
+                        placeholder="Customer name"
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                      />
+                      <Input
+                        placeholder="Phone number"
+                        inputMode="numeric"
+                        maxLength={10}
+                        value={customerPhone}
+                        onChange={(e) =>
+                          setCustomerPhone(e.target.value.replace(/\D/g, "").slice(0, 10))
                         }
-                        if (!/^\d$/.test(e.key)) {
+                        onKeyDown={(e) => {
+                          const controlKeys = new Set([
+                            "Backspace",
+                            "Delete",
+                            "Tab",
+                            "ArrowLeft",
+                            "ArrowRight",
+                            "Home",
+                            "End",
+                          ]);
+                          if (controlKeys.has(e.key) || e.ctrlKey || e.metaKey) {
+                            return;
+                          }
+                          if (!/^\d$/.test(e.key)) {
+                            e.preventDefault();
+                            return;
+                          }
+                          if (customerPhone.length >= 10) {
+                            e.preventDefault();
+                          }
+                        }}
+                        onPaste={(e) => {
                           e.preventDefault();
-                          return;
+                          const pasted = e.clipboardData.getData("text").replace(/\D/g, "");
+                          const next = `${customerPhone}${pasted}`.slice(0, 10);
+                          setCustomerPhone(next);
+                        }}
+                      />
+                      <Input
+                        placeholder={
+                          serviceType === "DELIVERY" ? "Delivery address" : "Address (optional)"
                         }
-                        if (customerPhone.length >= 10) {
-                          e.preventDefault();
-                        }
-                      }}
-                      onPaste={(e) => {
-                        e.preventDefault();
-                        const pasted = e.clipboardData.getData("text").replace(/\D/g, "");
-                        const next = `${customerPhone}${pasted}`.slice(0, 10);
-                        setCustomerPhone(next);
-                      }}
-                    />
-                    <Input
-                      placeholder={
-                        serviceType === "DELIVERY"
-                          ? "Delivery address"
-                          : checkoutPaymentType === "CREDIT" || checkoutPaymentType === "PARTIALLY_PAID"
-                            ? "Address"
-                            : "Address (optional)"
-                      }
-                      value={customerAddress}
-                      onChange={(e) => setCustomerAddress(e.target.value)}
-                    />
-                    <Input
-                      type="email"
-                      placeholder={
-                        checkoutPaymentType === "CREDIT" || checkoutPaymentType === "PARTIALLY_PAID"
-                          ? "Email"
-                          : "Email (optional)"
-                      }
-                      value={customerEmail}
-                      onChange={(e) => setCustomerEmail(e.target.value)}
-                    />
-                  </div>
+                        value={customerAddress}
+                        onChange={(e) => setCustomerAddress(e.target.value)}
+                      />
+                      <Input
+                        type="email"
+                        placeholder="Email (optional)"
+                        value={customerEmail}
+                        onChange={(e) => setCustomerEmail(e.target.value)}
+                      />
+                    </div>
+                  )}
                 </CollapsibleBlock>
               </section>
 

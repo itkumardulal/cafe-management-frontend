@@ -1,9 +1,12 @@
 import type { MenuItem } from "@/src/types/auth";
 import type { UserRole } from "@/src/types/auth";
 
-/** Matches backend `@RequireMenu('INVENTORY', 'MENU_ITEMS', 'STOCK_REMOVALS')`. */
+/** Matches backend inventory / stock-alert menu groups. */
 export const STOCK_ALERT_MENU_CODES = new Set([
   "INVENTORY",
+  "RAW_MATERIALS",
+  "RAW_MATERIAL_PURCHASES",
+  "DIRECT_PURCHASES",
   "MENU_ITEMS",
   "STOCK_REMOVALS",
 ]);

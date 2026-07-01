@@ -41,7 +41,6 @@ type Row = {
   unit?: string | null;
   description?: string | null;
   categoryName?: string | null;
-  openingStockDay1?: string | null;
   reorderLevel?: string | null;
   quantityOnHand: string;
   stockStatus: "ok" | "low" | "out";
@@ -371,9 +370,6 @@ function InventoryContent() {
               }
               fields={[
                 { label: "Type", value: kindBadge(item.itemKind) },
-                ...(item.itemKind === "MENU"
-                  ? [{ label: "Current stock", value: item.quantityOnHand }]
-                  : []),
                 { label: "On hand", value: item.quantityOnHand },
                 { label: "Reorder", value: item.reorderLevel ?? "—" },
                 { label: "Status", value: statusBadge(item.stockStatus) },
@@ -400,7 +396,6 @@ function InventoryContent() {
             headers={[
               "Name",
               { label: "Type", thClassName: tableCenterColumnClass },
-              { label: "Current stock", thClassName: tableCenterColumnClass },
               { label: "On hand", thClassName: tableCenterColumnClass },
               { label: "Reorder", thClassName: tableCenterColumnClass },
               { label: "Status", thClassName: tableCenterColumnClass },
@@ -418,9 +413,6 @@ function InventoryContent() {
                 </td>
                 <td className={cn(tableCenterCellClass, "px-4 py-4 align-middle")}>
                   {kindBadge(item.itemKind)}
-                </td>
-                <td className={cn(tableCenterCellClass, "px-4 py-4 align-middle")}>
-                  {item.itemKind === "MENU" ? item.quantityOnHand : "—"}
                 </td>
                 <td className={cn(tableCenterCellClass, "px-4 py-4 align-middle")}>
                   {item.quantityOnHand}

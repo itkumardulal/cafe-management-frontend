@@ -185,6 +185,8 @@ export type CustomerSearchHit = {
   id: string;
   name: string;
   phoneNumber: string;
+  email?: string | null;
+  address?: string | null;
   outstandingAmount: string;
 };
 

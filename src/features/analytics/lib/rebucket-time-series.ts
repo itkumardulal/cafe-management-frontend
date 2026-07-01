@@ -1,11 +1,14 @@
+import { getZonedDateParts } from "@/src/lib/app-timezone";
+
 export type ChartGranularity = "day" | "week" | "month";
 
 function weekStartKey(dateStr: string): string {
-  const d = new Date(`${dateStr}T00:00:00.000Z`);
-  const day = d.getUTCDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setUTCDate(d.getUTCDate() + diff);
-  return d.toISOString().slice(0, 10);
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const ref = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  const weekday = getZonedDateParts(ref).weekday;
+  const diff = weekday === 0 ? -6 : 1 - weekday;
+  const shifted = new Date(Date.UTC(year, month - 1, day + diff));
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, "0")}-${String(shifted.getUTCDate()).padStart(2, "0")}`;
 }
 
 function monthStartKey(dateStr: string): string {
